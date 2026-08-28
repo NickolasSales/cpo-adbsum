@@ -1,0 +1,141 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}{{ titulo }} - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  {% if prova %}
+    <a class="small text-decoration-none" href="{% url 'admin_panel:exam_detail' prova.pk %}">&larr; {{ prova.title }}</a>
+  {% else %}
+    <a class="small text-decoration-none" href="{% url 'admin_panel:exam_list' %}">&larr; Provas</a>
+  {% endif %}
+</nav>
+
+<div class="mb-3">
+  <h1 class="h4 mb-1">{{ titulo }}</h1>
+  <p class="text-body-secondary small mb-0">
+    A prova nasce como rascunho. Data, duracao e questoes podem ser preenchidas aos
+    poucos; a publicacao e que cobra tudo.
+  </p>
+</div>
+
+<div class="row">
+  <div class="col-12 col-lg-9 col-xl-8">
+    <form method="post" novalidate class="cpo-cartao p-3 p-md-4">
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger py-2 small">
+          {% for erro in form.non_field_errors %}<div>{{ erro }}</div>{% endfor %}
+        </div>
+      {% endif %}
+
+      <h2 class="h6 mb-3">Identificacao</h2>
+
+      <div class="mb-3">
+        <label for="{{ form.module.id_for_label }}" class="form-label small fw-medium mb-1">Modulo</label>
+        {{ form.module }}
+        {% if form.module.errors %}<div class="form-text text-danger">{{ form.module.errors.0 }}</div>{% endif %}
+      </div>
+
+      <div class="mb-3">
+        <label for="{{ form.title.id_for_label }}" class="form-label small fw-medium mb-1">Titulo</label>
+        {{ form.title }}
+        {% if form.title.errors %}<div class="form-text text-danger">{{ form.title.errors.0 }}</div>{% endif %}
+      </div>
+
+      <div class="mb-3">
+        <label for="{{ form.description.id_for_label }}" class="form-label small fw-medium mb-1">Descricao</label>
+        {{ form.description }}
+        <div class="form-text">Uso interno. Opcional.</div>
+      </div>
+
+      <div class="mb-4">
+        <label for="{{ form.instructions.id_for_label }}" class="form-label small fw-medium mb-1">Instrucoes para o aluno</label>
+        {{ form.instructions }}
+        <div class="form-text">Exibidas antes de iniciar a prova. Opcional.</div>
+      </div>
+
+      <hr class="my-4">
+      <h2 class="h6 mb-3">Janela e duracao</h2>
+
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-sm-4">
+          <label for="{{ form.open_at.id_for_label }}" class="form-label small fw-medium mb-1">Abertura</label>
+          {{ form.open_at }}
+          {% if form.open_at.errors %}<div class="form-text text-danger">{{ form.open_at.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-12 col-sm-4">
+          <label for="{{ form.close_at.id_for_label }}" class="form-label small fw-medium mb-1">Encerramento</label>
+          {{ form.close_at }}
+          {% if form.close_at.errors %}<div class="form-text text-danger">{{ form.close_at.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-12 col-sm-4">
+          <label for="{{ form.duration_minutes.id_for_label }}" class="form-label small fw-medium mb-1">Duracao (minutos)</label>
+          {{ form.duration_minutes }}
+          {% if form.duration_minutes.errors %}<div class="form-text text-danger">{{ form.duration_minutes.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+      <p class="form-text mb-4">Os tres campos sao obrigatorios para publicar.</p>
+
+      <hr class="my-4">
+      <h2 class="h6 mb-3">Avaliacao</h2>
+
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-sm-4">
+          <label for="{{ form.passing_score.id_for_label }}" class="form-label small fw-medium mb-1">Nota minima</label>
+          {{ form.passing_score }}
+          <div class="form-text">Escala de 0 a 10.</div>
+          {% if form.passing_score.errors %}<div class="form-text text-danger">{{ form.passing_score.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-12 col-sm-4">
+          <label for="{{ form.max_attempts.id_for_label }}" class="form-label small fw-medium mb-1">Tentativas</label>
+          {{ form.max_attempts }}
+          {% if form.max_attempts.errors %}<div class="form-text text-danger">{{ form.max_attempts.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <label for="{{ form.failure_message.id_for_label }}" class="form-label small fw-medium mb-1">Mensagem de reprovacao</label>
+        {{ form.failure_message }}
+        <div class="form-text">Exibida ao aluno que nao atingir a nota minima.</div>
+      </div>
+
+      <hr class="my-4">
+      <h2 class="h6 mb-3">Comportamento</h2>
+
+      <div class="form-check mb-2">
+        {{ form.randomize_questions }}
+        <label for="{{ form.randomize_questions.id_for_label }}" class="form-check-label">
+          Sortear a ordem das questoes
+        </label>
+      </div>
+      <div class="form-check mb-2">
+        {{ form.randomize_options }}
+        <label for="{{ form.randomize_options.id_for_label }}" class="form-check-label">
+          Sortear a ordem das alternativas
+        </label>
+      </div>
+      <div class="form-check mb-2">
+        {{ form.show_score_after_submission }}
+        <label for="{{ form.show_score_after_submission.id_for_label }}" class="form-check-label">
+          Mostrar a nota logo apos o envio
+        </label>
+      </div>
+      <p class="form-text mb-4">
+        O sorteio e a exibicao da nota passam a valer quando a realizacao da prova
+        pelo aluno existir. Aqui eles ficam apenas configurados.
+      </p>
+
+      <div class="d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary">Salvar</button>
+        {% if prova %}
+          <a class="btn btn-outline-secondary" href="{% url 'admin_panel:exam_detail' prova.pk %}">Cancelar</a>
+        {% else %}
+          <a class="btn btn-outline-secondary" href="{% url 'admin_panel:exam_list' %}">Cancelar</a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

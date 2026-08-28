@@ -10,6 +10,7 @@ from django.urls import path
 
 from common import views
 from courses import urls_admin as courses_admin
+from exams import urls_admin as exams_admin
 from students import urls_admin as students_admin
 
 app_name = "admin_panel"
@@ -18,4 +19,5 @@ urlpatterns = [
     path("", views.AdminDashboardView.as_view(), name="dashboard"),
     *students_admin.urlpatterns,
     *courses_admin.urlpatterns,
+    *exams_admin.urlpatterns,
 ]

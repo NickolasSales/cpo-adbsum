@@ -1,0 +1,333 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}{{ prova.title }} - Provas - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:exam_list' %}">&larr; Provas</a>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+      <h1 class="h4 mb-0">{{ prova.title }}</h1>
+      <span class="cpo-badge cpo-badge--neutro">v{{ prova.version }}</span>
+      {% include "admin_panel/exams/_status.html" %}
+    </div>
+    <p class="text-body-secondary small mb-0">
+      Modulo <code>{{ prova.module.code }}</code> &middot; {{ prova.module.name }}
+    </p>
+  </div>
+
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-sm btn-outline-secondary"
+       href="{% url 'admin_panel:question_list' prova.pk %}">Questoes ({{ questoes_ativas }})</a>
+    <a class="btn btn-sm btn-outline-secondary"
+       href="{% url 'admin_panel:exam_gabarito' prova.pk %}">Gabarito</a>
+    <a class="btn btn-sm btn-outline-secondary"
+       href="{% url 'admin_panel:exam_preview' prova.pk %}">Preview</a>
+    {% if prova.estrutura_editavel %}
+      <a class="btn btn-sm btn-outline-secondary"
+         href="{% url 'admin_panel:exam_update' prova.pk %}">Editar</a>
+    {% endif %}
+    <button type="button" class="btn btn-sm btn-outline-primary"
+            data-bs-toggle="modal" data-bs-target="#duplicarProva">Duplicar</button>
+  </div>
+</div>
+
+{% if not prova.module.is_active %}
+  <div class="alert alert-warning small" role="alert">
+    O modulo <strong>{{ prova.module.code }}</strong> esta inativo. A prova permanece no
+    historico, mas nao pode ser publicada enquanto o modulo nao for reativado.
+  </div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-12 col-lg-7">
+    <div class="cpo-cartao p-3 p-md-4 h-100">
+      <h2 class="h6 mb-3">Resumo</h2>
+      <dl class="row mb-0 small">
+        <dt class="col-6 col-sm-5 fw-medium">Questoes</dt>
+        <dd class="col-6 col-sm-7">
+          {{ questoes_ativas }} ativa(s)
+          {% if questoes_totais != questoes_ativas %}
+            <span class="text-body-secondary">de {{ questoes_totais }} cadastrada(s)</span>
+          {% endif %}
+        </dd>
+
+        <dt class="col-6 col-sm-5 fw-medium">Total de pontos</dt>
+        <dd class="col-6 col-sm-7">
+          {{ pontos }}
+          {% if prova.e_rascunho %}
+            <span class="text-body-secondary">(soma corrente; sera congelada na publicacao)</span>
+          {% else %}
+            <span class="text-body-secondary">(congelado na publicacao)</span>
+          {% endif %}
+        </dd>
+
+        <dt class="col-6 col-sm-5 fw-medium">Nota minima</dt>
+        <dd class="col-6 col-sm-7">{{ prova.passing_score }} / 10</dd>
+
+        <dt class="col-6 col-sm-5 fw-medium">Duracao</dt>
+        <dd class="col-6 col-sm-7">
+          {% if prova.duration_minutes %}{{ prova.duration_minutes }} minutos{% else %}
+            <span class="text-danger">nao definida</span>{% endif %}
+        </dd>
+
+        <dt class="col-6 col-sm-5 fw-medium">Abertura</dt>
+        <dd class="col-6 col-sm-7">
+          {% if prova.open_at %}{{ prova.open_at|date:"d/m/Y H:i" }}{% else %}
+            <span class="text-danger">nao definida</span>{% endif %}
+        </dd>
+
+        <dt class="col-6 col-sm-5 fw-medium">Encerramento</dt>
+        <dd class="col-6 col-sm-7">
+          {% if prova.close_at %}{{ prova.close_at|date:"d/m/Y H:i" }}{% else %}
+            <span class="text-danger">nao definido</span>{% endif %}
+        </dd>
+
+        <dt class="col-6 col-sm-5 fw-medium">Tentativas</dt>
+        <dd class="col-6 col-sm-7">{{ prova.max_attempts }}</dd>
+
+        <dt class="col-6 col-sm-5 fw-medium">Senha da prova</dt>
+        <dd class="col-6 col-sm-7">
+          {% if prova.tem_senha %}
+            <span class="cpo-badge cpo-badge--info">Configurada</span>
+          {% else %}
+            <span class="text-body-secondary">Sem senha</span>
+          {% endif %}
+        </dd>
+
+        <dt class="col-6 col-sm-5 fw-medium">Randomizacao</dt>
+        <dd class="col-6 col-sm-7">
+          Questoes: {% if prova.randomize_questions %}sim{% else %}nao{% endif %} &middot;
+          Alternativas: {% if prova.randomize_options %}sim{% else %}nao{% endif %}
+        </dd>
+
+        <dt class="col-6 col-sm-5 fw-medium">Mostrar nota apos envio</dt>
+        <dd class="col-6 col-sm-7">{% if prova.show_score_after_submission %}Sim{% else %}Nao{% endif %}</dd>
+
+        {% if prova.published_at %}
+          <dt class="col-6 col-sm-5 fw-medium">Publicada em</dt>
+          <dd class="col-6 col-sm-7">{{ prova.published_at|date:"d/m/Y H:i" }}</dd>
+        {% endif %}
+        {% if prova.closed_at %}
+          <dt class="col-6 col-sm-5 fw-medium">Fechada em</dt>
+          <dd class="col-6 col-sm-7">{{ prova.closed_at|date:"d/m/Y H:i" }}</dd>
+        {% endif %}
+      </dl>
+
+      {% if prova.description %}
+        <hr class="my-3">
+        <h3 class="h6 mb-1">Descricao</h3>
+        <p class="small text-body-secondary mb-0">{{ prova.description|linebreaksbr }}</p>
+      {% endif %}
+      {% if prova.instructions %}
+        <hr class="my-3">
+        <h3 class="h6 mb-1">Instrucoes para o aluno</h3>
+        <p class="small text-body-secondary mb-0">{{ prova.instructions|linebreaksbr }}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-5">
+    <div class="cpo-cartao p-3 p-md-4 mb-3">
+      <h2 class="h6 mb-3">Situacao</h2>
+
+      {% if prova.e_rascunho %}
+        {% if pendencias %}
+          <div class="alert alert-warning small mb-3" role="alert">
+            <p class="fw-medium mb-1">Ainda nao e possivel publicar:</p>
+            <ul class="mb-0 ps-3">
+              {% for pendencia in pendencias %}<li>{{ pendencia }}</li>{% endfor %}
+            </ul>
+          </div>
+          <button type="button" class="btn btn-primary w-100" disabled>Publicar</button>
+        {% else %}
+          <p class="small text-body-secondary">
+            A prova esta pronta para publicacao. Depois de publicada, a estrutura fica
+            congelada: questoes, alternativas, gabarito, pontos e modulo nao mudam mais.
+          </p>
+          <button type="button" class="btn btn-primary w-100"
+                  data-bs-toggle="modal" data-bs-target="#publicarProva">Publicar</button>
+        {% endif %}
+
+      {% elif prova.e_publicada %}
+        <p class="small text-body-secondary">
+          Prova publicada. A estrutura esta congelada. Para alterar qualquer coisa,
+          duplique-a e edite a versao nova.
+        </p>
+        <button type="button" class="btn btn-outline-danger w-100"
+                data-bs-toggle="modal" data-bs-target="#fecharProva">Fechar prova</button>
+
+      {% else %}
+        <p class="small text-body-secondary mb-0">
+          Prova fechada. Somente leitura. Duplique-a para criar uma versao nova.
+        </p>
+      {% endif %}
+    </div>
+
+    {% if not prova.e_fechada %}
+      <div class="cpo-cartao p-3 p-md-4 mb-3">
+        <h2 class="h6 mb-2">Senha de acesso</h2>
+        {% if prova.tem_senha %}
+          <p class="small text-body-secondary">
+            Senha configurada. Ela nao pode ser exibida de novo: o sistema guarda
+            apenas o hash. Se ninguem souber mais qual e, defina uma nova.
+          </p>
+          <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-sm btn-outline-secondary"
+               href="{% url 'admin_panel:exam_password' prova.pk %}">Alterar senha</a>
+            <button type="button" class="btn btn-sm btn-outline-danger"
+                    data-bs-toggle="modal" data-bs-target="#removerSenha">Remover senha</button>
+          </div>
+        {% else %}
+          <p class="small text-body-secondary">
+            A prova nao exige senha. Configure uma se quiser controlar o momento em
+            que a turma comeca.
+          </p>
+          <a class="btn btn-sm btn-outline-secondary"
+             href="{% url 'admin_panel:exam_password' prova.pk %}">Definir senha</a>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <div class="cpo-cartao p-3 p-md-4">
+      <h2 class="h6 mb-2">Versoes</h2>
+      <ul class="list-unstyled mb-0 small">
+        {% for versao in linhagem %}
+          <li class="d-flex justify-content-between align-items-center gap-2 py-1">
+            <span>
+              {% if versao.pk == prova.pk %}
+                <strong>v{{ versao.version }}</strong> <span class="text-body-secondary">(esta)</span>
+              {% else %}
+                <a class="text-decoration-none"
+                   href="{% url 'admin_panel:exam_detail' versao.pk %}">v{{ versao.version }}</a>
+              {% endif %}
+            </span>
+            {% include "admin_panel/exams/_status.html" with prova=versao %}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+{% comment %}
+Confirmacoes. O modal e conveniencia de interface; a protecao real e o POST
+com CSRF mais a validacao no servico, que roda de qualquer forma.
+{% endcomment %}
+
+<div class="modal fade" id="duplicarProva" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title h6">Duplicar prova</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Criar uma nova versao a partir de <strong>{{ prova.title }} v{{ prova.version }}</strong>?</p>
+        <p class="small text-body-secondary mb-0">
+          A copia inclui configuracoes, questoes, alternativas e gabarito, e nasce como
+          rascunho, com numero de versao novo. As duas versoes ficam independentes:
+          editar a copia nao altera esta prova.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <form method="post" action="{% url 'admin_panel:exam_duplicate' prova.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-primary">Duplicar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if prova.e_rascunho and not pendencias %}
+  <div class="modal fade" id="publicarProva" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h6">Publicar prova</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Confira antes de publicar:</p>
+          <ul class="small mb-2 ps-3">
+            <li>Questoes: <strong>{{ questoes_ativas }}</strong></li>
+            <li>Total: <strong>{{ pontos }} pontos</strong></li>
+            <li>Nota minima: <strong>{{ prova.passing_score }} / 10</strong></li>
+            <li>Duracao: <strong>{{ prova.duration_minutes }} minutos</strong></li>
+            <li>Abertura: <strong>{{ prova.open_at|date:"d/m/Y H:i" }}</strong></li>
+            <li>Encerramento: <strong>{{ prova.close_at|date:"d/m/Y H:i" }}</strong></li>
+            <li>Senha: <strong>{% if prova.tem_senha %}configurada{% else %}nao configurada{% endif %}</strong></li>
+          </ul>
+          <p class="small text-body-secondary mb-0">
+            Depois de publicada, a estrutura fica congelada.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <form method="post" action="{% url 'admin_panel:exam_publish' prova.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-primary">Publicar</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+{% if prova.e_publicada %}
+  <div class="modal fade" id="fecharProva" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h6">Fechar prova</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Fechar <strong>{{ prova.title }} v{{ prova.version }}</strong>?</p>
+          <p class="small text-body-secondary mb-0">
+            Nada e excluido. A prova passa a ser somente leitura e nao pode voltar a
+            ser publicada; para aplicar de novo, duplique-a.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <form method="post" action="{% url 'admin_panel:exam_close' prova.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-danger">Fechar prova</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+{% if prova.tem_senha and not prova.e_fechada %}
+  <div class="modal fade" id="removerSenha" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h6">Remover senha</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-0 small">
+            A prova deixara de exigir senha de acesso. Voce pode configurar outra depois.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <form method="post" action="{% url 'admin_panel:exam_password_remove' prova.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-danger">Remover senha</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

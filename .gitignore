@@ -42,6 +42,8 @@ db.sqlite3-journal
 # Backups e dumps
 *.sql
 *.dump
+# *.dump nao cobre o arquivo de checksum, que termina em .sha256
+*.dump.sha256
 *.bak
 backups/
 

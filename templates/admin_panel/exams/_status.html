@@ -1,0 +1,13 @@
+{% comment %}
+Badge de situacao da prova. Include unico para que rascunho, publicada e
+fechada tenham sempre a mesma cor e o mesmo rotulo em toda a interface.
+
+Espera a variavel `prova` no contexto.
+{% endcomment %}
+{% if prova.status == "DRAFT" %}
+  <span class="cpo-badge cpo-badge--neutro">Rascunho</span>
+{% elif prova.status == "PUBLISHED" %}
+  <span class="cpo-badge cpo-badge--ok">Publicada</span>
+{% else %}
+  <span class="cpo-badge cpo-badge--info">Fechada</span>
+{% endif %}

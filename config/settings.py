@@ -92,6 +92,7 @@ LOCAL_APPS = [
     "audit",
     "students",
     "courses",
+    "exams",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + LOCAL_APPS

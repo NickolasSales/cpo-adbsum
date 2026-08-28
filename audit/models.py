@@ -38,6 +38,21 @@ class AuditEvent(models.TextChoices):
     ENROLLMENT_UNBLOCKED = "ENROLLMENT_UNBLOCKED", "Acesso da matricula liberado"
     ENROLLMENT_COMPLETED = "ENROLLMENT_COMPLETED", "Matricula concluida"
 
+    # Provas (Etapa 3)
+    EXAM_CREATED = "EXAM_CREATED", "Prova criada"
+    EXAM_UPDATED = "EXAM_UPDATED", "Prova atualizada"
+    EXAM_PUBLISHED = "EXAM_PUBLISHED", "Prova publicada"
+    EXAM_CLOSED = "EXAM_CLOSED", "Prova fechada"
+    EXAM_DUPLICATED = "EXAM_DUPLICATED", "Prova duplicada"
+    # Registram apenas o fato de a senha ter mudado. Nem a senha, nem o hash,
+    # nem o comprimento entram na metadata.
+    EXAM_PASSWORD_CHANGED = "EXAM_PASSWORD_CHANGED", "Senha da prova alterada"
+    EXAM_PASSWORD_REMOVED = "EXAM_PASSWORD_REMOVED", "Senha da prova removida"
+
+    QUESTION_CREATED = "QUESTION_CREATED", "Questao criada"
+    QUESTION_UPDATED = "QUESTION_UPDATED", "Questao atualizada"
+    QUESTION_DELETED = "QUESTION_DELETED", "Questao excluida"
+
 
 class AuditLog(models.Model):
     """

@@ -1,0 +1,96 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}Preview - {{ prova.title }} - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% comment %}
+Preview: a prova como o aluno a vera.
+
+Este template recebe as estruturas de exams.selectors, que nao possuem
+is_correct nem internal_explanation. Nao existe "versao de preview" dos dados —
+sao exatamente os mesmos que a tela do aluno usara na Etapa 4, e e por isso que
+testar vazamento aqui vale alguma coisa.
+
+Regra ao mexer neste arquivo: nada pode variar conforme a resposta certa. Nem
+classe, nem atributo, nem ordem, nem espaco em branco. Ha um teste que renderiza
+a mesma prova duas vezes, trocando qual alternativa e a correta entre uma e
+outra, e exige que o HTML saia identico.
+{% endcomment %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:exam_detail' prova.pk %}">&larr; {{ prova.title }}</a>
+</nav>
+
+<div class="alert alert-info small d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
+  <span>
+    Visualizacao administrativa. E assim que o aluno vera a prova &mdash;
+    sem gabarito e sem as explicacoes internas.
+  </span>
+  <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:exam_gabarito' prova.pk %}">
+    Ver o gabarito
+  </a>
+</div>
+
+<div class="cpo-cartao p-3 p-md-4 mb-3">
+  <h1 class="h4 mb-1">{{ prova.title }}</h1>
+  <p class="text-body-secondary small mb-2">{{ prova.module.name }}</p>
+  <ul class="list-inline small text-body-secondary mb-0">
+    <li class="list-inline-item">{{ questoes|length }} questao(oes)</li>
+    {% if prova.duration_minutes %}
+      <li class="list-inline-item">&middot; {{ prova.duration_minutes }} minutos</li>
+    {% endif %}
+    <li class="list-inline-item">&middot; nota minima {{ prova.passing_score }} / 10</li>
+  </ul>
+
+  {% if prova.instructions %}
+    <hr class="my-3">
+    <p class="mb-0">{{ prova.instructions|linebreaksbr }}</p>
+  {% endif %}
+</div>
+
+{% for questao in questoes %}
+  <div class="cpo-cartao p-3 p-md-4 mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+      <span class="fw-medium">Questao {{ questao.numero }}</span>
+      <span class="small text-body-secondary">
+        {{ questao.points }} ponto(s){% if not questao.required %} &middot; opcional{% endif %}
+      </span>
+    </div>
+
+    <p class="mb-3">{{ questao.text|linebreaksbr }}</p>
+
+    {% if questao.usa_alternativas %}
+      {% if questao.multipla %}
+        <p class="small text-body-secondary mb-2">Marque todas as alternativas corretas.</p>
+      {% endif %}
+      {% for opcao in questao.options %}
+        <div class="form-check mb-2">
+          <input class="form-check-input"
+                 type="{% if questao.multipla %}checkbox{% else %}radio{% endif %}"
+                 name="questao_{{ questao.id }}"
+                 id="opcao_{{ opcao.id }}"
+                 value="{{ opcao.id }}"
+                 disabled>
+          <label class="form-check-label" for="opcao_{{ opcao.id }}">{{ opcao.text }}</label>
+        </div>
+      {% endfor %}
+    {% elif questao.type == "SHORT_TEXT" %}
+      <input type="text" class="form-control" placeholder="Resposta do aluno" disabled>
+    {% else %}
+      <textarea class="form-control" rows="5" placeholder="Resposta do aluno" disabled></textarea>
+    {% endif %}
+  </div>
+{% empty %}
+  <div class="cpo-cartao p-4 text-center text-body-secondary">
+    A prova ainda nao possui questoes ativas.
+  </div>
+{% endfor %}
+
+<div class="cpo-cartao p-3 p-md-4">
+  <button type="button" class="btn btn-primary" disabled>Enviar prova</button>
+  <p class="form-text mb-0">
+    Botao desabilitado: esta e uma visualizacao. A realizacao da prova pelo aluno
+    sera implementada na proxima etapa.
+  </p>
+</div>
+{% endblock %}

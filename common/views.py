@@ -92,6 +92,7 @@ class AdminDashboardView(PainelAdminMixin, TemplateView):
     def get_context_data(self, **kwargs):
         from accounts.models import User, UserRole
         from courses.models import Module
+        from exams.models import Exam, ExamStatus
 
         contexto = super().get_context_data(**kwargs)
 
@@ -102,6 +103,10 @@ class AdminDashboardView(PainelAdminMixin, TemplateView):
         modulos = Module.objects.all()
         total_modulos = modulos.count()
         modulos_ativos = modulos.filter(is_active=True).count()
+
+        provas = Exam.objects.all()
+        total_provas = provas.count()
+        provas_publicadas = provas.filter(status=ExamStatus.PUBLISHED).count()
 
         # Cards com valor real ganham link. Os dominios ainda inexistentes
         # continuam sem numero e sem destino, para nao prometer tela que nao
@@ -119,7 +124,12 @@ class AdminDashboardView(PainelAdminMixin, TemplateView):
                 "nota": "{} ativo(s)".format(modulos_ativos),
                 "url": "admin_panel:module_list",
             },
-            {"titulo": "Provas", "etapa": "Etapa 3"},
+            {
+                "titulo": "Provas",
+                "valor": total_provas,
+                "nota": "{} publicada(s)".format(provas_publicadas),
+                "url": "admin_panel:exam_list",
+            },
             {"titulo": "Aguardando correcao", "etapa": "Etapa 5"},
             {"titulo": "Certificados", "etapa": "Etapa 6"},
         ]

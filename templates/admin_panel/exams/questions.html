@@ -1,0 +1,126 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}Questoes - {{ prova.title }} - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:exam_detail' prova.pk %}">&larr; {{ prova.title }}</a>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+      <h1 class="h4 mb-0">Questoes</h1>
+      <span class="cpo-badge cpo-badge--neutro">v{{ prova.version }}</span>
+      {% include "admin_panel/exams/_status.html" %}
+    </div>
+    <p class="text-body-secondary small mb-0">
+      Total atual da prova: <strong>{{ pontos }} pontos</strong>
+      {% if prova.e_rascunho %}
+        <span class="text-body-secondary">(soma corrente das questoes ativas)</span>
+      {% endif %}
+    </p>
+  </div>
+  {% if prova.estrutura_editavel %}
+    <a class="btn btn-primary btn-sm" href="{% url 'admin_panel:question_create' prova.pk %}">Nova questao</a>
+  {% endif %}
+</div>
+
+{% if not prova.estrutura_editavel %}
+  <div class="alert alert-info small" role="alert">
+    A prova esta <strong>{{ prova.get_status_display|lower }}</strong>. As questoes ficam
+    somente leitura: enunciado, alternativas, gabarito e pontuacao nao podem mais mudar.
+    Para alterar, duplique a prova e edite a versao nova.
+  </div>
+{% endif %}
+
+<div class="cpo-cartao">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 cpo-tabela">
+      <thead>
+        <tr>
+          <th class="text-center">Ordem</th>
+          <th class="d-none d-md-table-cell">Tipo</th>
+          <th>Enunciado</th>
+          <th class="text-end">Valor</th>
+          <th class="text-center d-none d-sm-table-cell">Obrigatoria</th>
+          <th class="text-center d-none d-sm-table-cell">Ativa</th>
+          <th class="text-end">Acoes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for questao in questoes %}
+          <tr>
+            <td class="text-center">{{ questao.order }}</td>
+            <td class="d-none d-md-table-cell small">{{ questao.get_type_display }}</td>
+            <td>
+              {{ questao.text|truncatechars:90 }}
+              <div class="d-md-none small text-body-secondary">{{ questao.get_type_display }}</div>
+              {% if questao.usa_alternativas %}
+                <div class="small text-body-secondary">{{ questao.options.all|length }} alternativa(s)</div>
+              {% endif %}
+            </td>
+            <td class="text-end">{{ questao.points }}</td>
+            <td class="text-center d-none d-sm-table-cell">
+              {% if questao.required %}Sim{% else %}Nao{% endif %}
+            </td>
+            <td class="text-center d-none d-sm-table-cell">
+              {% if questao.active %}
+                <span class="cpo-badge cpo-badge--ok">Ativa</span>
+              {% else %}
+                <span class="cpo-badge cpo-badge--neutro">Inativa</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              {% if prova.estrutura_editavel %}
+                <div class="d-flex gap-1 justify-content-end">
+                  <a class="btn btn-sm btn-outline-secondary"
+                     href="{% url 'admin_panel:question_update' prova.pk questao.pk %}">Editar</a>
+                  <button type="button" class="btn btn-sm btn-outline-danger"
+                          data-bs-toggle="modal" data-bs-target="#excluir{{ questao.pk }}">Excluir</button>
+                </div>
+              {% else %}
+                <span class="small text-body-secondary">somente leitura</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" class="text-center text-body-secondary py-5">
+              Nenhuma questao cadastrada ainda.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if prova.estrutura_editavel %}
+  {% for questao in questoes %}
+    <div class="modal fade" id="excluir{{ questao.pk }}" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2 class="modal-title h6">Excluir questao</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-2">Tem certeza que deseja excluir esta questao?</p>
+            <p class="small text-body-secondary mb-0">
+              {{ questao.text|truncatechars:120 }}
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <form method="post" action="{% url 'admin_panel:question_delete' prova.pk questao.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-danger">Excluir</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+{% endif %}
+{% endblock %}

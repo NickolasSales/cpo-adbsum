@@ -1,0 +1,175 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}{{ titulo }} - {{ prova.title }} - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none"
+     href="{% url 'admin_panel:question_list' prova.pk %}">&larr; Questoes de {{ prova.title }}</a>
+</nav>
+
+<div class="mb-3">
+  <h1 class="h4 mb-1">{{ titulo }}</h1>
+  <p class="text-body-secondary small mb-0">
+    Os campos mudam conforme o tipo escolhido. A validacao definitiva e feita pelo
+    servidor ao salvar.
+  </p>
+</div>
+
+<div class="row">
+  <div class="col-12 col-lg-9 col-xl-8">
+    <form method="post" novalidate class="cpo-cartao p-3 p-md-4">
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger py-2 small">
+          {% for erro in form.non_field_errors %}<div>{{ erro }}</div>{% endfor %}
+        </div>
+      {% endif %}
+
+      <div class="mb-3">
+        <label for="{{ form.type.id_for_label }}" class="form-label small fw-medium mb-1">Tipo</label>
+        {{ form.type }}
+        {% if form.type.errors %}<div class="form-text text-danger">{{ form.type.errors.0 }}</div>{% endif %}
+      </div>
+
+      <div class="mb-3">
+        <label for="{{ form.text.id_for_label }}" class="form-label small fw-medium mb-1">Enunciado</label>
+        {{ form.text }}
+        {% if form.text.errors %}<div class="form-text text-danger">{{ form.text.errors.0 }}</div>{% endif %}
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-sm-4">
+          <label for="{{ form.points.id_for_label }}" class="form-label small fw-medium mb-1">Valor</label>
+          {{ form.points }}
+          {% if form.points.errors %}<div class="form-text text-danger">{{ form.points.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-6 col-sm-4">
+          <label for="{{ form.order.id_for_label }}" class="form-label small fw-medium mb-1">Ordem</label>
+          {{ form.order }}
+          {% if form.order.errors %}<div class="form-text text-danger">{{ form.order.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="d-flex flex-wrap gap-4 mb-4">
+        <div class="form-check">
+          {{ form.required }}
+          <label for="{{ form.required.id_for_label }}" class="form-check-label">Obrigatoria</label>
+        </div>
+        <div class="form-check">
+          {{ form.active }}
+          <label for="{{ form.active.id_for_label }}" class="form-check-label">Ativa</label>
+        </div>
+      </div>
+
+      {% comment %}
+      Bloco de Verdadeiro ou Falso. Os textos das alternativas sao fixos e criados
+      pelo backend; aqui o administrador escolhe apenas qual e a correta.
+      {% endcomment %}
+      <div id="bloco-vf" class="mb-4 d-none">
+        <hr class="my-4">
+        <h2 class="h6 mb-2">Resposta correta</h2>
+        {{ form.resposta_verdadeira }}
+        {% if form.resposta_verdadeira.errors %}
+          <div class="form-text text-danger">{{ form.resposta_verdadeira.errors.0 }}</div>
+        {% endif %}
+        <div class="form-text">
+          As alternativas "Verdadeiro" e "Falso" sao criadas automaticamente e nao
+          podem ser renomeadas.
+        </div>
+      </div>
+
+      {% comment %}
+      Bloco de alternativas, para escolha unica e multiplas respostas. Formset
+      simples: cinco linhas na mesma tela, sem precisar navegar por varias paginas
+      para cadastrar uma questao. Linhas em branco sao descartadas ao salvar.
+      {% endcomment %}
+      <div id="bloco-alternativas" class="mb-4 d-none">
+        <hr class="my-4">
+        <h2 class="h6 mb-1">Alternativas</h2>
+        <p class="form-text mb-3">
+          Marque a coluna "Correta" no gabarito. Escolha unica aceita exatamente uma
+          correta; multiplas respostas aceita mais de uma, mas nunca todas.
+        </p>
+
+        {{ formset.management_form }}
+        {% if formset.non_form_errors %}
+          <div class="alert alert-danger py-2 small">
+            {% for erro in formset.non_form_errors %}<div>{{ erro }}</div>{% endfor %}
+          </div>
+        {% endif %}
+
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th style="width:3rem" class="text-center">#</th>
+                <th>Texto</th>
+                <th style="width:6rem" class="text-center">Correta</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for subform in formset %}
+                <tr>
+                  <td class="text-center text-body-secondary">{{ forloop.counter }}</td>
+                  <td>
+                    {{ subform.text }}
+                    {% if subform.text.errors %}
+                      <div class="form-text text-danger">{{ subform.text.errors.0 }}</div>
+                    {% endif %}
+                  </td>
+                  <td class="text-center">{{ subform.is_correct }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <hr class="my-4">
+      <div class="mb-4">
+        <label for="{{ form.internal_explanation.id_for_label }}" class="form-label small fw-medium mb-1">
+          Explicacao interna
+        </label>
+        {{ form.internal_explanation }}
+        <div class="form-text">
+          Somente para a equipe administrativa. Nunca e enviada ao aluno nem aparece
+          no preview.
+        </div>
+      </div>
+
+      <div class="d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary">Salvar</button>
+        <a class="btn btn-outline-secondary"
+           href="{% url 'admin_panel:question_list' prova.pk %}">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% comment %}
+JavaScript apenas de conveniencia: mostra e esconde blocos conforme o tipo. Sem
+ele o formulario continua funcionando, apenas exibindo campos que aquele tipo nao
+usa. Nenhuma regra depende deste script — quem valida e o backend.
+{% endcomment %}
+<script>
+  (function () {
+    var tipo = document.getElementById("id_type");
+    var alternativas = document.getElementById("bloco-alternativas");
+    var vf = document.getElementById("bloco-vf");
+    if (!tipo || !alternativas || !vf) { return; }
+
+    function ajustar() {
+      var valor = tipo.value;
+      alternativas.classList.toggle(
+        "d-none", !(valor === "SINGLE_CHOICE" || valor === "MULTIPLE_CHOICE")
+      );
+      vf.classList.toggle("d-none", valor !== "TRUE_FALSE");
+    }
+
+    tipo.addEventListener("change", ajustar);
+    ajustar();
+  })();
+</script>
+{% endblock %}

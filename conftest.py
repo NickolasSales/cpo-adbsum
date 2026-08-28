@@ -151,3 +151,125 @@ def matricula(db, student_user, modulo):
     from courses.services import create_enrollment
 
     return create_enrollment(student=student_user, module=modulo)
+
+
+# ---------------------------------------------------------------------------
+# Provas (Etapa 3)
+# ---------------------------------------------------------------------------
+
+# Pontuacoes escolhidas para somar exatamente 10.00 em Decimal. Servem para
+# provar que a soma nao passa por float em nenhum ponto: 2.50 + 3.25 + 1.25 +
+# 1.50 + 1.50 em binario daria 9.999999999999998.
+PONTOS_DAS_QUESTOES = ("2.50", "3.25", "1.25", "1.50", "1.50")
+TOTAL_ESPERADO = "10.00"
+
+
+@pytest.fixture
+def janela(db):
+    """Abertura e encerramento validos, no futuro."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    agora = timezone.now()
+    return agora + timedelta(days=1), agora + timedelta(days=2)
+
+
+@pytest.fixture
+def prova(db, modulo, admin_user, janela):
+    """Prova em rascunho, configurada e sem questoes."""
+    from decimal import Decimal
+
+    from exams.services import create_exam
+
+    abertura, encerramento = janela
+    return create_exam(
+        module=modulo,
+        title="Avaliacao Modulo 1",
+        description="",
+        instructions="Leia com atencao.",
+        open_at=abertura,
+        close_at=encerramento,
+        duration_minutes=60,
+        passing_score=Decimal("8.00"),
+        max_attempts=1,
+        failure_message="",
+        randomize_questions=False,
+        randomize_options=False,
+        show_score_after_submission=True,
+        actor=admin_user,
+    )
+
+
+@pytest.fixture
+def prova_pronta(db, prova, admin_user):
+    """
+    Rascunho com uma questao de cada tipo, valida para publicacao.
+
+    E a prova usada na maioria dos testes de publicacao, duplicacao e
+    vazamento, porque exercita os cinco tipos de uma vez.
+    """
+    from exams.models import QuestionType
+    from exams.services import create_question
+
+    create_question(
+        prova,
+        type=QuestionType.SINGLE_CHOICE,
+        text="Qual e a capital do Brasil?",
+        points=PONTOS_DAS_QUESTOES[0],
+        order=1,
+        opcoes=[
+            {"text": "Brasilia", "is_correct": True},
+            {"text": "Rio de Janeiro", "is_correct": False},
+            {"text": "Salvador", "is_correct": False},
+        ],
+        internal_explanation="Referencia: apostila 1, pagina 12.",
+        actor=admin_user,
+    )
+    create_question(
+        prova,
+        type=QuestionType.MULTIPLE_CHOICE,
+        text="Quais destes sao numeros primos?",
+        points=PONTOS_DAS_QUESTOES[1],
+        order=2,
+        opcoes=[
+            {"text": "2", "is_correct": True},
+            {"text": "3", "is_correct": True},
+            {"text": "4", "is_correct": False},
+        ],
+        actor=admin_user,
+    )
+    create_question(
+        prova,
+        type=QuestionType.TRUE_FALSE,
+        text="A Terra e plana.",
+        points=PONTOS_DAS_QUESTOES[2],
+        order=3,
+        resposta_verdadeira=False,
+        actor=admin_user,
+    )
+    create_question(
+        prova,
+        type=QuestionType.SHORT_TEXT,
+        text="Cite um bioma brasileiro.",
+        points=PONTOS_DAS_QUESTOES[3],
+        order=4,
+        actor=admin_user,
+    )
+    create_question(
+        prova,
+        type=QuestionType.ESSAY,
+        text="Disserte sobre a importancia do tema.",
+        points=PONTOS_DAS_QUESTOES[4],
+        order=5,
+        internal_explanation="Avaliar coesao e uso dos conceitos.",
+        actor=admin_user,
+    )
+    return prova
+
+
+@pytest.fixture
+def prova_publicada(db, prova_pronta, admin_user):
+    from exams.services import publish_exam
+
+    return publish_exam(prova_pronta, actor=admin_user)

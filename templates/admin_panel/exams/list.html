@@ -1,0 +1,127 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}Provas - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">Provas</h1>
+    <p class="text-body-secondary small mb-0">{{ total_geral }} prova(s) cadastrada(s).</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-primary btn-sm" href="{% url 'admin_panel:exam_create' %}">Nova prova</a>
+  </div>
+</div>
+
+<form method="get" class="cpo-cartao p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-md">
+      <label for="q" class="form-label small fw-medium mb-1">Buscar</label>
+      <input type="search" id="q" name="q" value="{{ busca }}" class="form-control form-control-sm"
+             placeholder="Titulo da prova">
+    </div>
+    <div class="col-6 col-md-3">
+      <label for="modulo" class="form-label small fw-medium mb-1">Modulo</label>
+      <select id="modulo" name="modulo" class="form-select form-select-sm">
+        <option value="">Todos</option>
+        {% for modulo in modulos %}
+          <option value="{{ modulo.pk }}" {% if filtro_modulo == modulo.pk|stringformat:"s" %}selected{% endif %}>
+            {{ modulo.code }} - {{ modulo.name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-3">
+      <label for="situacao" class="form-label small fw-medium mb-1">Situacao</label>
+      <select id="situacao" name="situacao" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        {% for valor, rotulo in situacoes %}
+          <option value="{{ valor }}" {% if filtro_situacao == valor %}selected{% endif %}>{{ rotulo }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-auto d-flex gap-2">
+      <button type="submit" class="btn btn-sm btn-primary w-100">Filtrar</button>
+      {% if busca or filtro_modulo or filtro_situacao %}
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:exam_list' %}">Limpar</a>
+      {% endif %}
+    </div>
+  </div>
+</form>
+
+<div class="cpo-cartao">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 cpo-tabela">
+      <thead>
+        <tr>
+          <th>Titulo</th>
+          <th class="d-none d-md-table-cell">Modulo</th>
+          <th class="text-center">Versao</th>
+          <th>Situacao</th>
+          <th class="d-none d-lg-table-cell">Janela</th>
+          <th class="text-center d-none d-lg-table-cell">Duracao</th>
+          <th class="text-center d-none d-sm-table-cell">Questoes</th>
+          <th class="text-end d-none d-sm-table-cell">Pontos</th>
+          <th class="text-end d-none d-md-table-cell">Nota min.</th>
+          <th class="text-end">Acoes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for prova in provas %}
+          <tr>
+            <td>
+              <a href="{% url 'admin_panel:exam_detail' prova.pk %}" class="fw-medium text-decoration-none">
+                {{ prova.title }}
+              </a>
+              <div class="d-md-none small text-body-secondary">
+                {{ prova.module.code }} &middot; {{ prova.total_questoes }} questao(oes)
+              </div>
+            </td>
+            <td class="d-none d-md-table-cell"><code>{{ prova.module.code }}</code></td>
+            <td class="text-center">v{{ prova.version }}</td>
+            <td>{% include "admin_panel/exams/_status.html" %}</td>
+            <td class="d-none d-lg-table-cell small">
+              {% if prova.open_at and prova.close_at %}
+                {{ prova.open_at|date:"d/m/Y H:i" }}<br>
+                <span class="text-body-secondary">ate {{ prova.close_at|date:"d/m/Y H:i" }}</span>
+              {% else %}
+                <span class="text-body-secondary">nao definida</span>
+              {% endif %}
+            </td>
+            <td class="text-center d-none d-lg-table-cell">
+              {% if prova.duration_minutes %}{{ prova.duration_minutes }} min{% else %}&mdash;{% endif %}
+            </td>
+            <td class="text-center d-none d-sm-table-cell">{{ prova.total_questoes }}</td>
+            <td class="text-end d-none d-sm-table-cell">
+              {% if prova.status == "DRAFT" %}
+                {{ prova.soma_pontos|default:"0.00" }}
+              {% else %}
+                {{ prova.total_points }}
+              {% endif %}
+            </td>
+            <td class="text-end d-none d-md-table-cell">{{ prova.passing_score }}</td>
+            <td class="text-end">
+              <div class="d-flex gap-1 justify-content-end">
+                <a class="btn btn-sm btn-outline-secondary"
+                   href="{% url 'admin_panel:exam_detail' prova.pk %}">Abrir</a>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="10" class="text-center text-body-secondary py-5">
+              {% if busca or filtro_modulo or filtro_situacao %}
+                Nenhuma prova encontrada com esses filtros.
+              {% else %}
+                Nenhuma prova cadastrada ainda.
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "admin_panel/_paginacao.html" %}
+{% endblock %}

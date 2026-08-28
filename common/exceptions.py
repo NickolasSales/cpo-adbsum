@@ -9,7 +9,20 @@ class DomainError(Exception):
     de negocio, e nao por erro tecnico. As views capturam e apresentam a
     mensagem ao administrador; a mensagem e escrita para ser lida por uma
     pessoa, entao nunca deve conter detalhe interno ou dado sensivel.
+
+    Aceita tambem uma lista de mensagens. Validar uma prova inteira produz
+    varios problemas de uma vez, e mostrar so o primeiro obrigaria o
+    administrador a descobrir o resto por tentativa e erro. Quem captura le
+    `.mensagens`; str() continua devolvendo o texto corrido, para nao quebrar
+    quem ja trata a excecao como uma mensagem so.
     """
+
+    def __init__(self, mensagem):
+        if isinstance(mensagem, (list, tuple)):
+            self.mensagens = [str(item) for item in mensagem]
+        else:
+            self.mensagens = [str(mensagem)]
+        super().__init__(" ".join(self.mensagens))
 
 
 def campos_alterados(instancia, dados):
