@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Entrar - {{ INSTITUTION_NAME }} Provas{% endblock %}
+{% block main_class %}cpo-login{% endblock %}
+
+{% block content %}
+<div class="cpo-login__caixa">
+
+  <div class="cpo-login__marca">
+    <strong>{{ INSTITUTION_NAME }} Provas</strong>
+    <span>Sistema de avaliacao por modulos</span>
+  </div>
+
+  <div class="cpo-login__painel">
+    <h1 class="h5 mb-1">Entrar</h1>
+    <p class="text-body-secondary small mb-4">
+      Informe o e-mail e a senha cadastrados.
+    </p>
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger py-2 small" role="alert">
+        {% for erro in form.non_field_errors %}{{ erro }}{% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      <div class="mb-3">
+        <label for="{{ form.username.id_for_label }}" class="form-label small fw-medium">
+          {{ form.username.label }}
+        </label>
+        {{ form.username }}
+        {% if form.username.errors %}
+          <div class="form-text text-danger">{{ form.username.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <div class="mb-4">
+        <label for="{{ form.password.id_for_label }}" class="form-label small fw-medium">
+          {{ form.password.label }}
+        </label>
+        {{ form.password }}
+        {% if form.password.errors %}
+          <div class="form-text text-danger">{{ form.password.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <button type="submit" class="btn btn-primary w-100 cpo-botao-bloco">Entrar</button>
+    </form>
+  </div>
+
+  <p class="text-center small mt-3 mb-0" style="color:#64748b;">
+    Problemas para acessar? Procure a coordenacao.
+  </p>
+</div>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% comment %}
+Paginacao reutilizavel.
+
+A tag querystring (nativa no Django 5.1+) preserva os filtros ja aplicados ao
+trocar de pagina, para que a navegacao nao descarte a busca do administrador.
+{% endcomment %}
+{% if page_obj.paginator.num_pages > 1 %}
+  <nav class="mt-3" aria-label="Paginacao">
+    <ul class="pagination pagination-sm mb-0 justify-content-center flex-wrap">
+      <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+        {% if page_obj.has_previous %}
+          <a class="page-link" href="{% querystring page=page_obj.previous_page_number %}">Anterior</a>
+        {% else %}
+          <span class="page-link">Anterior</span>
+        {% endif %}
+      </li>
+      <li class="page-item disabled">
+        <span class="page-link">
+          Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+          &middot; {{ page_obj.paginator.count }} registro(s)
+        </span>
+      </li>
+      <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+        {% if page_obj.has_next %}
+          <a class="page-link" href="{% querystring page=page_obj.next_page_number %}">Proxima</a>
+        {% else %}
+          <span class="page-link">Proxima</span>
+        {% endif %}
+      </li>
+    </ul>
+  </nav>
+{% endif %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% comment %}
+Layout do painel do aluno.
+
+Deliberadamente mais simples que o administrativo: sem lateral, sem menus
+aninhados. O aluno acessa poucas telas, boa parte delas pelo celular, e a
+navegacao precisa caber no topo.
+{% endcomment %}
+
+{% block main_class %}container py-4{% endblock %}
+
+{% block chrome %}
+<nav class="cpo-topo">
+  <div class="container d-flex align-items-center justify-content-between py-3 gap-3">
+    <a class="cpo-marca" href="{% url 'student:dashboard' %}">
+      {{ INSTITUTION_NAME }} Provas
+    </a>
+    <div class="d-flex align-items-center gap-3">
+      <span class="small text-body-secondary d-none d-sm-inline">
+        {{ user.full_name }}
+      </span>
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                data-bs-toggle="dropdown" aria-expanded="false">
+          Conta
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li>
+            <a class="dropdown-item" href="{% url 'accounts:change_password' %}">
+              Alterar senha
+            </a>
+          </li>
+          <li><hr class="dropdown-divider"></li>
+          <li>
+            <form method="post" action="{% url 'accounts:logout' %}">
+              {% csrf_token %}
+              <button type="submit" class="dropdown-item">Sair</button>
+            </form>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</nav>
+{% endblock %}

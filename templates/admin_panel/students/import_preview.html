@@ -1,0 +1,176 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}Conferir importacao - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:student_list' %}">&larr; Alunos</a>
+</nav>
+
+<div class="mb-3">
+  <h1 class="h4 mb-1">Conferir importacao</h1>
+  <p class="text-body-secondary small mb-0">
+    Arquivo: <span class="fw-medium">{{ arquivo }}</span> &middot;
+    {{ resumo.total_linhas }} linha(s) lida(s).
+  </p>
+</div>
+
+<div class="alert alert-warning" role="alert">
+  <strong>Nada foi alterado ainda.</strong>
+  <span class="small">
+    Esta tela e apenas uma conferencia: nenhum aluno foi criado e nenhuma
+    matricula foi feita. A importacao so acontece quando voce clicar em
+    Confirmar importacao, no fim da pagina.
+  </span>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-4 col-xl-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Linhas lidas</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ resumo.total_linhas }}</span>
+      <span class="cpo-indicador__nota">Fora o cabecalho</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Novos alunos</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ resumo.novos_alunos }}</span>
+      <span class="cpo-indicador__nota">Serao cadastrados</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Alunos existentes</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ resumo.alunos_existentes }}</span>
+      <span class="cpo-indicador__nota">Cadastro preservado</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Novas matriculas</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ resumo.novas_matriculas }}</span>
+      <span class="cpo-indicador__nota">Serao criadas</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Matriculas existentes</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ resumo.matriculas_existentes }}</span>
+      <span class="cpo-indicador__nota">Serao ignoradas</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Linhas invalidas</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ resumo.linhas_invalidas }}</span>
+      <span class="cpo-indicador__nota">Nao serao importadas</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Modulo inexistente</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ resumo.modulo_inexistente }}</span>
+      <span class="cpo-indicador__nota">Codigo nao encontrado</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Linhas duplicadas</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ resumo.linhas_duplicadas }}</span>
+      <span class="cpo-indicador__nota">Repetidas no arquivo</span>
+    </div>
+  </div>
+</div>
+
+<div class="cpo-cartao">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 cpo-tabela">
+      <thead>
+        <tr>
+          <th class="text-end">Linha</th>
+          <th>Nome</th>
+          <th class="d-none d-md-table-cell">E-mail</th>
+          <th>Modulo</th>
+          <th>Situacao</th>
+          <th class="d-none d-lg-table-cell">Observacoes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for linha in linhas %}
+          <tr>
+            <td class="text-end small text-body-secondary">{{ linha.numero }}</td>
+            <td>
+              <span class="fw-medium">{{ linha.nome|default:"-" }}</span>
+              <div class="d-md-none small text-body-secondary">{{ linha.email|default:"-" }}</div>
+            </td>
+            <td class="d-none d-md-table-cell small text-body-secondary">
+              {{ linha.email|default:"-" }}
+            </td>
+            <td class="small">{{ linha.modulo|default:"-" }}</td>
+            <td>
+              {% if linha.importavel %}
+                <span class="cpo-badge cpo-badge--ok">{{ linha.status }}</span>
+              {% elif linha.status == "MATRICULA EXISTENTE" or linha.status == "MATRICULA INATIVA EXISTENTE" or linha.status == "LINHA DUPLICADA" %}
+                <span class="cpo-badge cpo-badge--neutro">{{ linha.status }}</span>
+              {% else %}
+                <span class="cpo-badge cpo-badge--erro">{{ linha.status }}</span>
+              {% endif %}
+              {% if linha.aviso %}
+                <div class="d-lg-none small text-body-secondary mt-1">{{ linha.aviso }}</div>
+              {% endif %}
+            </td>
+            <td class="d-none d-lg-table-cell small text-body-secondary">
+              {{ linha.aviso|default:"-" }}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-body-secondary py-5">
+              O arquivo nao possui nenhuma linha de dados.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="cpo-cartao p-3 p-md-4 mt-3">
+  <p class="small text-body-secondary mb-3">
+    Somente as linhas marcadas em verde serao importadas. Linhas invalidas,
+    duplicadas e matriculas que ja existem sao apenas ignoradas. Tudo e
+    gravado em uma unica transacao: ou o lote inteiro entra, ou nada entra.
+    Cadastros ja existentes nao sao sobrescritos.
+  </p>
+
+  <div class="d-flex flex-wrap gap-2">
+    <form method="post" action="{% url 'admin_panel:student_import_confirm' %}">
+      {% csrf_token %}
+      <input type="hidden" name="token" value="{{ token }}">
+      {% if analise.tem_algo_a_importar %}
+        <button type="submit" class="btn btn-sm btn-primary">
+          Confirmar importacao ({{ resumo.novas_matriculas }} matricula(s))
+        </button>
+      {% else %}
+        <button type="submit" class="btn btn-sm btn-primary" disabled
+                title="Nenhuma linha deste arquivo pode ser importada">
+          Confirmar importacao
+        </button>
+      {% endif %}
+    </form>
+
+    <form method="post" action="{% url 'admin_panel:student_import_cancel' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm btn-outline-secondary">Cancelar</button>
+    </form>
+  </div>
+
+  {% if not analise.tem_algo_a_importar %}
+    <p class="small text-danger mb-0 mt-3">
+      Nenhuma linha deste arquivo pode ser importada. Corrija o arquivo e
+      envie novamente.
+    </p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}Painel administrativo - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h1 class="h4 mb-1">Painel administrativo</h1>
+  <p class="text-body-secondary small mb-0">Ola, {{ user.get_short_name }}.</p>
+</div>
+
+<div class="row g-3">
+  {% for card in cards %}
+    <div class="col-6 col-lg-4 col-xl">
+      {% if card.url %}
+        <a href="{% url card.url %}" class="text-decoration-none d-block h-100">
+          <div class="cpo-cartao cpo-indicador cpo-indicador--ativo">
+            <span class="cpo-indicador__rotulo">{{ card.titulo }}</span>
+            <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ card.valor }}</span>
+            <span class="cpo-indicador__nota">{{ card.nota }}</span>
+          </div>
+        </a>
+      {% else %}
+        <div class="cpo-cartao cpo-indicador">
+          <span class="cpo-indicador__rotulo">{{ card.titulo }}</span>
+          <span class="cpo-indicador__valor">&mdash;</span>
+          <span class="cpo-indicador__nota">Disponivel na {{ card.etapa }}</span>
+        </div>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>
+
+<div class="row g-3 mt-1">
+  <div class="col-12 col-lg-6">
+    <div class="cpo-cartao p-4 h-100">
+      <h2 class="h6 mb-3">Acoes rapidas</h2>
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-sm btn-primary" href="{% url 'admin_panel:student_create' %}">Novo aluno</a>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:student_import' %}">Importar alunos</a>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:module_create' %}">Novo modulo</a>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:enrollment_create' %}">Nova matricula</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-6">
+    <div class="cpo-cartao p-4 h-100">
+      <h2 class="h6 mb-2">Proximas etapas</h2>
+      <p class="text-body-secondary small mb-0">
+        Alunos, modulos e matriculas estao disponiveis. Provas, correcoes,
+        notas e certificados serao construidos nas etapas seguintes.
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

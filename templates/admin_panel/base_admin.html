@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% comment %}
+Layout do painel administrativo.
+
+A lateral e fixa a partir de 992px e vira offcanvas no celular. Os itens
+ainda nao implementados aparecem desabilitados e com a etapa em que serao
+entregues, para deixar explicito o que existe e o que nao existe.
+{% endcomment %}
+
+{% block main_class %}cpo-conteudo--deslocado container-fluid px-3 px-lg-4 py-4{% endblock %}
+
+{% block chrome %}
+<nav class="cpo-topo d-lg-none px-3 py-2 d-flex align-items-center gap-2">
+  <button class="btn btn-sm btn-outline-secondary" type="button"
+          data-bs-toggle="offcanvas" data-bs-target="#menuAdmin"
+          aria-controls="menuAdmin" aria-label="Abrir menu">
+    <span aria-hidden="true">&#9776;</span>
+  </button>
+  <a class="cpo-marca" href="{% url 'admin_panel:dashboard' %}">{{ INSTITUTION_NAME }} Provas</a>
+</nav>
+
+<div class="cpo-lateral cpo-lateral--fixa d-none d-lg-flex flex-column p-3">
+  {% include "admin_panel/_menu.html" %}
+</div>
+
+<div class="offcanvas offcanvas-start cpo-lateral" tabindex="-1" id="menuAdmin"
+     aria-label="Menu administrativo">
+  <div class="offcanvas-header">
+    <span class="text-white fw-semibold">Menu</span>
+    <button type="button" class="btn-close btn-close-white"
+            data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
+  </div>
+  <div class="offcanvas-body d-flex flex-column">
+    {% include "admin_panel/_menu.html" %}
+  </div>
+</div>
+{% endblock %}

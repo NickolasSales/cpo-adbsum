@@ -1,0 +1,41 @@
+{% extends "student/base_student.html" %}
+
+{% block title %}{{ modulo.name }} - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'student:dashboard' %}">&larr; Meus modulos</a>
+</nav>
+
+<div class="mb-4">
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+    <h1 class="h4 mb-0">{{ modulo.name }}</h1>
+    <span class="cpo-badge cpo-badge--ok">Em andamento</span>
+  </div>
+  <p class="text-body-secondary small mb-0">
+    <code>{{ modulo.code }}</code>
+    <span class="ms-2">Matriculado em {{ matricula.enrolled_at|date:"d/m/Y" }}</span>
+  </p>
+</div>
+
+{% if modulo.description %}
+  <div class="cpo-cartao p-3 mb-4">
+    <h2 class="h6 text-uppercase text-body-secondary mb-2" style="letter-spacing:.05em;">
+      Sobre o modulo
+    </h2>
+    <p class="mb-0">{{ modulo.description|linebreaksbr }}</p>
+  </div>
+{% endif %}
+
+<h2 class="h6 text-uppercase text-body-secondary mb-3" style="letter-spacing:.05em;">
+  Provas
+</h2>
+
+<div class="cpo-cartao cpo-vazio">
+  <div class="cpo-vazio__icone" aria-hidden="true">&#128218;</div>
+  <p class="mb-1 fw-medium">Nenhuma prova disponivel neste modulo.</p>
+  <p class="small mb-0">
+    Assim que a coordenacao liberar uma prova, ela aparecera aqui.
+  </p>
+</div>
+{% endblock %}

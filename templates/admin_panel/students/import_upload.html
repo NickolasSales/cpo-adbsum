@@ -1,0 +1,125 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}Importar alunos - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:student_list' %}">&larr; Alunos</a>
+</nav>
+
+<div class="mb-3">
+  <h1 class="h4 mb-1">Importar alunos</h1>
+  <p class="text-body-secondary small mb-0">
+    Envie uma planilha para cadastrar alunos e criar matriculas em lote.
+  </p>
+</div>
+
+<div class="alert alert-info small" role="alert">
+  <strong>O envio ainda nao importa nada.</strong>
+  O arquivo e apenas lido e conferido com o banco. Voce vera um preview,
+  linha por linha, com o que aconteceria — e so depois de confirmar nessa
+  tela e que alunos e matriculas serao criados.
+</div>
+
+{% if not senha_configurada %}
+  <div class="alert alert-warning small" role="alert">
+    A senha inicial padrao dos alunos nao esta configurada. Defina
+    <code>DEFAULT_STUDENT_PASSWORD</code> nas variaveis de ambiente antes de
+    importar: sem ela, a confirmacao da importacao sera recusada e nenhum
+    aluno sera criado.
+  </div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-12 col-lg-7">
+    <div class="cpo-cartao p-3 p-md-4">
+      <h2 class="h6 mb-3">Arquivo</h2>
+
+      <form method="post" enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger py-2 small">
+            {% for erro in form.non_field_errors %}
+              <div>{{ erro }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <div class="mb-3">
+          <label for="{{ form.arquivo.id_for_label }}" class="form-label small fw-medium mb-1">
+            {{ form.arquivo.label }}
+          </label>
+          {{ form.arquivo }}
+          {% if form.arquivo.help_text %}
+            <div class="form-text small">{{ form.arquivo.help_text }}</div>
+          {% endif %}
+          {% if form.arquivo.errors %}
+            <div class="form-text text-danger">{{ form.arquivo.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+          {% if senha_configurada %}
+            <button type="submit" class="btn btn-sm btn-primary">Analisar arquivo</button>
+          {% else %}
+            <button type="submit" class="btn btn-sm btn-outline-secondary">
+              Analisar mesmo assim
+            </button>
+          {% endif %}
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:student_list' %}">
+            Cancelar
+          </a>
+        </div>
+
+        <p class="small text-body-secondary mb-0 mt-3">
+          Ao enviar, voce vai para a tela de conferencia. Nada e gravado ate a
+          confirmacao.
+        </p>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-5">
+    <div class="cpo-cartao p-3 p-md-4 h-100">
+      <h2 class="h6 mb-3">Formato esperado</h2>
+
+      <ul class="small text-body-secondary ps-3 mb-3">
+        <li class="mb-1">
+          Colunas obrigatorias: <code>nome</code>, <code>email</code> e
+          <code>modulo</code>. A primeira linha do arquivo e o cabecalho.
+        </li>
+        <li class="mb-1">
+          A coluna <code>modulo</code> deve conter o <strong>codigo</strong> do
+          modulo, por exemplo <code>MOD1</code>.
+        </li>
+        <li class="mb-1">
+          Formatos aceitos: <code>.csv</code> e <code>.xlsx</code>.
+        </li>
+        <li class="mb-1">
+          O CSV precisa estar em <strong>UTF-8</strong>. No Excel, salve como
+          &quot;CSV UTF-8&quot;.
+        </li>
+        <li class="mb-1">
+          Limite de <strong>5 MB</strong> por arquivo.
+        </li>
+        <li class="mb-0">
+          Uma linha por matricula: para matricular o mesmo aluno em dois
+          modulos, repita o e-mail em duas linhas.
+        </li>
+      </ul>
+
+      <h3 class="h6 small fw-semibold mb-2">Exemplo de CSV</h3>
+      <pre class="cpo-exemplo mb-3"><code>nome,email,modulo
+Joao da Silva,joao.silva@exemplo.com,MOD1
+Maria Souza,maria.souza@exemplo.com,MOD2</code></pre>
+
+      <p class="small text-body-secondary mb-0">
+        Linhas com e-mail invalido, nome em branco ou codigo de modulo
+        inexistente sao apontadas no preview e simplesmente nao entram na
+        importacao.
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,175 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Ficha do aluno (StudentDetailView).
+
+Duas leituras diferentes na mesma tela: o cartao Cadastro responde "quem e
+esta pessoa e ela consegue entrar", e o cartao Matriculas responde "a que
+modulos ela tem acesso". Situacao academica e acesso operacional aparecem em
+colunas separadas porque sao chaves independentes: uma matricula pode
+continuar ativa com o acesso suspenso.
+
+Toda acao que altera estado e POST com CSRF; as destrutivas passam por modal.
+{% endcomment %}
+
+{% block title %}{{ aluno.full_name }} - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:student_list' %}">&larr; Alunos</a>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">{{ aluno.full_name }}</h1>
+    <p class="text-body-secondary small mb-0">{{ aluno.email }}</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:student_update' aluno.pk %}">Editar</a>
+    <a class="btn btn-sm btn-primary"
+       href="{% url 'admin_panel:enrollment_create' %}?aluno={{ aluno.pk }}">Matricular</a>
+    {% if aluno.is_active %}
+      <button type="button" class="btn btn-sm btn-outline-danger"
+              data-bs-toggle="modal" data-bs-target="#bloquearAluno">Bloquear</button>
+    {% else %}
+      <form method="post" action="{% url 'admin_panel:student_unblock' aluno.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+        <button type="submit" class="btn btn-sm btn-outline-success">Desbloquear</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+
+  <div class="col-12 col-lg-4">
+    <h2 class="h6 mb-2">Cadastro</h2>
+    <div class="cpo-cartao p-3">
+      <dl class="row small mb-0">
+
+        <dt class="col-5 text-body-secondary fw-normal">Situacao</dt>
+        <dd class="col-7 mb-2">
+          {% if aluno.is_active %}
+            <span class="cpo-badge cpo-badge--ok">Ativo</span>
+          {% else %}
+            <span class="cpo-badge cpo-badge--erro">Bloqueado</span>
+          {% endif %}
+        </dd>
+
+        <dt class="col-5 text-body-secondary fw-normal">Senha</dt>
+        <dd class="col-7 mb-2">
+          {% if aluno.must_change_password %}
+            <span class="cpo-badge cpo-badge--alerta">Trocar no acesso</span>
+          {% else %}
+            <span class="text-body-secondary">Definida pelo aluno</span>
+          {% endif %}
+        </dd>
+
+        <dt class="col-5 text-body-secondary fw-normal">Origem</dt>
+        <dd class="col-7 mb-2">{{ perfil.get_source_display|default:"-" }}</dd>
+
+        <dt class="col-5 text-body-secondary fw-normal">Criado em</dt>
+        <dd class="col-7 mb-2">{{ aluno.date_joined|date:"d/m/Y H:i" }}</dd>
+
+        <dt class="col-5 text-body-secondary fw-normal">Ultimo acesso</dt>
+        <dd class="col-7 mb-0">
+          {{ aluno.last_login|date:"d/m/Y H:i"|default:"Nunca acessou" }}
+        </dd>
+
+      </dl>
+
+      {% if perfil.notes %}
+        <hr class="my-3">
+        <p class="small text-body-secondary fw-medium mb-1">Observacoes</p>
+        <p class="small mb-0">{{ perfil.notes|linebreaksbr }}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-8">
+    <h2 class="h6 mb-2">Matriculas</h2>
+    <div class="cpo-cartao">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 cpo-tabela">
+          <thead>
+            <tr>
+              <th>Modulo</th>
+              <th>Situacao</th>
+              <th>Acesso</th>
+              <th class="text-end">Acoes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for matricula in matriculas %}
+              <tr>
+                <td>
+                  <a href="{% url 'admin_panel:module_detail' matricula.module.pk %}"
+                     class="fw-medium text-decoration-none">
+                    {{ matricula.module.code }}
+                  </a>
+                  <div class="small text-body-secondary">{{ matricula.module.name }}</div>
+                </td>
+                <td>
+                  {% if matricula.status == "ACTIVE" %}
+                    <span class="cpo-badge cpo-badge--ok">Ativa</span>
+                  {% elif matricula.status == "COMPLETED" %}
+                    <span class="cpo-badge cpo-badge--info">Concluida</span>
+                  {% else %}
+                    <span class="cpo-badge cpo-badge--neutro">Inativa</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if matricula.access_enabled %}
+                    <span class="cpo-badge cpo-badge--ok">Liberado</span>
+                  {% else %}
+                    <span class="cpo-badge cpo-badge--alerta">Bloqueado</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  {% include "admin_panel/enrollments/_acoes.html" with matricula=matricula %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="4" class="text-center text-body-secondary py-5">
+                  Este aluno ainda nao possui matriculas.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{% if aluno.is_active %}
+  <div class="modal fade" id="bloquearAluno" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h6">Bloquear aluno</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Tem certeza que deseja bloquear <strong>{{ aluno.full_name }}</strong>?</p>
+          <p class="small text-body-secondary mb-0">
+            O aluno nao conseguira acessar o sistema enquanto estiver bloqueado.
+            As matriculas e o historico dele sao preservados.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <form method="post" action="{% url 'admin_panel:student_block' aluno.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+            <button type="submit" class="btn btn-sm btn-danger">Bloquear</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

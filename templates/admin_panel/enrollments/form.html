@@ -1,0 +1,89 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Formulario de matricula (EnrollmentCreateView).
+
+O formulario apenas oferece as opcoes validas: a lista de alunos ja exclui
+administradores e a de modulos ja exclui os inativos. As regras de dominio
+(matricula duplicada, modulo inativo, usuario que nao e aluno) sao decididas
+pela camada de servico e voltam como form.non_field_errors, por isso esse
+bloco aparece em destaque no topo do cartao.
+{% endcomment %}
+
+{% block title %}{{ titulo }} - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:enrollment_list' %}">&larr; Matriculas</a>
+</nav>
+
+<div style="max-width: 620px;">
+
+  <div class="mb-3">
+    <h1 class="h4 mb-1">{{ titulo }}</h1>
+    <p class="text-body-secondary small mb-0">
+      Escolha o aluno e o modulo em que ele sera matriculado.
+    </p>
+  </div>
+
+  <form method="post" novalidate class="cpo-cartao p-3 p-md-4">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger py-2 small" role="alert">
+        <div class="fw-semibold mb-1">Nao foi possivel criar a matricula</div>
+        {% for erro in form.non_field_errors %}
+          <div>{{ erro }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="mb-3">
+      <label for="{{ form.student.id_for_label }}" class="form-label small fw-medium">
+        {{ form.student.label }}
+      </label>
+      {{ form.student }}
+      {% if form.student.errors %}
+        <div class="form-text text-danger">{{ form.student.errors.0 }}</div>
+      {% endif %}
+      <div class="form-text">
+        Somente usuarios com perfil de aluno aparecem nesta lista.
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label for="{{ form.module.id_for_label }}" class="form-label small fw-medium">
+        {{ form.module.label }}
+      </label>
+      {{ form.module }}
+      {% if form.module.errors %}
+        <div class="form-text text-danger">{{ form.module.errors.0 }}</div>
+      {% endif %}
+      <div class="form-text">
+        Somente modulos ativos aparecem nesta lista. Um mesmo aluno nao pode ter
+        duas matriculas no mesmo modulo.
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <label for="{{ form.notes.id_for_label }}" class="form-label small fw-medium">
+        {{ form.notes.label }}
+      </label>
+      {{ form.notes }}
+      {% if form.notes.errors %}
+        <div class="form-text text-danger">{{ form.notes.errors.0 }}</div>
+      {% endif %}
+      <div class="form-text">
+        Opcional. Anotacao interna sobre a matricula, visivel apenas no painel
+        administrativo.
+      </div>
+    </div>
+
+    <div class="d-flex flex-column-reverse flex-sm-row gap-2 justify-content-sm-end">
+      <a class="btn btn-outline-secondary" href="{% url 'admin_panel:enrollment_list' %}">Cancelar</a>
+      <button type="submit" class="btn btn-primary">Salvar</button>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

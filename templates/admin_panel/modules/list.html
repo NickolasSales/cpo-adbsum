@@ -1,0 +1,142 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}Modulos - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">Modulos</h1>
+    <p class="text-body-secondary small mb-0">{{ total_geral }} modulo(s) cadastrado(s).</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-primary btn-sm" href="{% url 'admin_panel:module_create' %}">Novo modulo</a>
+  </div>
+</div>
+
+<form method="get" class="cpo-cartao p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-md">
+      <label for="q" class="form-label small fw-medium mb-1">Buscar</label>
+      <input type="search" id="q" name="q" value="{{ busca }}" class="form-control form-control-sm"
+             placeholder="Nome ou codigo">
+    </div>
+    <div class="col-8 col-md-3">
+      <label for="situacao" class="form-label small fw-medium mb-1">Situacao</label>
+      <select id="situacao" name="situacao" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        <option value="ativos" {% if situacao == "ativos" %}selected{% endif %}>Ativos</option>
+        <option value="inativos" {% if situacao == "inativos" %}selected{% endif %}>Inativos</option>
+      </select>
+    </div>
+    <div class="col-4 col-md-auto d-flex gap-2">
+      <button type="submit" class="btn btn-sm btn-primary w-100">Filtrar</button>
+      {% if busca or situacao %}
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:module_list' %}">Limpar</a>
+      {% endif %}
+    </div>
+  </div>
+</form>
+
+<div class="cpo-cartao">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 cpo-tabela">
+      <thead>
+        <tr>
+          <th>Codigo</th>
+          <th>Nome</th>
+          <th>Situacao</th>
+          <th class="text-center d-none d-sm-table-cell">Ordem</th>
+          <th class="text-center d-none d-md-table-cell">Alunos matriculados</th>
+          <th class="text-end">Acoes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for modulo in modulos %}
+          <tr>
+            <td>
+              <a href="{% url 'admin_panel:module_detail' modulo.pk %}" class="fw-medium text-decoration-none">
+                <code>{{ modulo.code }}</code>
+              </a>
+            </td>
+            <td>
+              {{ modulo.name }}
+              <div class="d-md-none small text-body-secondary">
+                {{ modulo.total_matriculados }} aluno(s) matriculado(s)
+              </div>
+            </td>
+            <td>
+              {% if modulo.is_active %}
+                <span class="cpo-badge cpo-badge--ok">Ativo</span>
+              {% else %}
+                <span class="cpo-badge cpo-badge--neutro">Inativo</span>
+              {% endif %}
+            </td>
+            <td class="text-center d-none d-sm-table-cell">{{ modulo.order }}</td>
+            <td class="text-center d-none d-md-table-cell">{{ modulo.total_matriculados }}</td>
+            <td class="text-end">
+              <div class="d-flex gap-1 justify-content-end">
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:module_update' modulo.pk %}">Editar</a>
+                {% if modulo.is_active %}
+                  <button type="button" class="btn btn-sm btn-outline-danger"
+                          data-bs-toggle="modal" data-bs-target="#desativar{{ modulo.pk }}">Desativar</button>
+                {% else %}
+                  <form method="post" action="{% url 'admin_panel:module_enable' modulo.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+                    <button type="submit" class="btn btn-sm btn-outline-success">Ativar</button>
+                  </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-body-secondary py-5">
+              {% if busca or situacao %}
+                Nenhum modulo encontrado com esses filtros.
+              {% else %}
+                Nenhum modulo cadastrado ainda.
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "admin_panel/_paginacao.html" %}
+
+{% for modulo in modulos %}
+  {% if modulo.is_active %}
+    <div class="modal fade" id="desativar{{ modulo.pk }}" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2 class="modal-title h6">Desativar modulo</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-2">
+              Tem certeza que deseja desativar <strong>{{ modulo.code }} - {{ modulo.name }}</strong>?
+            </p>
+            <p class="small text-body-secondary mb-0">
+              O modulo deixa de aparecer para os alunos e nao aceita novas matriculas.
+              As matriculas existentes sao preservadas e voltam a valer se o modulo
+              for ativado de novo.
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <form method="post" action="{% url 'admin_panel:module_disable' modulo.pk %}">
+              {% csrf_token %}
+              <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+              <button type="submit" class="btn btn-sm btn-danger">Desativar</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+{% endfor %}
+{% endblock %}

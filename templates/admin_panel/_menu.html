@@ -1,0 +1,37 @@
+<div class="mb-4 d-none d-lg-block">
+  <a class="text-white text-decoration-none fw-semibold" href="{% url 'admin_panel:dashboard' %}">
+    {{ INSTITUTION_NAME }} Provas
+  </a>
+  <div class="small" style="color:#64748b;">Painel administrativo</div>
+</div>
+
+<ul class="nav nav-pills flex-column">
+  {% for item in itens_menu %}
+    <li class="nav-item">
+      <a class="nav-link {% if secao == item.secao %}active{% endif %}"
+         href="{% url item.url %}">{{ item.nome }}</a>
+    </li>
+  {% endfor %}
+</ul>
+
+{% if itens_futuros %}
+  <div class="cpo-lateral__legenda">Proximas etapas</div>
+  <ul class="nav nav-pills flex-column">
+    {% for item in itens_futuros %}
+      <li class="nav-item">
+        <span class="nav-link disabled d-flex align-items-center">
+          {{ item.nome }}
+          <span class="cpo-etiqueta-etapa">{{ item.etapa }}</span>
+        </span>
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+<div class="mt-auto pt-4">
+  <div class="small mb-2" style="color:#94a3b8;">{{ user.full_name }}</div>
+  <form method="post" action="{% url 'accounts:logout' %}">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-sm btn-outline-light w-100">Sair</button>
+  </form>
+</div>

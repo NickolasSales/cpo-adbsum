@@ -1,0 +1,153 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}Alunos - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">Alunos</h1>
+    <p class="text-body-secondary small mb-0">{{ total_geral }} aluno(s) cadastrado(s).</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'admin_panel:student_import' %}">Importar</a>
+    <a class="btn btn-primary btn-sm" href="{% url 'admin_panel:student_create' %}">Novo aluno</a>
+  </div>
+</div>
+
+{% if not senha_configurada %}
+  <div class="alert alert-warning small" role="alert">
+    A senha inicial padrao dos alunos nao esta configurada. Defina
+    <code>DEFAULT_STUDENT_PASSWORD</code> nas variaveis de ambiente para poder
+    cadastrar ou importar alunos.
+  </div>
+{% endif %}
+
+<form method="get" class="cpo-cartao p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-md">
+      <label for="q" class="form-label small fw-medium mb-1">Buscar</label>
+      <input type="search" id="q" name="q" value="{{ busca }}" class="form-control form-control-sm"
+             placeholder="Nome ou e-mail">
+    </div>
+    <div class="col-8 col-md-3">
+      <label for="situacao" class="form-label small fw-medium mb-1">Situacao</label>
+      <select id="situacao" name="situacao" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        <option value="ativos" {% if situacao == "ativos" %}selected{% endif %}>Ativos</option>
+        <option value="bloqueados" {% if situacao == "bloqueados" %}selected{% endif %}>Bloqueados</option>
+      </select>
+    </div>
+    <div class="col-4 col-md-auto d-flex gap-2">
+      <button type="submit" class="btn btn-sm btn-primary w-100">Filtrar</button>
+      {% if busca or situacao %}
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:student_list' %}">Limpar</a>
+      {% endif %}
+    </div>
+  </div>
+</form>
+
+<div class="cpo-cartao">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 cpo-tabela">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th class="d-none d-md-table-cell">E-mail</th>
+          <th>Situacao</th>
+          <th class="text-center d-none d-sm-table-cell">Modulos</th>
+          <th class="d-none d-lg-table-cell">Origem</th>
+          <th class="d-none d-lg-table-cell">Criado em</th>
+          <th class="text-end">Acoes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for aluno in alunos %}
+          <tr>
+            <td>
+              <a href="{% url 'admin_panel:student_detail' aluno.pk %}" class="fw-medium text-decoration-none">
+                {{ aluno.full_name }}
+              </a>
+              <div class="d-md-none small text-body-secondary">{{ aluno.email }}</div>
+            </td>
+            <td class="d-none d-md-table-cell small text-body-secondary">{{ aluno.email }}</td>
+            <td>
+              {% if aluno.is_active %}
+                <span class="cpo-badge cpo-badge--ok">Ativo</span>
+              {% else %}
+                <span class="cpo-badge cpo-badge--erro">Bloqueado</span>
+              {% endif %}
+              {% if aluno.must_change_password %}
+                <span class="cpo-badge cpo-badge--alerta" title="Precisa trocar a senha no proximo acesso">Senha inicial</span>
+              {% endif %}
+            </td>
+            <td class="text-center d-none d-sm-table-cell">{{ aluno.total_modulos }}</td>
+            <td class="d-none d-lg-table-cell small text-body-secondary">
+              {{ aluno.student_profile.get_source_display|default:"-" }}
+            </td>
+            <td class="d-none d-lg-table-cell small text-body-secondary">
+              {{ aluno.date_joined|date:"d/m/Y" }}
+            </td>
+            <td class="text-end">
+              <div class="d-flex gap-1 justify-content-end">
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:student_update' aluno.pk %}">Editar</a>
+                {% if aluno.is_active %}
+                  <button type="button" class="btn btn-sm btn-outline-danger"
+                          data-bs-toggle="modal" data-bs-target="#bloquear{{ aluno.pk }}">Bloquear</button>
+                {% else %}
+                  <form method="post" action="{% url 'admin_panel:student_unblock' aluno.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+                    <button type="submit" class="btn btn-sm btn-outline-success">Desbloquear</button>
+                  </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" class="text-center text-body-secondary py-5">
+              {% if busca or situacao %}
+                Nenhum aluno encontrado com esses filtros.
+              {% else %}
+                Nenhum aluno cadastrado ainda.
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "admin_panel/_paginacao.html" %}
+
+{% for aluno in alunos %}
+  {% if aluno.is_active %}
+    <div class="modal fade" id="bloquear{{ aluno.pk }}" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2 class="modal-title h6">Bloquear aluno</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-2">Tem certeza que deseja bloquear <strong>{{ aluno.full_name }}</strong>?</p>
+            <p class="small text-body-secondary mb-0">
+              O aluno nao conseguira acessar o sistema enquanto estiver bloqueado.
+              As matriculas e o historico dele sao preservados.
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <form method="post" action="{% url 'admin_panel:student_block' aluno.pk %}">
+              {% csrf_token %}
+              <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+              <button type="submit" class="btn btn-sm btn-danger">Bloquear</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+{% endfor %}
+{% endblock %}

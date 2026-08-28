@@ -1,0 +1,68 @@
+# ---------------------------------------------------------------
+# CPO Provas - .gitignore
+# ---------------------------------------------------------------
+
+# Segredos e configuracao local
+.env
+.env.local
+.secrets-local.txt
+*.pem
+*.key
+
+# Ambiente virtual
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Testes e cobertura
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+
+# Django
+staticfiles/
+media/
+*.log
+db.sqlite3
+db.sqlite3-journal
+
+# Backups e dumps
+*.sql
+*.dump
+*.bak
+backups/
+
+# IDE / editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sistema operacional
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# ---------------------------------------------------------------
+# NAO ignorar (mantidos deliberadamente sob versionamento):
+#   migrations/       - fazem parte do historico do schema
+#   requirements.txt  - reprodutibilidade do ambiente
+#   .env.example      - contrato das variaveis de ambiente
+#   README.md         - documentacao
+# ---------------------------------------------------------------

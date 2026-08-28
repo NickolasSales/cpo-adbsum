@@ -1,0 +1,60 @@
+{% comment %}
+Acoes de uma matricula.
+
+Parcial reutilizada pela lista de matriculas, pelo detalhe do aluno e pelo
+detalhe do modulo. Espera a variavel "matricula" no contexto.
+
+Cada acao e um POST proprio com csrf e com o campo "proximo", para que a view
+devolva o administrador exatamente para a tela de onde ele saiu. O acesso
+(access_enabled) e a situacao academica (status) sao chaves independentes, por
+isso aparecem como dois grupos de botoes distintos.
+{% endcomment %}
+<div class="d-flex gap-1 justify-content-end flex-wrap">
+  {% if matricula.access_enabled %}
+    <form method="post" action="{% url 'admin_panel:enrollment_block' matricula.pk %}">
+      {% csrf_token %}
+      <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+      <button type="submit" class="btn btn-sm btn-outline-warning"
+              title="Suspende o acesso sem alterar a situacao academica">
+        Bloquear acesso
+      </button>
+    </form>
+  {% else %}
+    <form method="post" action="{% url 'admin_panel:enrollment_unblock' matricula.pk %}">
+      {% csrf_token %}
+      <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+      <button type="submit" class="btn btn-sm btn-outline-success"
+              title="Devolve o acesso ao modulo">
+        Liberar acesso
+      </button>
+    </form>
+  {% endif %}
+
+  {% if matricula.status == "ACTIVE" %}
+    <form method="post" action="{% url 'admin_panel:enrollment_complete' matricula.pk %}">
+      {% csrf_token %}
+      <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+      <button type="submit" class="btn btn-sm btn-outline-secondary"
+              title="Marca a matricula como concluida">
+        Concluir
+      </button>
+    </form>
+    <form method="post" action="{% url 'admin_panel:enrollment_disable' matricula.pk %}">
+      {% csrf_token %}
+      <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+      <button type="submit" class="btn btn-sm btn-outline-danger"
+              title="Encerra a matricula; o historico e preservado">
+        Desativar
+      </button>
+    </form>
+  {% else %}
+    <form method="post" action="{% url 'admin_panel:enrollment_reactivate' matricula.pk %}">
+      {% csrf_token %}
+      <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+      <button type="submit" class="btn btn-sm btn-outline-success"
+              title="Volta a matricula para a situacao ativa">
+        Reativar
+      </button>
+    </form>
+  {% endif %}
+</div>

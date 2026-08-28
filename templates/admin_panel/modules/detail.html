@@ -1,0 +1,159 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}{{ modulo.code }} - Modulos - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:module_list' %}">&larr; Modulos</a>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+      <h1 class="h4 mb-0">{{ modulo.code }} &middot; {{ modulo.name }}</h1>
+      {% if modulo.is_active %}
+        <span class="cpo-badge cpo-badge--ok">Ativo</span>
+      {% else %}
+        <span class="cpo-badge cpo-badge--neutro">Inativo</span>
+      {% endif %}
+    </div>
+    <p class="text-body-secondary small mb-0">
+      {{ matriculas|length }} aluno(s) matriculado(s) neste modulo.
+    </p>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:module_update' modulo.pk %}">Editar</a>
+    {% if modulo.is_active %}
+      <button type="button" class="btn btn-sm btn-outline-danger"
+              data-bs-toggle="modal" data-bs-target="#desativarModulo">Desativar</button>
+    {% else %}
+      <form method="post" action="{% url 'admin_panel:module_enable' modulo.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+        <button type="submit" class="btn btn-sm btn-outline-success">Ativar</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if not modulo.is_active %}
+  <div class="alert alert-warning small" role="alert">
+    Este modulo esta inativo: ele nao aparece para os alunos e as matriculas
+    dele nao liberam acesso enquanto continuar assim.
+  </div>
+{% endif %}
+
+<div class="cpo-cartao p-4 mb-3">
+  <h2 class="h6 mb-2">Descricao</h2>
+  {% if modulo.description %}
+    <p class="mb-4">{{ modulo.description|linebreaksbr }}</p>
+  {% else %}
+    <p class="text-body-secondary mb-4">Sem descricao.</p>
+  {% endif %}
+
+  <div class="row g-3 small">
+    <div class="col-12 col-sm-4">
+      <div class="text-body-secondary">Ordem</div>
+      <div class="fw-medium">{{ modulo.order }}</div>
+    </div>
+    <div class="col-12 col-sm-4">
+      <div class="text-body-secondary">Criado em</div>
+      <div class="fw-medium">{{ modulo.created_at|date:"d/m/Y H:i" }}</div>
+    </div>
+    <div class="col-12 col-sm-4">
+      <div class="text-body-secondary">Atualizado em</div>
+      <div class="fw-medium">{{ modulo.updated_at|date:"d/m/Y H:i" }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h2 class="h6 mb-0">Alunos matriculados</h2>
+  <a class="btn btn-sm btn-primary"
+     href="{% url 'admin_panel:enrollment_create' %}?modulo={{ modulo.pk }}">Matricular aluno</a>
+</div>
+
+<div class="cpo-cartao">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 cpo-tabela">
+      <thead>
+        <tr>
+          <th>Aluno</th>
+          <th>Situacao</th>
+          <th>Acesso</th>
+          <th class="text-end">Acoes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for matricula in matriculas %}
+          <tr>
+            <td>
+              <a href="{% url 'admin_panel:student_detail' matricula.student.pk %}"
+                 class="fw-medium text-decoration-none">
+                {{ matricula.student.full_name }}
+              </a>
+              <div class="small text-body-secondary">{{ matricula.student.email }}</div>
+            </td>
+            <td>
+              {% if matricula.status == "ACTIVE" %}
+                <span class="cpo-badge cpo-badge--ok">Ativa</span>
+              {% elif matricula.status == "COMPLETED" %}
+                <span class="cpo-badge cpo-badge--info">Concluida</span>
+              {% else %}
+                <span class="cpo-badge cpo-badge--neutro">Inativa</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if matricula.access_enabled %}
+                <span class="cpo-badge cpo-badge--ok">Liberado</span>
+              {% else %}
+                <span class="cpo-badge cpo-badge--erro">Bloqueado</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              {% include "admin_panel/enrollments/_acoes.html" with matricula=matricula %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="4" class="text-center text-body-secondary py-5">
+              Nenhum aluno matriculado neste modulo.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if modulo.is_active %}
+  <div class="modal fade" id="desativarModulo" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h6">Desativar modulo</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">
+            Tem certeza que deseja desativar <strong>{{ modulo.code }} &middot; {{ modulo.name }}</strong>?
+          </p>
+          <p class="small text-body-secondary mb-0">
+            O modulo deixa de aparecer para os alunos e as matriculas dele param
+            de liberar acesso. As matriculas e o historico sao preservados, e o
+            modulo pode ser ativado novamente depois.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <form method="post" action="{% url 'admin_panel:module_disable' modulo.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+            <button type="submit" class="btn btn-sm btn-danger">Desativar</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

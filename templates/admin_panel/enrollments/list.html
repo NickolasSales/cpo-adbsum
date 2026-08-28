@@ -1,0 +1,130 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}Matriculas - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">Matriculas</h1>
+    <p class="text-body-secondary small mb-0">{{ total_geral }} matricula(s) cadastrada(s).</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-primary btn-sm" href="{% url 'admin_panel:enrollment_create' %}">Nova matricula</a>
+  </div>
+</div>
+
+<form method="get" class="cpo-cartao p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-lg">
+      <label for="q" class="form-label small fw-medium mb-1">Buscar</label>
+      <input type="search" id="q" name="q" value="{{ busca }}" class="form-control form-control-sm"
+             placeholder="Nome ou e-mail do aluno">
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+      <label for="modulo" class="form-label small fw-medium mb-1">Modulo</label>
+      <select id="modulo" name="modulo" class="form-select form-select-sm">
+        <option value="">Todos</option>
+        {% for modulo in modulos %}
+          <option value="{{ modulo.pk }}" {% if filtro_modulo == modulo.pk|stringformat:"s" %}selected{% endif %}>
+            {{ modulo.code }} - {{ modulo.name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-sm-3 col-lg-2">
+      <label for="situacao" class="form-label small fw-medium mb-1">Situacao</label>
+      <select id="situacao" name="situacao" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        {% for valor, rotulo in situacoes %}
+          <option value="{{ valor }}" {% if filtro_situacao == valor %}selected{% endif %}>{{ rotulo }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-sm-3 col-lg-2">
+      <label for="acesso" class="form-label small fw-medium mb-1">Acesso</label>
+      <select id="acesso" name="acesso" class="form-select form-select-sm">
+        <option value="">Todos</option>
+        <option value="liberado" {% if filtro_acesso == "liberado" %}selected{% endif %}>Liberado</option>
+        <option value="bloqueado" {% if filtro_acesso == "bloqueado" %}selected{% endif %}>Bloqueado</option>
+      </select>
+    </div>
+    <div class="col-12 col-lg-auto d-flex gap-2">
+      <button type="submit" class="btn btn-sm btn-primary w-100">Filtrar</button>
+      {% if busca or filtro_modulo or filtro_situacao or filtro_acesso %}
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:enrollment_list' %}">Limpar</a>
+      {% endif %}
+    </div>
+  </div>
+</form>
+
+<div class="cpo-cartao">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 cpo-tabela">
+      <thead>
+        <tr>
+          <th>Aluno</th>
+          <th>Modulo</th>
+          <th>Situacao</th>
+          <th>Acesso</th>
+          <th class="d-none d-lg-table-cell">Data</th>
+          <th class="text-end">Acoes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for matricula in matriculas %}
+          <tr>
+            <td>
+              <a href="{% url 'admin_panel:student_detail' matricula.student.pk %}"
+                 class="fw-medium text-decoration-none">
+                {{ matricula.student.full_name }}
+              </a>
+              <div class="small text-body-secondary">{{ matricula.student.email }}</div>
+            </td>
+            <td>
+              <a href="{% url 'admin_panel:module_detail' matricula.module.pk %}"
+                 class="fw-medium text-decoration-none">
+                {{ matricula.module.code }}
+              </a>
+              <div class="small text-body-secondary">{{ matricula.module.name }}</div>
+            </td>
+            <td>
+              {% if matricula.status == "ACTIVE" %}
+                <span class="cpo-badge cpo-badge--ok">Ativa</span>
+              {% elif matricula.status == "COMPLETED" %}
+                <span class="cpo-badge cpo-badge--info">Concluida</span>
+              {% else %}
+                <span class="cpo-badge cpo-badge--neutro">Inativa</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if matricula.access_enabled %}
+                <span class="cpo-badge cpo-badge--ok">Liberado</span>
+              {% else %}
+                <span class="cpo-badge cpo-badge--erro">Bloqueado</span>
+              {% endif %}
+            </td>
+            <td class="d-none d-lg-table-cell small text-body-secondary">
+              {{ matricula.enrolled_at|date:"d/m/Y" }}
+            </td>
+            <td class="text-end">
+              {% include "admin_panel/enrollments/_acoes.html" with matricula=matricula %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-body-secondary py-5">
+              {% if busca or filtro_modulo or filtro_situacao or filtro_acesso %}
+                Nenhuma matricula encontrada com esses filtros.
+              {% else %}
+                Nenhuma matricula cadastrada ainda.
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "admin_panel/_paginacao.html" %}
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}{{ titulo }} - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  {% if modulo %}
+    <a class="small text-decoration-none" href="{% url 'admin_panel:module_detail' modulo.pk %}">&larr; {{ modulo.code }}</a>
+  {% else %}
+    <a class="small text-decoration-none" href="{% url 'admin_panel:module_list' %}">&larr; Modulos</a>
+  {% endif %}
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">{{ titulo }}</h1>
+    <p class="text-body-secondary small mb-0">
+      {% if modulo %}
+        Alterando o modulo {{ modulo.code }}.
+      {% else %}
+        Cadastre um modulo para poder matricular alunos nele.
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-12 col-lg-8 col-xl-7">
+    <form method="post" novalidate class="cpo-cartao p-3 p-md-4">
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger py-2 small">
+          {% for erro in form.non_field_errors %}
+            <div>{{ erro }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <div class="mb-3">
+        <label for="{{ form.name.id_for_label }}" class="form-label small fw-medium mb-1">Nome</label>
+        {{ form.name }}
+        {% if form.name.errors %}
+          <div class="form-text text-danger">{{ form.name.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <div class="mb-3">
+        <label for="{{ form.code.id_for_label }}" class="form-label small fw-medium mb-1">Codigo</label>
+        {{ form.code }}
+        <div class="form-text">Identificador curto como MOD1. Sera gravado em maiusculas.</div>
+        {% if form.code.errors %}
+          <div class="form-text text-danger">{{ form.code.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <div class="mb-3">
+        <label for="{{ form.description.id_for_label }}" class="form-label small fw-medium mb-1">Descricao</label>
+        {{ form.description }}
+        <div class="form-text">Opcional. Um resumo curto do que o modulo cobre.</div>
+        {% if form.description.errors %}
+          <div class="form-text text-danger">{{ form.description.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <div class="mb-3 col-12 col-sm-4 px-0">
+        <label for="{{ form.order.id_for_label }}" class="form-label small fw-medium mb-1">Ordem</label>
+        {{ form.order }}
+        <div class="form-text">Menor aparece primeiro na lista.</div>
+        {% if form.order.errors %}
+          <div class="form-text text-danger">{{ form.order.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <div class="mb-4">
+        <div class="form-check">
+          {{ form.is_active }}
+          <label for="{{ form.is_active.id_for_label }}" class="form-check-label">Modulo ativo</label>
+        </div>
+        <div class="form-text">Modulo inativo nao aparece para o aluno e nao aceita novas matriculas.</div>
+        {% if form.is_active.errors %}
+          <div class="form-text text-danger">{{ form.is_active.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <div class="d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary">Salvar</button>
+        {% if modulo %}
+          <a class="btn btn-outline-secondary" href="{% url 'admin_panel:module_detail' modulo.pk %}">Cancelar</a>
+        {% else %}
+          <a class="btn btn-outline-secondary" href="{% url 'admin_panel:module_list' %}">Cancelar</a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Erro interno</title>
+  <style>
+    /* Pagina deliberadamente autossuficiente: o handler de erro 500 roda com
+       um contexto minimo, sem context processors e sem garantia de que os
+       arquivos estaticos estejam acessiveis. */
+    body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+           background:#f1f5f9; color:#0f172a; display:flex; min-height:100vh;
+           align-items:center; justify-content:center; text-align:center; padding:2rem 1rem; }
+    .codigo { font-size:4rem; font-weight:700; color:#1d4ed8; line-height:1; }
+    h1 { font-size:1.15rem; margin:1rem 0 .5rem; }
+    p { color:#64748b; margin:0 0 1.5rem; }
+    a { display:inline-block; background:#1d4ed8; color:#fff; text-decoration:none;
+        padding:.6rem 1.2rem; border-radius:.5rem; font-size:.95rem; }
+  </style>
+</head>
+<body>
+  <div>
+    <div class="codigo">500</div>
+    <h1>Erro interno do servidor</h1>
+    <p>Ocorreu uma falha ao processar sua solicitacao. Tente novamente em instantes.</p>
+    <a href="/">Voltar ao inicio</a>
+  </div>
+</body>
+</html>

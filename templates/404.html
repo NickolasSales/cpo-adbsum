@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Pagina nao encontrada - {{ INSTITUTION_NAME }} Provas{% endblock %}
+{% block main_class %}cpo-erro{% endblock %}
+
+{% block content %}
+<div>
+  <div class="cpo-erro__codigo">404</div>
+  <h1 class="h5 mt-3 mb-2">Pagina nao encontrada</h1>
+  <p class="text-body-secondary mb-4">
+    O endereco acessado nao existe ou foi removido.
+  </p>
+  <a class="btn btn-primary" href="{% url 'common:root' %}">Voltar ao inicio</a>
+</div>
+{% endblock %}

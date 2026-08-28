@@ -1,0 +1,38 @@
+# ---------------------------------------------------------------------------
+# CPO Provas - dependencias diretas
+#
+# Somente o que a aplicacao importa de fato. As transitivas sao resolvidas
+# pelo pip e ficam propositalmente fora deste arquivo, para que ele continue
+# legivel.
+#
+# Versoes fixadas para builds reproduziveis. Nenhuma versao alpha, beta ou rc.
+# Python do projeto: 3.12
+# ---------------------------------------------------------------------------
+
+# Framework
+Django==5.2.17
+
+# PostgreSQL. O extra [binary] traz o libpq empacotado na wheel, dispensando
+# a instalacao de bibliotecas de sistema tanto no Windows quanto na EC2.
+psycopg[binary]==3.2.13
+
+# Leitura da DATABASE_URL, que e a unica forma de configurar o banco.
+dj-database-url==2.3.0
+
+# Carga do .env em desenvolvimento. Em producao as variaveis vem do systemd.
+python-dotenv==1.2.3
+
+# Leitura de planilhas .xlsx na importacao de alunos. Escolhido no lugar do
+# pandas de proposito: a EC2 de producao sera pequena, e pandas custa mais de
+# 50 MB e dezenas de segundos de import para uma tarefa que o openpyxl
+# resolve em 250 KB.
+openpyxl==3.1.5
+
+# Servidor WSGI de producao. Gunicorn depende de modulos POSIX e nao roda no
+# Windows; o marcador impede que o pip tente instala-lo na maquina de
+# desenvolvimento, mantendo um unico requirements.txt para os dois ambientes.
+gunicorn==26.2.0 ; sys_platform != "win32"
+
+# Testes
+pytest==8.4.2
+pytest-django==4.14.0

@@ -1,0 +1,118 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Cadastro e edicao de aluno (StudentCreateView e StudentUpdateView).
+
+O mesmo template atende as duas telas. A unica diferenca de contexto e a
+presenca de "aluno": ele so existe na edicao, e e o que define a trilha, o
+destino do Cancelar e o texto de apoio.
+
+O formulario nunca exibe senha. A conta nasce com a senha inicial padrao
+definida em DEFAULT_STUDENT_PASSWORD e o aluno e obrigado a troca-la no
+primeiro acesso; o valor da variavel nao aparece em tela nenhuma.
+{% endcomment %}
+
+{% block title %}{{ titulo }} - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<div class="cpo-formulario" style="max-width: 620px;">
+
+  <nav aria-label="Trilha" class="mb-3">
+    {% if aluno %}
+      <a class="small text-decoration-none" href="{% url 'admin_panel:student_detail' aluno.pk %}">
+        &larr; {{ aluno.full_name }}
+      </a>
+    {% else %}
+      <a class="small text-decoration-none" href="{% url 'admin_panel:student_list' %}">
+        &larr; Alunos
+      </a>
+    {% endif %}
+  </nav>
+
+  <h1 class="h4 mb-1">{{ titulo }}</h1>
+  <p class="text-body-secondary small mb-3">
+    {% if aluno %}
+      Nome, e-mail e observacoes. Papel e permissoes nao sao editaveis por aqui.
+    {% else %}
+      Informe os dados basicos. As matriculas em modulos sao feitas depois, na ficha do aluno.
+    {% endif %}
+  </p>
+
+  {% if not senha_configurada %}
+    <div class="alert alert-warning small" role="alert">
+      A senha inicial padrao dos alunos nao esta configurada. Defina
+      <code>DEFAULT_STUDENT_PASSWORD</code> nas variaveis de ambiente antes de
+      cadastrar alunos.
+    </div>
+  {% endif %}
+
+  {% if not aluno %}
+    <div class="alert alert-info small" role="alert">
+      O aluno recebera a senha inicial padrao do sistema e sera obrigado a
+      troca-la no primeiro acesso. A senha nao e exibida nem enviada por esta tela.
+    </div>
+  {% endif %}
+
+  <div class="cpo-cartao p-3 p-md-4">
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger py-2 small" role="alert">
+        {% for erro in form.non_field_errors %}
+          <div>{{ erro }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      <div class="mb-3">
+        <label for="{{ form.full_name.id_for_label }}" class="form-label small fw-medium">
+          {{ form.full_name.label }}
+        </label>
+        {{ form.full_name }}
+        {% if form.full_name.errors %}
+          <div class="form-text text-danger">{{ form.full_name.errors.0 }}</div>
+        {% elif form.full_name.help_text %}
+          <div class="form-text small">{{ form.full_name.help_text }}</div>
+        {% endif %}
+      </div>
+
+      <div class="mb-3">
+        <label for="{{ form.email.id_for_label }}" class="form-label small fw-medium">
+          {{ form.email.label }}
+        </label>
+        {{ form.email }}
+        {% if form.email.errors %}
+          <div class="form-text text-danger">{{ form.email.errors.0 }}</div>
+        {% else %}
+          <div class="form-text small">E o login do aluno. Precisa ser unico no sistema.</div>
+        {% endif %}
+      </div>
+
+      <div class="mb-3">
+        <label for="{{ form.notes.id_for_label }}" class="form-label small fw-medium">
+          {{ form.notes.label }}
+          <span class="text-body-secondary fw-normal">(opcional)</span>
+        </label>
+        {{ form.notes }}
+        {% if form.notes.errors %}
+          <div class="form-text text-danger">{{ form.notes.errors.0 }}</div>
+        {% else %}
+          <div class="form-text small">Uso administrativo. O aluno nao ve este campo.</div>
+        {% endif %}
+      </div>
+
+      <div class="d-flex flex-wrap gap-2 pt-2">
+        <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
+        {% if aluno %}
+          <a class="btn btn-outline-secondary btn-sm" href="{% url 'admin_panel:student_detail' aluno.pk %}">Cancelar</a>
+        {% else %}
+          <a class="btn btn-outline-secondary btn-sm" href="{% url 'admin_panel:student_list' %}">Cancelar</a>
+        {% endif %}
+      </div>
+    </form>
+
+  </div>
+</div>
+{% endblock %}

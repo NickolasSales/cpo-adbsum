@@ -1,0 +1,46 @@
+{% extends "student/base_student.html" %}
+
+{% block title %}Meu painel - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h1 class="h4 mb-1">Ola, {{ user.get_short_name }}</h1>
+  <p class="text-body-secondary small mb-0">
+    Aqui voce acompanha seus modulos, provas e resultados.
+  </p>
+</div>
+
+<h2 class="h6 text-uppercase text-body-secondary mb-3" style="letter-spacing:.05em;">
+  Meus modulos
+</h2>
+
+{% if modulos %}
+  <div class="row g-3">
+    {% for modulo in modulos %}
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="cpo-cartao p-3 h-100 d-flex flex-column">
+          <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+            <div class="fw-semibold">{{ modulo.name }}</div>
+            <span class="cpo-badge cpo-badge--ok">Em andamento</span>
+          </div>
+          <p class="small text-body-secondary mb-3">
+            <code>{{ modulo.code }}</code>
+          </p>
+          <a class="btn btn-primary w-100 mt-auto"
+             href="{% url 'student:module_detail' modulo.pk %}">
+            Acessar modulo
+          </a>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="cpo-cartao cpo-vazio">
+    <div class="cpo-vazio__icone" aria-hidden="true">&#128218;</div>
+    <p class="mb-1 fw-medium">Voce ainda nao possui modulos disponiveis.</p>
+    <p class="small mb-0">
+      Assim que a coordenacao liberar seus modulos, eles aparecerao aqui.
+    </p>
+  </div>
+{% endif %}
+{% endblock %}
