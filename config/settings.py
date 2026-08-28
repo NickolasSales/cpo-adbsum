@@ -242,8 +242,19 @@ X_FRAME_OPTIONS = "DENY"
 SECURE_REFERRER_POLICY = "same-origin"
 
 if not DEBUG:
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+    # Os quatro ajustes abaixo tem padrao seguro e so podem ser afrouxados
+    # por declaracao explicita no ambiente.
+    #
+    # Motivo de serem parametrizaveis: num deploy de fumaca acessado por IP,
+    # sem dominio e sem certificado, um cookie marcado como Secure nunca e
+    # devolvido pelo navegador e o login se torna impossivel. Sem esta valvula
+    # a alternativa seria rodar o smoke test com DEBUG=True, que e pior:
+    # ligaria a pagina de erro detalhada num host publico.
+    #
+    # A excecao pertence ao .env daquele ambiente, nunca ao codigo. Qualquer
+    # ambiente que nao declare nada continua recebendo o comportamento seguro.
+    SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", default=True)
+    CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", default=True)
     SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", default=True)
     SECURE_HSTS_SECONDS = int(env("SECURE_HSTS_SECONDS", "31536000"))
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
