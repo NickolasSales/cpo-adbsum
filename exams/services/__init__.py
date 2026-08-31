@@ -1,15 +1,31 @@
 """
 Servicos de dominio de provas.
 
-Dividido em tres modulos por tamanho, nao por estetica: validacao estrutural,
-ciclo de vida da prova e manutencao de questoes somariam bem mais de
-setecentas linhas num arquivo unico.
+Dividido por assunto, e nao por estetica: validacao estrutural, ciclo de vida
+da prova, manutencao de questoes e realizacao pelo aluno somariam mais de mil
+e quinhentas linhas num arquivo unico.
 
 Este pacote reexporta tudo, de modo que quem chama continua escrevendo
 `from exams import services` e `services.publish_exam(...)`, igual ao padrao
 das outras apps.
 """
 
+from exams.services.attempt import (  # noqa: F401
+    ObrigatoriasPendentes,
+    SemAcessoAProva,
+    TentativaNaoEditavel,
+    TokenInvalido,
+    autosave_answer,
+    expirar_tentativas_vencidas,
+    expire_attempt,
+    matricula_liberada,
+    prova_visivel_ou_none,
+    questoes_obrigatorias_sem_resposta,
+    start_attempt,
+    submit_attempt,
+    tentativa_do_aluno_ou_none,
+    tentativas_do_aluno,
+)
 from exams.services.exam import (  # noqa: F401
     close_exam,
     create_exam,
@@ -32,6 +48,20 @@ from exams.services.validation import (  # noqa: F401
 )
 
 __all__ = [
+    "ObrigatoriasPendentes",
+    "SemAcessoAProva",
+    "TentativaNaoEditavel",
+    "TokenInvalido",
+    "autosave_answer",
+    "expirar_tentativas_vencidas",
+    "expire_attempt",
+    "matricula_liberada",
+    "prova_visivel_ou_none",
+    "questoes_obrigatorias_sem_resposta",
+    "start_attempt",
+    "submit_attempt",
+    "tentativa_do_aluno_ou_none",
+    "tentativas_do_aluno",
     "close_exam",
     "create_exam",
     "duplicate_exam",

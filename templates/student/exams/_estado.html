@@ -1,0 +1,18 @@
+{% comment %}
+Selo de situacao de uma prova para o aluno.
+
+Recebe `cartao`, um ProvaDoAluno vindo de exams.selectors. O estado ja chega
+decidido: o template escolhe a cor, e nao a regra. Comparar datas e contar
+tentativas aqui espalharia dominio por HTML, onde nada disso pode ser testado.
+{% endcomment %}
+{% if cartao.estado == "EM_ANDAMENTO" %}
+  <span class="cpo-badge cpo-badge--ok">{{ cartao.rotulo }}</span>
+{% elif cartao.estado == "DISPONIVEL" %}
+  <span class="cpo-badge cpo-badge--ok">{{ cartao.rotulo }}</span>
+{% elif cartao.estado == "ENVIADA" %}
+  <span class="cpo-badge cpo-badge--info">{{ cartao.rotulo }}</span>
+{% elif cartao.estado == "EXPIRADA" %}
+  <span class="cpo-badge cpo-badge--alerta">{{ cartao.rotulo }}</span>
+{% else %}
+  <span class="cpo-badge">{{ cartao.rotulo }}</span>
+{% endif %}

@@ -53,6 +53,20 @@ class AuditEvent(models.TextChoices):
     QUESTION_UPDATED = "QUESTION_UPDATED", "Questao atualizada"
     QUESTION_DELETED = "QUESTION_DELETED", "Questao excluida"
 
+    # Tentativas (Etapa 4)
+    #
+    # Sao tres eventos por tentativa inteira, e nao um por resposta salva. O
+    # autosave dispara a cada clique do aluno e produziria milhares de linhas
+    # que nao contam nada que o banco de respostas ja nao conte melhor.
+    #
+    # A metadata nunca carrega resposta, texto de redacao, gabarito, senha da
+    # prova nem token publico. Os tokens sao o que o aluno usa para escrever
+    # na tentativa: guarda-los na trilha seria espalhar credencial de escrita
+    # por uma tabela que existe para ser lida.
+    ATTEMPT_STARTED = "ATTEMPT_STARTED", "Tentativa iniciada"
+    ATTEMPT_SUBMITTED = "ATTEMPT_SUBMITTED", "Tentativa enviada"
+    ATTEMPT_EXPIRED = "ATTEMPT_EXPIRED", "Tentativa expirada"
+
 
 class AuditLog(models.Model):
     """

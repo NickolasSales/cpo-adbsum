@@ -8,6 +8,7 @@ from django.contrib import messages
 from django.db.models import Count, Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, FormView, ListView, TemplateView
 
@@ -17,6 +18,7 @@ from common.views import PainelAdminMixin
 from courses import services
 from courses.forms import EnrollmentForm, ModuleForm
 from courses.models import Enrollment, EnrollmentStatus, Module
+from exams import selectors as exams_selectors
 
 
 # ---------------------------------------------------------------------------
@@ -352,6 +354,10 @@ class StudentModuleDetailView(StudentRequiredMixin, TemplateView):
 
         contexto["modulo"] = matricula.module
         contexto["matricula"] = matricula
-        # Provas chegam na Etapa 4.
-        contexto["provas"] = []
+        # A situacao de cada prova para este aluno — disponivel, em andamento,
+        # enviada, encerrada — e decidida no selector, e nao no template. Duas
+        # consultas para o modulo inteiro, sem uma por prova.
+        contexto["provas"] = exams_selectors.provas_do_modulo_para_aluno(
+            matricula.module, self.request.user, agora=timezone.now()
+        )
         return contexto

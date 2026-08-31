@@ -1,0 +1,140 @@
+{% extends "student/base_student.html" %}
+
+{% comment %}
+Tela anterior a prova.
+
+Nada aqui inicia nada. O unico caminho para uma tentativa e o POST do
+formulario abaixo, e por isso o botao e um submit dentro de um <form> com
+CSRF, e nunca um link.
+{% endcomment %}
+
+{% block title %}{{ prova.title }} - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none"
+     href="{% url 'student:module_detail' pk=prova.module_id %}">
+    &larr; {{ prova.module.name }}
+  </a>
+</nav>
+
+<div class="mb-4">
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+    <h1 class="h4 mb-0">{{ prova.title }}</h1>
+    {% if cartao %}{% include "student/exams/_estado.html" %}{% endif %}
+  </div>
+  <p class="text-body-secondary small mb-0">{{ prova.module.name }}</p>
+</div>
+
+{% if erros %}
+  <div class="alert alert-danger" role="alert">
+    <p class="fw-medium mb-1">Nao foi possivel iniciar a prova.</p>
+    <ul class="mb-0 ps-3">
+      {% for erro in erros %}<li>{{ erro }}</li>{% endfor %}
+    </ul>
+  </div>
+{% endif %}
+
+{% if prova.instructions %}
+  <div class="cpo-cartao p-3 mb-4">
+    <h2 class="h6 text-uppercase text-body-secondary mb-2" style="letter-spacing:.05em;">
+      Instrucoes
+    </h2>
+    <p class="mb-0">{{ prova.instructions|linebreaksbr }}</p>
+  </div>
+{% endif %}
+
+<div class="cpo-cartao p-3 mb-4">
+  <h2 class="h6 text-uppercase text-body-secondary mb-3" style="letter-spacing:.05em;">
+    Como funciona
+  </h2>
+  <dl class="row mb-0 small">
+    <dt class="col-6 col-sm-4 fw-normal text-body-secondary">Duracao</dt>
+    <dd class="col-6 col-sm-8">{{ prova.duration_minutes }} minutos</dd>
+
+    <dt class="col-6 col-sm-4 fw-normal text-body-secondary">Nota minima</dt>
+    <dd class="col-6 col-sm-8">{{ prova.passing_score }}</dd>
+
+    <dt class="col-6 col-sm-4 fw-normal text-body-secondary">Total de pontos</dt>
+    <dd class="col-6 col-sm-8">{{ prova.total_points }}</dd>
+
+    <dt class="col-6 col-sm-4 fw-normal text-body-secondary">Abertura</dt>
+    <dd class="col-6 col-sm-8">{{ prova.open_at|date:"d/m/Y H:i" }}</dd>
+
+    <dt class="col-6 col-sm-4 fw-normal text-body-secondary">Encerramento</dt>
+    <dd class="col-6 col-sm-8">{{ prova.close_at|date:"d/m/Y H:i" }}</dd>
+
+    <dt class="col-6 col-sm-4 fw-normal text-body-secondary">Tentativas</dt>
+    <dd class="col-6 col-sm-8">
+      {{ cartao.tentativas_utilizadas }} de {{ cartao.tentativas_permitidas }} utilizada{{ cartao.tentativas_permitidas|pluralize }}
+    </dd>
+
+    <dt class="col-6 col-sm-4 fw-normal text-body-secondary">Senha da prova</dt>
+    <dd class="col-6 col-sm-8">
+      {% if prova.tem_senha %}Necessaria{% else %}Nao necessaria{% endif %}
+    </dd>
+  </dl>
+</div>
+
+{% if prova.duration_minutes %}
+  <div class="alert alert-secondary small" role="note">
+    O tempo comeca a contar assim que voce iniciar e nao pode ser pausado.
+    Suas respostas sao salvas automaticamente enquanto voce responde.
+  </div>
+{% endif %}
+
+{% if cartao.estado == "EM_ANDAMENTO" %}
+  <a class="btn btn-primary"
+     href="{% url 'student:attempt' public_id=cartao.attempt_public_id %}">
+    Continuar prova
+  </a>
+
+{% elif cartao.pode_iniciar %}
+  <form method="post" action="{% url 'student:attempt_start' exam_id=prova.id %}"
+        class="cpo-cartao p-3">
+    {% csrf_token %}
+    {% if prova.tem_senha %}
+      <div class="mb-3">
+        <label class="form-label" for="access_password">Senha da prova</label>
+        <input type="password" class="form-control" id="access_password"
+               name="access_password" autocomplete="off" required>
+        <div class="form-text">Informada pela coordenacao no dia da prova.</div>
+      </div>
+    {% endif %}
+    <button type="submit" class="btn btn-primary">Iniciar prova</button>
+  </form>
+
+{% else %}
+  <div class="alert alert-secondary mb-0" role="status">
+    {% if cartao.estado == "AGENDADA" %}
+      Esta prova abre em {{ prova.open_at|date:"d/m/Y \a\s H:i" }}.
+    {% elif cartao.estado == "ENCERRADA" %}
+      O periodo desta prova foi encerrado.
+    {% elif cartao.estado == "ENVIADA" %}
+      Voce ja enviou esta prova.
+    {% elif cartao.estado == "EXPIRADA" %}
+      O tempo da sua tentativa terminou.
+    {% else %}
+      Voce ja utilizou todas as tentativas permitidas para esta prova.
+    {% endif %}
+  </div>
+{% endif %}
+
+{% if tentativas %}
+  <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2"
+      style="letter-spacing:.05em;">
+    Suas tentativas
+  </h2>
+  <ul class="list-unstyled small mb-0">
+    {% for tentativa in tentativas %}
+      <li class="d-flex flex-wrap gap-2 align-items-center py-1">
+        <span class="text-body-secondary">Tentativa {{ tentativa.attempt_number }}</span>
+        <span>{{ tentativa.get_status_display }}</span>
+        <span class="text-body-secondary">
+          {{ tentativa.started_at|date:"d/m/Y H:i" }}
+        </span>
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}
+{% endblock %}

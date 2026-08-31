@@ -31,11 +31,56 @@
   Provas
 </h2>
 
-<div class="cpo-cartao cpo-vazio">
-  <div class="cpo-vazio__icone" aria-hidden="true">&#128218;</div>
-  <p class="mb-1 fw-medium">Nenhuma prova disponivel neste modulo.</p>
-  <p class="small mb-0">
-    Assim que a coordenacao liberar uma prova, ela aparecera aqui.
-  </p>
-</div>
+{% if provas %}
+  <div class="d-grid gap-3">
+    {% for prova in provas %}
+      <div class="cpo-cartao p-3">
+        <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
+          <div>
+            <h3 class="h6 mb-1">{{ prova.title }}</h3>
+            <p class="small text-body-secondary mb-0">
+              {{ prova.duration_minutes }} min
+              &middot; nota minima {{ prova.passing_score }}
+              {% if prova.tem_senha %}&middot; exige senha{% endif %}
+            </p>
+          </div>
+          {% include "student/exams/_estado.html" with cartao=prova %}
+        </div>
+
+        <div class="mt-3 d-flex flex-wrap align-items-center gap-2">
+          {% if prova.estado == "EM_ANDAMENTO" %}
+            <a class="btn btn-sm btn-primary"
+               href="{% url 'student:attempt' public_id=prova.attempt_public_id %}">
+              Continuar prova
+            </a>
+          {% elif prova.estado == "DISPONIVEL" %}
+            <a class="btn btn-sm btn-primary"
+               href="{% url 'student:exam_instructions' exam_id=prova.id %}">
+              Ver instrucoes
+            </a>
+          {% else %}
+            <a class="btn btn-sm btn-outline-secondary"
+               href="{% url 'student:exam_instructions' exam_id=prova.id %}">
+              Ver detalhes
+            </a>
+          {% endif %}
+
+          {% if prova.estado == "AGENDADA" and prova.open_at %}
+            <span class="small text-body-secondary">
+              Abre em {{ prova.open_at|date:"d/m/Y \s H:i" }}
+            </span>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="cpo-cartao cpo-vazio">
+    <div class="cpo-vazio__icone" aria-hidden="true">&#128218;</div>
+    <p class="mb-1 fw-medium">Nenhuma prova disponivel neste modulo.</p>
+    <p class="small mb-0">
+      Assim que a coordenacao liberar uma prova, ela aparecera aqui.
+    </p>
+  </div>
+{% endif %}
 {% endblock %}

@@ -8,17 +8,17 @@ Bootstrap 5. Produção prevista em uma instância AWS EC2 com Nginx, Gunicorn e
 systemd — sem dependência de serviços proprietários da AWS na lógica de
 negócio.
 
-> **Estado atual: Etapa 3 — administração de provas.**
-> Sobre a Etapa 1 (autenticação por e-mail, segregação de papéis, troca
-> obrigatória de senha inicial, auditoria e health check) e a Etapa 2 (alunos,
-> módulos, matrículas e importação de planilhas), o sistema agora monta provas:
-> questões de cinco tipos, gabarito, pontuação em Decimal, publicação validada,
-> fechamento, versionamento por duplicação, gabarito administrativo e preview
-> sem resposta correta.
+> **Estado atual: Etapa 4 — motor de realização da prova.**
+> Sobre a Etapa 1 (autenticação, papéis, auditoria, health check), a Etapa 2
+> (alunos, módulos, matrículas) e a Etapa 3 (montagem e publicação de provas),
+> o aluno agora **faz a prova**: instruções, início controlado por senha e
+> janela, ordem e tokens próprios por tentativa, cronômetro com o servidor
+> como fonte da verdade, autosave, retomada após F5 ou troca de aparelho,
+> envio único e expiração automática.
 >
-> **O aluno ainda não realiza provas.** Publicar uma prova não a expõe a
-> ninguém: a tela do aluno continua mostrando apenas os módulos. Realização,
-> cronômetro, correção, notas e certificados vêm nas etapas seguintes.
+> **Ainda não há correção.** Nenhuma nota é calculada, nenhuma resposta é
+> comparada ao gabarito e a tela final não mostra resultado. Correção,
+> notas, aprovação e certificados vêm nas etapas seguintes.
 
 ---
 
@@ -256,10 +256,26 @@ redireciona para o detalhe com mensagem — é navegação, não escrita.
 | URL | Método | O que faz |
 |---|---|---|
 | `/aluno/` | GET | módulos liberados para o aluno |
-| `/aluno/modulos/<id>/` | GET | detalhe do módulo; **404** sem matrícula liberada |
+| `/aluno/modulos/<id>/` | GET | módulo e suas provas; **404** sem matrícula liberada |
+| `/aluno/provas/<id>/` | GET | instruções; **nunca** cria tentativa |
+| `/aluno/provas/<id>/iniciar/` | **POST** | único ponto que cria uma tentativa |
+| `/aluno/tentativas/<uuid>/` | GET | a prova, ou a página final se já encerrada |
+| `/aluno/tentativas/<uuid>/autosave/` | **POST** | grava uma resposta; devolve JSON |
+| `/aluno/tentativas/<uuid>/finalizar/` | **POST** | envia a prova |
+
+A prova é identificada pelo id: ela é a mesma para a turma inteira, e saber
+que existe não dá acesso a nada — o portão é a matrícula. A **tentativa** é de
+uma pessoa só, então a URL usa UUID e nunca a PK.
 
 Toda rota que altera estado é **POST com CSRF**. Um `GET` nessas rotas
 responde `405`, e não existe link que dispare alteração.
+
+| Situação | Resposta |
+|---|---|
+| prova de módulo sem matrícula liberada, tentativa de outro aluno, UUID inventado | **404** |
+| papel errado, CSRF ausente | **403** |
+| método errado numa rota de escrita | **405** |
+| autosave em tentativa encerrada, envio com obrigatória em branco | **409** |
 
 ---
 
@@ -315,15 +331,22 @@ cpo-adbsum/
 │   ├── services.py          regras de módulo e matrícula
 │   ├── forms.py             formulários de módulo e matrícula
 │   └── views.py             telas administrativas e área do aluno
-├── exams/               provas, questões e alternativas
-│   ├── models.py            Exam, Question, QuestionOption
+├── exams/               provas, questões, alternativas e tentativas
+│   ├── models/
+│   │   ├── exam.py              Exam, Question, QuestionOption
+│   │   └── attempt.py           ExamAttempt, AttemptQuestion, AttemptOption,
+│   │                            Answer, AnswerOption
 │   ├── services/
 │   │   ├── exam.py              criar, editar, publicar, fechar, duplicar, senha
 │   │   ├── question.py          questões e alternativas
-│   │   └── validation.py        estrutura de questão e requisitos de publicação
+│   │   ├── validation.py        estrutura de questão e requisitos de publicação
+│   │   └── attempt.py           iniciar, autosave, enviar, expirar
 │   ├── selectors.py         leitura SEM gabarito, para o aluno e o preview
 │   ├── forms.py             formulários administrativos
 │   ├── views_admin.py       telas administrativas
+│   ├── views_student.py     instruções, prova, autosave, envio
+│   ├── management/commands/
+│   │   └── expirar_tentativas.py   encerra tentativas órfãs
 │   └── admin.py             Django Admin somente leitura
 ├── templates/
 ├── static/
@@ -505,22 +528,27 @@ consistência continua sendo responsabilidade de `duplicate_exam`.
 
 #### Consequência ao excluir uma prova
 
-`parent_exam` e `root_exam` usam `on_delete=SET_NULL`. Apagar uma prova que
-outra referencia faz o Django zerar essas colunas na referenciadora, o que
-produz exatamente um dos estados agora proibidos — então o `DELETE` falha com
-`IntegrityError`.
+`parent_exam` e `root_exam` usam `on_delete=PROTECT` (migration
+`exams/0003_linhagem_protect`). Apagar uma versão que tem descendentes
+levanta `ProtectedError` **antes de tocar em qualquer linha**, e a exceção
+carrega em `protected_objects` exatamente quais versões estão impedindo.
 
-Isso vale inclusive para apagar a linhagem inteira num único queryset: o
-collector emite `UPDATE ... SET parent_exam_id = NULL` **antes** dos
-`DELETE`s, e esse update atinge também as linhas que sairiam em seguida.
+Antes era `SET_NULL`, e funcionava por acidente: o Django zerava as colunas na
+referenciadora, isso produzia um dos estados proibidos pelas constraints
+acima, e o `DELETE` falhava com `IntegrityError` — um erro obscuro, disparado
+por um `UPDATE` que ninguém tinha escrito. Uma versão com descendentes faz
+parte de histórico: apagá-la zeraria as referências de quem veio depois e
+deixaria a linhagem sem começo.
+
+A recusa vale inclusive para apagar a linhagem inteira num único queryset: o
+collector do Django não isenta objetos que estão no próprio conjunto de
+exclusão quando a relação é `PROTECT`.
 
 O caminho suportado é apagar **da versão mais nova para a mais antiga**, uma
 de cada vez, para que nenhuma versão seja removida enquanto alguém ainda
-aponta para ela. A Etapa 3 não criou rota, service nem tela de exclusão de
-prova, e o Django admin está somente leitura, então nada disso está exposto
-hoje; fica registrado para quem for escrever essa rota. Se ela vier a
-existir, vale reavaliar `SET_NULL` — `PROTECT` daria um erro de domínio claro
-em vez de um `IntegrityError`.
+aponta para ela. Não há rota, service nem tela de exclusão de prova, e o
+Django admin está somente leitura, então nada disso está exposto hoje; fica
+registrado para quem for escrever essa rota.
 
 ### Gabarito e preview
 
@@ -532,6 +560,257 @@ em vez de um `IntegrityError`.
 O preview consome `exams.selectors.questoes_para_aluno`, a mesma função que a
 tela do aluno usará. Ela devolve estruturas que **não possuem** os campos do
 gabarito, então o vazamento deixa de depender de quem escreve o template.
+
+---
+
+## 9.3 Realização da prova
+
+O que a Etapa 4 acrescenta é o caminho do aluno: da tela de instruções até a
+página final, com o servidor decidindo tudo o que importa.
+
+### Os cinco modelos
+
+| Modelo | Guarda | Por quê |
+|---|---|---|
+| `ExamAttempt` | a tentativa: quem, qual prova, quando começa e acaba | registro histórico próprio |
+| `AttemptQuestion` | uma questão **como foi apresentada** a este aluno | posição na tela e token público |
+| `AttemptOption` | uma alternativa como foi apresentada | idem, por alternativa |
+| `Answer` | o que o aluno respondeu numa questão | um-para-um com `AttemptQuestion` |
+| `AnswerOption` | quais alternativas ele marcou | ligação, nunca cópia de texto |
+
+A tentativa copia a **apresentação**, não o conteúdo. Enunciado, texto da
+alternativa e valor da questão continuam em `Question` e `QuestionOption`,
+alcançados por chave estrangeira — a prova publicada é imutável, então não há
+o que duplicar. O que ela deliberadamente **não** copia é `is_correct`: a
+referência aponta para a `QuestionOption` e a leitura do gabarito acontece no
+servidor, na correção.
+
+`Answer` nasce só no primeiro autosave. Questão sem `Answer` significa não
+respondida, e essa é a leitura mais honesta que o banco consegue dar.
+
+### O que o banco garante sozinho sobre a tentativa
+
+A service layer mantém situação e carimbos coerentes, mas ela só protege
+quem passa por ela. Um shell de produção para consertar um caso pontual, uma
+migration de dados ou um comando escrito às pressas escrevem com
+`QuerySet.update`, que não chama `save()`, não chama `full_clean()` e não sabe
+que `choices` existe.
+
+| Constraint | Exige |
+|---|---|
+| `tentativa_numero_unico_por_aluno_e_prova` | `UNIQUE(student, exam, attempt_number)` |
+| `uniq_tentativa_em_andamento` | `UNIQUE(student, exam)` **apenas** onde `status = IN_PROGRESS` |
+| `tentativa_numero_pelo_menos_um` | `attempt_number >= 1` |
+| `tentativa_prazo_posterior_ao_inicio` | `expires_at > started_at` |
+| `tentativa_total_de_pontos_nao_negativo` | `total_points_snapshot >= 0` |
+| `tentativa_nota_minima_entre_0_e_10` | `0 <= passing_score_snapshot <= 10` |
+| `tentativa_status_e_timestamps_coerentes` | a situação e os dois carimbos contam a mesma história |
+| `tentativa_envio_nao_anterior_ao_inicio` | `submitted_at IS NULL OR submitted_at >= started_at` |
+| `tentativa_expiracao_nao_anterior_ao_inicio` | `expired_at IS NULL OR expired_at >= started_at` |
+| `tentativa_situacao_conhecida` | `status IN (IN_PROGRESS, SUBMITTED, EXPIRED, RESET)` |
+
+A coerência entre situação e carimbos, em detalhe:
+
+```
+IN_PROGRESS   submitted_at NULL        e  expired_at NULL
+SUBMITTED     submitted_at PREENCHIDO  e  expired_at NULL
+EXPIRED       submitted_at NULL        e  expired_at PREENCHIDO
+RESET         sem exigência de formato
+```
+
+Uma tentativa `SUBMITTED` sem `submitted_at` não é só um registro feio: ela
+**mente sobre quando o aluno entregou**, e toda pergunta posterior sobre prazo
+fica sem resposta. Uma `IN_PROGRESS` com `submitted_at` aceitaria autosave
+depois do envio, porque o serviço olha o status.
+
+`RESET` fica de fora da exigência de formato **de propósito**. O reset
+administrativo ainda não existe, e quando existir a decisão mais provável é
+preservar o carimbo da tentativa anulada — apagá-lo destruiria justamente a
+informação que explica por que a anulação foi necessária. Amarrar o formato
+agora seria decidir, sem discussão, a regra de uma etapa futura.
+
+`tentativa_situacao_conhecida` existe porque `choices` é validação de
+formulário e o banco nunca ouviu falar dela. Um `UPDATE` direto gravaria
+`HACKED` sem reclamar, e a partir daí a linha escaparia de toda regra escrita
+em cima do enum: não estaria em andamento, não estaria encerrada, o comando de
+expiração não a encontraria e ela ainda ocuparia uma das tentativas do aluno,
+para sempre. A lista fica **literal** na migration, o que é desejado —
+acrescentar uma situação passa a exigir migration nova, e essa migration é o
+lugar certo para decidir o que a situação nova faz com os carimbos.
+
+O que deliberadamente **não** virou constraint é `submitted_at <= expires_at`.
+Uma requisição pode entrar dentro do prazo e só obter o lock da linha alguns
+milissegundos depois dele; quem classifica esse caso é a service layer, com o
+relógio do servidor, e ela já o transforma em `EXPIRED`. Uma check ali
+recusaria uma linha que o próprio código produz e derrubaria o envio de um
+aluno por causa de uma disputa de lock.
+
+### Tokens públicos
+
+`Question.id` e `QuestionOption.id` **nunca chegam ao navegador**. O aluno
+recebe UUID4 gerados por tentativa:
+
+```
+Aluno A · Questão 10 → 550e8400-e29b-...
+Aluno B · Questão 10 → 1f7c9d21-4a5e-...
+```
+
+Combinar "marque a alternativa X" não funciona: X não existe na tentativa do
+colega, e o autosave o recusa como qualquer token inventado. Os tokens nascem
+uma única vez, no início, e ficam gravados — gerar a cada request faria o F5
+trocar todos eles e perder a ligação com as respostas já salvas.
+
+A URL da tentativa usa o `public_id`, nunca a PK. Com PK sequencial, trocar o
+número da URL seria o primeiro teste de qualquer aluno curioso.
+
+### O servidor é a fonte da verdade do tempo
+
+```python
+expires_at = min(started_at + duração, exam.close_at)
+```
+
+Calculado **uma vez**, no início. Depois de gravado não é recalculado por
+nada: nem se o administrador fechar a prova, nem se a duração mudar, nem no
+primeiro request depois de uma pausa. Quem começa faltando vinte minutos tem
+vinte minutos — a janela da prova vale para todos.
+
+A tela recebe `remaining_seconds` e faz a contagem regressiva a partir dele.
+Esse contador é **decorativo**: quem decide se ainda dá tempo de salvar é o
+servidor, a cada requisição, comparando com o prazo que ele mesmo gravou.
+Cada autosave bem-sucedido devolve `remaining_seconds` de novo, então o
+contador se ressincroniza sozinho. Nada vindo do relógio do cliente é aceito.
+
+### Autosave
+
+`POST /aluno/tentativas/<public_id>/autosave/`, CSRF obrigatório — o endpoint
+**não** é `csrf_exempt`. O corpo carrega apenas o token da questão, os tokens
+das alternativas e o texto. Qualquer outro campo é ignorado porque não há
+nada no código que o leia.
+
+Cada gravação **substitui** a resposta inteira daquela questão. Apagar e
+recriar, em vez de calcular diferença, é o que faz desmarcar funcionar: o
+conjunto gravado passa a ser exatamente o que chegou, sem sobra.
+
+| Tipo | Aceita |
+|---|---|
+| `SINGLE_CHOICE`, `TRUE_FALSE` | 0 ou 1 alternativa |
+| `MULTIPLE_CHOICE` | lista, com duplicados normalizados |
+| `SHORT_TEXT` | texto até 2.000 caracteres |
+| `ESSAY` | texto até 20.000 caracteres |
+
+O texto é gravado como foi digitado. A única normalização é `\r\n` → `\n`,
+para que o limite não puna quem responde do Windows. Sem `strip` destrutivo:
+numa dissertativa, o recuo de parágrafo é do autor.
+
+### JavaScript é requisito funcional
+
+**A prova não funciona com o JavaScript desativado.** Isso é uma limitação
+conhecida e documentada, não um descuido.
+
+O autosave é o **único** caminho pelo qual uma resposta chega ao servidor, e
+ele é chamado por `fetch`. A rota de finalizar recebe o POST do formulário e
+não lê nenhum campo de resposta dele — lê apenas o token CSRF. Um aluno sem
+JavaScript preencheria a tela inteira e entregaria uma prova em branco.
+
+Há ainda uma segunda barreira, independente da primeira: o botão visível é
+`type="button"` e abre um modal de confirmação; o único `type="submit"` mora
+dentro desse modal, que sem script nunca abre.
+
+A tela exibe um `<noscript>` no topo, **antes da primeira questão**, dizendo
+com todas as letras que as respostas não serão salvas e pedindo que o aluno
+ative o JavaScript e recarregue antes de responder.
+
+Ler os campos do formulário no envio criaria um segundo motor de resposta,
+com sua própria validação de token, seu próprio tratamento de prazo e sua
+própria chance de discordar do primeiro. A escolha foi assumir o requisito e
+avisar, em vez de manter dois caminhos de escrita.
+
+Nada disso afrouxa o servidor: prazo, matrícula, CSRF, validação de token e
+recusa depois do envio continuam todos no Django, e **nenhum deles depende de
+o script ter rodado**. O JavaScript entrega respostas; ele não autoriza nada.
+
+**Requisito:** navegador atual com JavaScript habilitado.
+
+### Envio e expiração
+
+```
+IN_PROGRESS ──envio voluntário──> SUBMITTED   submitted_at
+            ──tempo acabou──────> EXPIRED     expired_at
+```
+
+Os dois campos nunca são preenchidos juntos. Marcar `submitted_at` numa
+tentativa que expirou registraria um envio que não houve.
+
+O envio voluntário **exige** as questões obrigatórias respondidas e responde
+**409** com a lista do que falta, sem encerrar a tentativa — enquanto houver
+tempo, o aluno volta e responde. A expiração **não** exige nada: o tempo
+acabou, e barrar a expiração por falta de resposta deixaria a tentativa presa
+em andamento para sempre.
+
+Envio depois do prazo vira `EXPIRED`, não `SUBMITTED`. O envio voluntário não
+vence o relógio.
+
+Envio repetido é idempotente: não altera `submitted_at`, não mexe nas
+respostas e não grava um segundo evento. O duplo clique e o F5 na página de
+envio não podem ser punidos.
+
+### Expiração preguiçosa e o comando
+
+A expiração acontece sozinha no próximo request do aluno — abrir a tela ou
+tentar salvar depois do prazo encerra a tentativa na hora. O que sobra são as
+tentativas órfãs: a aba fechada, o notebook que dormiu, quem nunca mais
+voltou.
+
+```powershell
+python manage.py expirar_tentativas [--lote 100] [--limite N] [--dry-run]
+```
+
+Ele **não tem regra própria**: chama `expire_attempt`, a mesma função que o
+acesso web usa. Uma segunda implementação da expiração seria a forma mais
+rápida de as duas discordarem sobre o que `EXPIRED` significa. Idempotente —
+rodar duas vezes encerra 3 e depois 0.
+
+### Concorrência
+
+| Corrida | Proteção |
+|---|---|
+| dois cliques em "iniciar", dois aparelhos, duas abas | `select_for_update` na linha do **aluno** + `uniq_tentativa_em_andamento` |
+| autosave em voo quando o aluno clica em finalizar | `select_for_update` na **tentativa**, nos dois caminhos |
+
+No início, a trava é sobre o aluno e não sobre a prova: é o aluno que não pode
+ter duas tentativas, e travar a prova poria a turma inteira em fila. A
+constraint parcial é a rede embaixo disso — ela não depende de ninguém
+lembrar de usar a transação certa.
+
+Na corrida entre autosave e envio, os dois desfechos são aceitáveis: ou a
+resposta entra e a prova é enviada com ela, ou o envio chega primeiro e o
+autosave acorda com a tentativa encerrada e recusa com 409. O que não
+acontece em desfecho nenhum é resposta gravada depois de `submitted_at`.
+
+### Continuar em outro aparelho
+
+A tentativa **não** é amarrada a IP, user-agent ou dispositivo. `ip_address` e
+`user_agent` ficam gravados como evidência para auditoria, e nada no sistema
+os usa para decidir se o aluno pode continuar — trocar de rede ou sair do
+wi-fi para o 4G no meio da prova é legítimo e acontece o tempo todo no
+celular. Fazer login em outro aparelho continua a mesma tentativa: mesmos
+tokens, mesma ordem, mesmas respostas, mesmo `expires_at`.
+
+Duas abas podem editar a mesma resposta, e o último autosave válido vence.
+É aceitável para o MVP; depois do envio, nenhuma aba altera nada.
+
+### Matrícula continua valendo durante a prova
+
+Cada requisição reconfere matrícula ativa, acesso liberado e módulo ativo. Se
+o acesso do aluno for bloqueado no meio da prova, o próximo request dele já
+não encontra a tentativa — **404**, sem precisar derrubar a sessão.
+
+### Fechar a prova durante uma tentativa
+
+`CLOSED` bloqueia **novas** tentativas. Quem já está respondendo continua até
+o `expires_at` gravado. Encerrar todo mundo no meio da prova seria uma decisão
+administrativa grave demais para acontecer como efeito colateral de fechar a
+prova; se um dia for preciso, será uma operação própria.
 
 ---
 
@@ -710,6 +989,56 @@ e pesquisar sem abrir o `psql`, sem criar um caminho paralelo de escrita. O
 
 ---
 
+### Decisões da Etapa 4
+
+**Tokens por tentativa, e não por questão.** Um token de questão seria mais
+simples e resolveria o vazamento de PK. Não resolveria a combinação entre
+alunos: bastaria um passar "marque a X" para o colega. Custou uma tabela a
+mais de cada lado (`AttemptQuestion`, `AttemptOption`) e fechou os dois
+buracos de uma vez.
+
+**A tentativa referencia, não copia.** Guardar o enunciado e o texto das
+alternativas dentro da tentativa protegeria o histórico contra mudanças na
+prova — mas a prova publicada já é imutável desde a Etapa 3, então não há o
+que proteger. Copiar só criaria uma segunda cópia do conteúdo, incluindo uma
+segunda cópia do gabarito na tabela que a tela do aluno mais consulta.
+
+**Verdadeiro/Falso não é sorteado.** São duas alternativas de significado
+fixo. Inverter a posição delas não esconde nada de ninguém — quem sabe a
+resposta continua sabendo — e só torna a leitura mais lenta no celular. O
+sorteio existe para dificultar a cola entre vizinhos, e isso não se aplica a
+um par fixo de duas opções.
+
+**A expiração acontece fora da transação que a descobriu.** Foi um bug real,
+encontrado por teste: quando o autosave ou o início detectavam o prazo
+vencido, expiravam a tentativa e em seguida levantavam a exceção de recusa —
+e a exceção fazia rollback da própria expiração. A tentativa voltava a
+`IN_PROGRESS` e ficava presa, bloqueada pela constraint parcial, até o comando
+rodar. Agora a passagem do tempo é gravada em transação própria: ela é um
+fato, e não uma consequência de a operação dar certo.
+
+**Envio bloqueado responde 409, e não 200.** A prova volta inteira, com as
+respostas já salvas no lugar e a lista do que falta. Um 200 faria a tela
+parecer um envio bem-sucedido.
+
+**A página final usa a mesma URL da prova.** Se fosse outra rota, voltar pelo
+histórico do navegador devolveria a tela editável antiga e um POST dali
+seguiria válido. Com uma rota só, qualquer requisição nova passa pela mesma
+verificação.
+
+**`RESET` já existe no enum, sem implementação.** O reset administrativo entra
+em etapa futura, mas o valor nasce junto com a tabela — acrescentá-lo depois
+exigiria uma migration mexendo em histórico já gravado. A regra combinada já
+está documentada: para `max_attempts` contam todos os estados **exceto**
+`RESET`; `attempt_number` **nunca** é reaproveitado.
+
+**Django Admin somente leitura também para tentativas.** A resposta de um
+aluno é o registro do que ele fez numa prova. Poder editá-la pelo Admin seria
+uma porta lateral para alterar prova alheia sem passar por serviço nenhum, sem
+trava de concorrência e sem entrar na trilha.
+
+---
+
 ## 11. Segurança já ativa
 
 - CSRF em todas as rotas mutáveis, inclusive no logout
@@ -743,6 +1072,35 @@ e pesquisar sem abrir o `psql`, sem criar um caminho paralelo de escrita. O
   importação ou trilha de auditoria
 - Auditoria com minimização de dados: edições gravam `changed_fields`, e não
   os valores antigos e novos dos dados pessoais
+
+Acrescentado pelo motor de realização da prova:
+
+- **IDs internos de `Question` e `QuestionOption` não são enviados ao
+  navegador.** Todo identificador de resposta na tela do aluno é um UUID4
+  gerado para aquela tentativa
+- Tokens diferentes por tentativa: o token de um aluno não existe na tentativa
+  do outro, então combinar "marque a alternativa X" não funciona
+- A URL da tentativa usa `public_id`, nunca a PK — não há sequência para
+  enumerar
+- **O servidor é a fonte da verdade do tempo.** `expires_at` é calculado uma
+  vez, no início, e nunca recalculado; `client_started_at`,
+  `client_remaining_seconds` e afins não são aceitos para regra nenhuma
+- Autosave com CSRF obrigatório — o endpoint não é `csrf_exempt`
+- Token de outra questão, de outra tentativa ou inexistente recebe a mesma
+  recusa: distinguir os casos transformaria o endpoint num oráculo
+- Limites de texto aplicados no servidor; `maxlength` do HTML é conforto de
+  digitação, não validação
+- Tentativa de outro aluno responde **404**, nunca 403
+- Matrícula reconferida a cada requisição: bloquear o acesso no meio da prova
+  tem efeito no request seguinte
+- Concorrência protegida por trava de banco em duas frentes: `select_for_update`
+  na linha do aluno no início, e na tentativa no autosave e no envio
+- A trilha de auditoria não guarda respostas, texto de redação, alternativas
+  marcadas, tokens públicos nem senha da prova
+- Autosave não gera evento de auditoria: seriam milhares de linhas duplicando
+  o que a tabela de respostas já guarda melhor
+- IP e user-agent são evidência, nunca autenticação: a tentativa não é
+  amarrada a dispositivo, e trocar de rede no meio da prova é legítimo
 
 ---
 

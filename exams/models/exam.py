@@ -1,10 +1,13 @@
 """
-Provas, questoes e alternativas.
+Provas, questoes e alternativas: o que o administrador monta.
 
-Tres modelos que sempre andam juntos, entao ficam num arquivo so, como em
-courses. O que e regra de dominio — publicar, fechar, duplicar, validar
-gabarito — nao esta aqui: vive em exams.services, e este modulo guarda
-apenas a forma dos dados e as garantias que o banco consegue impor sozinho.
+Tres modelos que sempre andam juntos. O que e regra de dominio — publicar,
+fechar, duplicar, validar gabarito — nao esta aqui: vive em exams.services, e
+este modulo guarda apenas a forma dos dados e as garantias que o banco
+consegue impor sozinho.
+
+O lado do aluno fica em attempt.py: uma tentativa referencia estes modelos
+sem copia-los, porque a prova publicada e imutavel.
 
 Um cuidado atravessa o arquivo inteiro: QuestionOption.is_correct e a
 resposta certa. Nenhum caminho que termine no navegador do aluno pode passar
@@ -224,10 +227,17 @@ class Exam(models.Model):
     )
 
     version = models.PositiveIntegerField("versao", default=1)
+    # PROTECT, e nao SET_NULL. Uma versao que tem descendentes faz parte de
+    # historico: apaga-la zeraria as referencias de quem veio depois e
+    # deixaria a linhagem sem comeco. Com SET_NULL o DELETE ate era tentado, e
+    # so falhava mais adiante, ao esbarrar nas constraints de coerencia — um
+    # IntegrityError obscuro, disparado por um UPDATE que o proprio Django
+    # emitia. PROTECT recusa antes de tocar em qualquer linha, com um erro que
+    # diz o que aconteceu.
     parent_exam = models.ForeignKey(
         "self",
         verbose_name="prova de origem",
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name="derivadas",
@@ -236,7 +246,7 @@ class Exam(models.Model):
     root_exam = models.ForeignKey(
         "self",
         verbose_name="raiz da linhagem",
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name="versoes",

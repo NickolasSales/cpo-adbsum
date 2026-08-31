@@ -273,3 +273,100 @@ def prova_publicada(db, prova_pronta, admin_user):
     from exams.services import publish_exam
 
     return publish_exam(prova_pronta, actor=admin_user)
+
+
+# ---------------------------------------------------------------------------
+# Tentativas (Etapa 4)
+# ---------------------------------------------------------------------------
+
+# A fixture `janela` coloca a prova no futuro, o que serve para publicacao mas
+# nao para realizacao: uma prova que ainda nao abriu nao pode ser iniciada. As
+# fixtures abaixo montam a mesma prova com a janela aberta agora.
+
+
+@pytest.fixture
+def janela_aberta(db):
+    """Janela que engloba o instante atual, com folga dos dois lados."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    agora = timezone.now()
+    return agora - timedelta(hours=1), agora + timedelta(hours=3)
+
+
+@pytest.fixture
+def prova_aberta(db, prova_pronta, admin_user, janela_aberta):
+    """
+    Prova publicada, com janela aberta e um aluno matriculado.
+
+    E a fixture base de quase todo teste de tentativa. A janela e movida antes
+    da publicacao porque a prova publicada e imutavel — mexer depois exigiria
+    escrever direto na tabela e contornar exatamente a regra que a Etapa 3
+    existe para garantir.
+    """
+    from exams.services import publish_exam, update_exam
+
+    abertura, encerramento = janela_aberta
+    update_exam(
+        prova_pronta,
+        module=prova_pronta.module,
+        title=prova_pronta.title,
+        description=prova_pronta.description,
+        instructions=prova_pronta.instructions,
+        open_at=abertura,
+        close_at=encerramento,
+        duration_minutes=60,
+        passing_score=prova_pronta.passing_score,
+        max_attempts=1,
+        failure_message=prova_pronta.failure_message,
+        randomize_questions=False,
+        randomize_options=False,
+        show_score_after_submission=True,
+        actor=admin_user,
+    )
+    prova_pronta.refresh_from_db()
+    return publish_exam(prova_pronta, actor=admin_user)
+
+
+@pytest.fixture
+def aluno_matriculado(db, student_user, matricula):
+    """Aluno com matricula liberada no modulo da prova."""
+    return student_user
+
+
+@pytest.fixture
+def tentativa(db, prova_aberta, aluno_matriculado):
+    """Tentativa em andamento, com questoes e alternativas ja montadas."""
+    from exams.services import start_attempt
+
+    return start_attempt(aluno_matriculado, prova_aberta)
+
+
+@pytest.fixture
+def tokens(db, tentativa):
+    """
+    Mapa {tipo de questao: (token da questao, [tokens das alternativas])}.
+
+    Evita que cada teste precise redescobrir os tokens pelo tipo. Os tokens
+    sao o unico jeito de escrever numa tentativa, entao praticamente todo
+    teste de autosave comeca aqui.
+    """
+    from exams.models import AttemptOption, AttemptQuestion
+
+    mapa = {}
+    for linha in (
+        AttemptQuestion.objects.filter(attempt=tentativa)
+        .select_related("question")
+        .order_by("display_order")
+    ):
+        alternativas = list(
+            AttemptOption.objects.filter(attempt_question=linha).order_by(
+                "display_order"
+            )
+        )
+        mapa[linha.question.type] = (
+            str(linha.public_token),
+            [str(alternativa.public_token) for alternativa in alternativas],
+        )
+    return mapa

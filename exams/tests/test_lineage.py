@@ -27,6 +27,7 @@ from contextlib import contextmanager
 
 import pytest
 from django.db import IntegrityError, transaction
+from django.db.models import ProtectedError
 
 from exams.models import Exam
 from exams.services import create_exam, duplicate_exam
@@ -244,7 +245,7 @@ def test_todas_as_provas_criadas_pelos_services_satisfazem_as_constraints(
 
 
 # ---------------------------------------------------------------------------
-# Consequencia de apagar uma prova da linhagem
+# Exclusao de uma prova: PROTECT na linhagem (Etapa 3.5)
 # ---------------------------------------------------------------------------
 
 
@@ -252,32 +253,81 @@ def test_apagar_a_raiz_de_uma_linhagem_com_versoes_e_recusado(
     prova_publicada, admin_user
 ):
     """
-    Documenta um efeito real das constraints novas, e nao um comportamento
-    desejado por si so.
+    Uma versao com descendentes nao pode ser apagada.
 
-    root_exam e parent_exam usam SET_NULL. Apagar a v1 tentaria zerar as duas
-    referencias da v2, que ficaria com raiz nula e versao 2 — exatamente o
-    estado que passamos a proibir. Antes deste hardening o delete passava e
-    deixava a v2 se dizendo raiz da propria linhagem, com a numeracao ja
-    gasta; agora ele falha, ruidosamente.
+    Ate a Etapa 3.5 os dois FKs usavam SET_NULL: o DELETE era tentado, o
+    Django zerava as referencias da v2, e a coisa so quebrava mais adiante ao
+    esbarrar nas constraints de coerencia. O erro chegava como IntegrityError
+    disparado por um UPDATE que ninguem tinha escrito.
 
-    Nao existe rota, service nem tela que apague provas: o Django admin esta
-    somente leitura e a Etapa 3 nao criou delete_exam. Este teste fixa a
-    consequencia para quem for escrever essa rota um dia, e a decisao entre
-    trocar SET_NULL por PROTECT ou tratar o caso no service fica registrada
-    no README.
+    Com PROTECT a recusa acontece antes de qualquer linha ser tocada. Nao e so
+    estetica: ProtectedError carrega os objetos que impedem a exclusao, entao
+    uma futura rota administrativa consegue dizer quais versoes dependem
+    daquela em vez de mostrar "erro ao excluir".
     """
     duplicate_exam(prova_publicada, actor=admin_user)
 
-    with recusado_por(RAIZ_E_VERSAO, LINHAGEM_PARENT):
-        prova_publicada.delete()
+    with pytest.raises(ProtectedError):
+        with transaction.atomic():
+            prova_publicada.delete()
+
+    assert Exam.objects.filter(pk=prova_publicada.pk).exists()
+
+
+def test_apagar_uma_versao_do_meio_da_cadeia_e_recusado(prova_publicada, admin_user):
+    """
+    v1 <- v2 <- v3, apagando a v2.
+
+    A v2 nao e raiz de ninguem, mas e origem da v3. Apaga-la deixaria a v3 sem
+    procedencia — o historico perderia justamente o elo que explica de onde
+    ela saiu.
+    """
+    v2 = duplicate_exam(prova_publicada, actor=admin_user)
+    v3 = duplicate_exam(v2, actor=admin_user)
+    assert v3.parent_exam_id == v2.pk
+
+    with pytest.raises(ProtectedError):
+        with transaction.atomic():
+            v2.delete()
+
+    assert Exam.objects.filter(pk=v2.pk).exists()
+
+
+def test_protectederror_diz_quem_esta_impedindo(prova_publicada, admin_user):
+    """
+    O ganho concreto de PROTECT sobre a recusa por constraint.
+
+    O IntegrityError anterior dizia apenas que uma verificacao falhou. O
+    ProtectedError traz os objetos responsaveis.
+    """
+    copia = duplicate_exam(prova_publicada, actor=admin_user)
+
+    with pytest.raises(ProtectedError) as erro:
+        with transaction.atomic():
+            prova_publicada.delete()
+
+    bloqueadores = {objeto.pk for objeto in erro.value.protected_objects}
+    assert copia.pk in bloqueadores
+
+
+def test_apagar_uma_versao_folha_continua_funcionando(prova_publicada, admin_user):
+    """
+    A ponta da linhagem nao tem dependentes, entao nada a protege.
+
+    Vale enquanto nao houver tentativa: ExamAttempt.exam tambem e PROTECT, e
+    uma prova ja respondida deixa de ser apagavel por esse outro motivo.
+    Coberto em test_attempt_protect.py.
+    """
+    copia = duplicate_exam(prova_publicada, actor=admin_user)
+    identificador = copia.pk
+
+    copia.delete()
+
+    assert not Exam.objects.filter(pk=identificador).exists()
+    assert Exam.objects.filter(pk=prova_publicada.pk).exists()
 
 
 def test_apagar_uma_prova_sem_versoes_continua_funcionando(modulo, admin_user):
-    """
-    O contraponto do teste acima: sem linhagem derivada nao ha referencia
-    para zerar, e o delete nao esbarra em constraint nenhuma.
-    """
     solta = create_exam(module=modulo, title="Prova sem copias", actor=admin_user)
     identificador = solta.pk
 
@@ -286,45 +336,31 @@ def test_apagar_uma_prova_sem_versoes_continua_funcionando(modulo, admin_user):
     assert not Exam.objects.filter(pk=identificador).exists()
 
 
-def test_apagar_a_linhagem_inteira_num_unico_queryset_tambem_e_recusado(
+def test_apagar_a_linhagem_inteira_num_unico_queryset_e_recusado(
     prova_publicada, admin_user
 ):
     """
-    O resultado contraintuitivo, e por isso o teste mais util do arquivo.
+    Seria razoavel esperar que apagar todas as versoes de uma vez passasse, ja
+    que nenhuma linha sobreviveria para ficar sem referencia. Nao passa: o
+    collector do Django nao isenta objetos que estao no proprio conjunto de
+    exclusao quando a relacao e PROTECT.
 
-    Seria razoavel esperar que apagar todas as versoes de uma vez passasse,
-    ja que nenhuma linha sobreviveria para ficar incoerente. Nao passa: o
-    collector do Django emite
-
-        UPDATE exams_exam SET parent_exam_id = NULL WHERE parent_exam_id IN (...)
-
-    *antes* dos DELETEs, e esse UPDATE atinge tambem as linhas que serao
-    apagadas em seguida. Por um instante a v2 fica com origem nula e raiz
-    preenchida, e a constraint recusa nesse instante.
-
-    Quem precisar apagar uma linhagem deve ir da versao mais nova para a mais
-    antiga, uma de cada vez, como no teste seguinte.
+    Fica registrado porque nao e obvio, e porque e o primeiro caminho que
+    alguem tenta ao limpar dados de teste.
     """
     duplicate_exam(prova_publicada, actor=admin_user)
-    linhagem = list(
-        Exam.objects.da_linhagem_de(prova_publicada).values_list("pk", flat=True)
-    )
-    assert len(linhagem) == 2
 
-    with recusado_por(RAIZ_E_VERSAO, LINHAGEM_PARENT):
-        Exam.objects.filter(pk__in=linhagem).delete()
+    with pytest.raises(ProtectedError):
+        with transaction.atomic():
+            Exam.objects.all().delete()
 
 
 def test_apagar_a_linhagem_da_versao_mais_nova_para_a_mais_antiga_funciona(
     prova_publicada, admin_user
 ):
     """
-    O caminho suportado para remover uma linhagem inteira.
-
-    Cada versao so e apagada quando ninguem mais aponta para ela, entao nao
-    existe o instante intermediario que a constraint recusa. Fica registrado
-    aqui porque nao e obvio, e porque a Etapa 3 nao tem rota de exclusao de
-    prova: quem escrever essa rota precisa desta ordem.
+    O caminho suportado: da ponta para a raiz, de modo que nenhuma versao seja
+    apagada enquanto alguem ainda aponta para ela.
     """
     duplicate_exam(prova_publicada, actor=admin_user)
 

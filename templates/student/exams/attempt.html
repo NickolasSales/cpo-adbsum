@@ -1,0 +1,405 @@
+{% extends "student/base_student.html" %}
+
+{% comment %}
+A prova sendo respondida.
+
+Regra que atravessa o arquivo inteiro: nenhum identificador interno aparece
+aqui. Todo name, value e id de elemento de resposta e um token publico da
+tentativa deste aluno. Question.id, QuestionOption.id, AttemptQuestion.id e
+AttemptOption.id nao sao renderizados em lugar nenhum — nem em atributo
+tecnico, nem em data-*, nem em URL.
+
+O cronometro exibido e decorativo. Ele parte de segundos_restantes, calculado
+pelo servidor, e serve para o aluno se organizar. Quem decide se ainda da
+tempo de salvar e o servidor, a cada autosave.
+
+JavaScript e requisito funcional desta tela, e nao um enfeite. As respostas
+chegam ao servidor exclusivamente pelo endpoint de autosave, chamado por
+fetch; o POST de finalizar carrega apenas o token CSRF e o servidor nao le
+nenhum campo de resposta dele. Sem JavaScript o aluno preencheria a tela
+inteira e enviaria uma prova em branco. O noscript logo abaixo diz isso a
+quem estiver nessa situacao, antes que ele comece a responder.
+
+Isso nao afrouxa nada do lado do servidor: o prazo, a matricula, o CSRF, a
+validacao dos tokens e a recusa depois do envio continuam todos no Django, e
+nenhum deles depende de o script ter rodado.
+{% endcomment %}
+
+{% block title %}{{ prova.title }} - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<div class="cpo-prova"
+     data-autosave-url="{% url 'student:attempt_autosave' public_id=tentativa.public_id %}"
+     data-restantes="{{ segundos_restantes }}">
+
+  <div class="cpo-prova__topo">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <div class="min-w-0">
+        <h1 class="h6 mb-0 text-truncate">{{ prova.title }}</h1>
+        <p class="small text-body-secondary mb-0">
+          {{ questoes|length }} questa{{ questoes|length|pluralize:"o,es" }}
+        </p>
+      </div>
+      <div class="d-flex align-items-center gap-3">
+        <span class="cpo-estado-salvo small text-body-secondary" role="status"
+              aria-live="polite"></span>
+        <span class="cpo-relogio" role="timer" aria-label="Tempo restante">--:--</span>
+      </div>
+    </div>
+  </div>
+
+  <noscript>
+    <div class="alert alert-danger mt-3" role="alert">
+      <p class="fw-medium mb-1">O JavaScript esta desativado neste navegador.</p>
+      <p class="mb-0">
+        Suas respostas nao serao salvas e a prova sera enviada em branco.
+        Ative o JavaScript e recarregue esta pagina <strong>antes de
+        responder</strong>. O cronometro ja esta correndo.
+      </p>
+    </div>
+  </noscript>
+
+  {% if erros_de_envio %}
+    <div class="alert alert-warning mt-3" role="alert">
+      <p class="fw-medium mb-1">Ainda faltam questoes obrigatorias.</p>
+      <ul class="mb-0 ps-3">
+        {% for erro in erros_de_envio %}<li>{{ erro }}</li>{% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  <form method="post" class="mt-3"
+        action="{% url 'student:attempt_submit' public_id=tentativa.public_id %}"
+        id="cpo-form-prova">
+    {% csrf_token %}
+
+    {% for questao in questoes %}
+      <section class="cpo-cartao p-3 mb-3 cpo-questao"
+               data-questao="{{ questao.token }}"
+               {% if questao.required %}data-obrigatoria="1"{% endif %}
+               aria-labelledby="titulo-{{ questao.token }}">
+
+        <div class="d-flex flex-wrap align-items-baseline justify-content-between gap-2 mb-2">
+          <h2 class="h6 mb-0" id="titulo-{{ questao.token }}">
+            Questao {{ questao.numero }}
+            {% if questao.required %}
+              <span class="text-danger" aria-label="obrigatoria">*</span>
+            {% endif %}
+          </h2>
+          <span class="small text-body-secondary">
+            {{ questao.points }} ponto{{ questao.points|pluralize }}
+          </span>
+        </div>
+
+        <p class="mb-3">{{ questao.text|linebreaksbr }}</p>
+
+        {% if questao.usa_alternativas %}
+          {% if questao.multipla %}
+            <p class="small text-body-secondary mb-2">
+              Marque todas as alternativas corretas.
+            </p>
+          {% endif %}
+
+          <div role="group" aria-labelledby="titulo-{{ questao.token }}">
+            {% for opcao in questao.options %}
+              <div class="form-check mb-2">
+                <input class="form-check-input cpo-opcao"
+                       type="{% if questao.multipla %}checkbox{% else %}radio{% endif %}"
+                       name="q_{{ questao.token }}"
+                       value="{{ opcao.token }}"
+                       id="opcao-{{ opcao.token }}"
+                       {% if opcao.marcada %}checked{% endif %}>
+                <label class="form-check-label" for="opcao-{{ opcao.token }}">
+                  {{ opcao.text }}
+                </label>
+              </div>
+            {% endfor %}
+          </div>
+
+        {% elif questao.dissertativa %}
+          <textarea class="form-control cpo-texto" rows="10"
+                    name="q_{{ questao.token }}"
+                    id="opcao-{{ questao.token }}"
+                    maxlength="20000"
+                    aria-labelledby="titulo-{{ questao.token }}">{{ questao.texto_salvo }}</textarea>
+
+        {% else %}
+          <textarea class="form-control cpo-texto" rows="3"
+                    name="q_{{ questao.token }}"
+                    id="opcao-{{ questao.token }}"
+                    maxlength="2000"
+                    aria-labelledby="titulo-{{ questao.token }}">{{ questao.texto_salvo }}</textarea>
+        {% endif %}
+      </section>
+    {% endfor %}
+
+    <div class="cpo-cartao p-3 mb-4 d-flex flex-wrap align-items-center gap-3">
+      <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+              data-bs-target="#modalFinalizar">
+        Finalizar prova
+      </button>
+      <span class="small text-body-secondary">
+        Suas respostas sao salvas automaticamente.
+      </span>
+    </div>
+
+    <div class="modal fade" id="modalFinalizar" tabindex="-1"
+         aria-labelledby="tituloFinalizar" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2 class="modal-title h6" id="tituloFinalizar">Finalizar prova</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"
+                    aria-label="Fechar"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-0">
+              Tem certeza que deseja finalizar a prova?
+              Depois do envio nao sera possivel alterar suas respostas.
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary"
+                    data-bs-dismiss="modal">Voltar</button>
+            <button type="submit" class="btn btn-primary" id="cpo-confirmar-envio">
+              Finalizar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+/*
+ * Autosave e cronometro.
+ *
+ * Nada aqui e seguranca. O servidor recusa gravacao fora do prazo e depois do
+ * envio por conta propria, e nao acredita em nada que este script diga.
+ *
+ * Mas este script E requisito funcional: e ele, e so ele, que entrega as
+ * respostas ao servidor. Sem ele o aluno preenche a tela e envia uma prova
+ * vazia, porque a rota de finalizar nao le campo de resposta nenhum. Quem
+ * chega aqui sem JavaScript ve o aviso do noscript no topo da pagina.
+ */
+(function () {
+  "use strict";
+
+  var raiz = document.querySelector(".cpo-prova");
+  if (!raiz) { return; }
+
+  var url = raiz.dataset.autosaveUrl;
+  var relogio = raiz.querySelector(".cpo-relogio");
+  var aviso = raiz.querySelector(".cpo-estado-salvo");
+  var form = document.getElementById("cpo-form-prova");
+  var csrf = form.querySelector("[name=csrfmiddlewaretoken]").value;
+
+  var restantes = parseInt(raiz.dataset.restantes, 10);
+  if (isNaN(restantes)) { restantes = 0; }
+
+  var pendentes = 0;
+
+  // --- cronometro -----------------------------------------------------
+  // Conta a partir do valor que o servidor mandou e e recorrigido a cada
+  // autosave. Nunca usa o relogio do computador do aluno como referencia.
+
+  function formatar(total) {
+    var h = Math.floor(total / 3600);
+    var m = Math.floor((total % 3600) / 60);
+    var s = total % 60;
+    var doisDigitos = function (n) { return (n < 10 ? "0" : "") + n; };
+    if (h > 0) { return h + ":" + doisDigitos(m) + ":" + doisDigitos(s); }
+    return doisDigitos(m) + ":" + doisDigitos(s);
+  }
+
+  function pintarRelogio() {
+    relogio.classList.toggle("cpo-relogio--alerta", restantes <= 300);
+    relogio.classList.toggle("cpo-relogio--critico", restantes <= 60);
+  }
+
+  function encerrarNaTela() {
+    // O contador zerou. Desabilita os campos e recarrega: o servidor e quem
+    // encerra a tentativa de verdade, e a tela dele ja vem final.
+    raiz.querySelectorAll("input, textarea, button").forEach(function (campo) {
+      campo.disabled = true;
+    });
+    relogio.textContent = "00:00";
+    window.setTimeout(function () { window.location.reload(); }, 1500);
+  }
+
+  function tique() {
+    relogio.textContent = formatar(Math.max(0, restantes));
+    pintarRelogio();
+    if (restantes <= 0) {
+      window.clearInterval(cronometro);
+      encerrarNaTela();
+      return;
+    }
+    restantes -= 1;
+  }
+
+  var cronometro = window.setInterval(tique, 1000);
+  tique();
+
+  // --- estado do autosave ---------------------------------------------
+  // Nunca dizer "Salvo" sem confirmacao do servidor. Uma resposta perdida
+  // que a tela deu por salva e o pior erro possivel nesta pagina.
+  //
+  // O indicador e um so para a prova inteira, entao uma falha nao pode ser
+  // apagada pelo sucesso seguinte: o aluno responde a questao 3, a rede cai,
+  // ele responde a questao 4 com a rede de volta, e o "Salvo" da 4 esconderia
+  // a perda da 3. Por isso as falhas ficam guardadas por token em `falharam`,
+  // e "Salvo" so aparece quando esse conjunto esta vazio. Enquanto houver
+  // falha pendente o aviso continua vermelho, dizendo quantas questoes estao
+  // por salvar. Quem limpa a falha de uma questao e a gravacao daquela mesma
+  // questao dando certo.
+
+  var falharam = {};
+
+  function contarFalhas() {
+    return Object.keys(falharam).length;
+  }
+
+  function marcar(texto, classe) {
+    aviso.textContent = texto;
+    aviso.className = "cpo-estado-salvo small " + (classe || "text-body-secondary");
+  }
+
+  function anunciarFalhaPendente() {
+    var quantas = contarFalhas();
+    if (quantas === 1) {
+      marcar("Falha ao salvar 1 questao", "text-danger");
+    } else {
+      marcar("Falha ao salvar " + quantas + " questoes", "text-danger");
+    }
+  }
+
+  function falhou(questao) {
+    falharam[questao] = true;
+    anunciarFalhaPendente();
+  }
+
+  function deuCerto(questao) {
+    delete falharam[questao];
+    if (contarFalhas() > 0) {
+      anunciarFalhaPendente();
+      return;
+    }
+    marcar("Salvo", "text-success");
+  }
+
+  function enviar(questao, corpo) {
+    pendentes += 1;
+    marcar("Salvando...");
+
+    return fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrf,
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      body: JSON.stringify(corpo)
+    }).then(function (resposta) {
+      return resposta.json().then(function (dados) {
+        return { http: resposta.status, dados: dados };
+      });
+    }).then(function (resultado) {
+      if (resultado.http === 409) {
+        marcar(resultado.dados.error || "Prova encerrada.", "text-danger");
+        window.clearInterval(cronometro);
+        window.setTimeout(function () { window.location.reload(); }, 1200);
+        return;
+      }
+      if (!resultado.dados.saved) {
+        falhou(questao);
+        return;
+      }
+      // Ressincroniza o contador com o servidor a cada gravacao.
+      if (typeof resultado.dados.remaining_seconds === "number") {
+        restantes = resultado.dados.remaining_seconds;
+      }
+      deuCerto(questao);
+    }).catch(function () {
+      // Cai aqui a rede fora do ar, o timeout e tambem a resposta que nao e
+      // JSON — uma pagina de erro do Nginx, a tela de CSRF invalido do
+      // Django. Nenhuma delas gravou coisa alguma, entao todas sao falha.
+      falhou(questao);
+    }).then(function () {
+      pendentes -= 1;
+    });
+  }
+
+  function salvarObjetiva(secao) {
+    var token = secao.dataset.questao;
+    var marcadas = [];
+    secao.querySelectorAll(".cpo-opcao:checked").forEach(function (campo) {
+      marcadas.push(campo.value);
+    });
+    return enviar(token, { question_token: token, option_tokens: marcadas });
+  }
+
+  function salvarTexto(secao) {
+    var token = secao.dataset.questao;
+    var campo = secao.querySelector(".cpo-texto");
+    return enviar(token, { question_token: token, text: campo.value });
+  }
+
+  // --- ligacoes --------------------------------------------------------
+  // Objetivas salvam na hora. Texto usa debounce mais save no blur, para nao
+  // disparar um POST por tecla digitada.
+
+  raiz.querySelectorAll(".cpo-questao").forEach(function (secao) {
+    secao.querySelectorAll(".cpo-opcao").forEach(function (campo) {
+      campo.addEventListener("change", function () { salvarObjetiva(secao); });
+    });
+
+    var texto = secao.querySelector(".cpo-texto");
+    if (texto) {
+      var espera = null;
+      texto.addEventListener("input", function () {
+        marcar("Salvando...");
+        window.clearTimeout(espera);
+        espera = window.setTimeout(function () { salvarTexto(secao); }, 800);
+      });
+      texto.addEventListener("blur", function () {
+        window.clearTimeout(espera);
+        salvarTexto(secao);
+      });
+    }
+  });
+
+  // --- envio -----------------------------------------------------------
+  // Espera os autosaves em voo antes de enviar. E conveniencia: a protecao
+  // real e a trava do servidor, que serializa autosave e envio.
+
+  // Uma falha pendente NAO bloqueia o envio, de proposito. Se a rede caiu de
+  // vez, bloquear deixaria o aluno preso numa tela que ele nao consegue
+  // enviar ate o tempo acabar — pior que enviar sem uma resposta. O que se
+  // faz e nao esconder: o aviso vermelho volta antes do envio partir.
+
+  document.getElementById("cpo-confirmar-envio").addEventListener("click",
+    function (evento) {
+      if (pendentes === 0) {
+        if (contarFalhas() > 0) { anunciarFalhaPendente(); }
+        return;
+      }
+      evento.preventDefault();
+      marcar("Salvando...");
+      var tentativas = 0;
+      var espera = window.setInterval(function () {
+        tentativas += 1;
+        if (pendentes === 0 || tentativas > 40) {
+          window.clearInterval(espera);
+          if (contarFalhas() > 0) { anunciarFalhaPendente(); }
+          form.submit();
+        }
+      }, 100);
+    });
+})();
+</script>
+{% endblock %}

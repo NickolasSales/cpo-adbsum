@@ -22,11 +22,33 @@ abaixo fazem.
 Uma excecao explicita: access_password_hash nao aparece em nenhuma tela.
 Nao e senha e nao serve para nada aqui, e exibi-lo so ofereceria material
 para quebra offline.
+
+Tentativas (Etapa 4)
+--------------------
+Valem as mesmas tres proibicoes, com um motivo ainda mais direto: a resposta
+de um aluno e o registro do que ele fez numa prova. Poder edita-la pelo
+Django Admin seria uma porta lateral para alterar prova alheia sem passar por
+nenhum servico, sem trava de concorrencia e sem entrar na trilha de
+auditoria. As telas ficam registradas para inspecao tecnica — descobrir por
+que uma tentativa expirou, conferir se o autosave gravou —, e nada mais.
+
+O gabarito continua fora: AttemptOption mostra o texto da alternativa e a
+posicao em que ela apareceu, e quem quiser ver is_correct usa a tela de
+QuestionOption, que e administrativa e sempre foi.
 """
 
 from django.contrib import admin
 
-from exams.models import Exam, Question, QuestionOption
+from exams.models import (
+    Answer,
+    AnswerOption,
+    AttemptOption,
+    AttemptQuestion,
+    Exam,
+    ExamAttempt,
+    Question,
+    QuestionOption,
+)
 
 
 class SomenteLeituraAdmin(admin.ModelAdmin):
@@ -83,6 +105,70 @@ class QuestionOptionAdmin(SomenteLeituraAdmin):
     list_filter = ("is_correct",)
     search_fields = ("text",)
     ordering = ("question", "order")
+
+    def get_readonly_fields(self, request, obj=None):
+        return [campo.name for campo in self.model._meta.fields]
+
+
+# ---------------------------------------------------------------------------
+# Tentativas (Etapa 4)
+# ---------------------------------------------------------------------------
+
+
+@admin.register(ExamAttempt)
+class ExamAttemptAdmin(SomenteLeituraAdmin):
+    list_display = (
+        "public_id",
+        "student",
+        "exam",
+        "attempt_number",
+        "status",
+        "started_at",
+        "expires_at",
+        "submitted_at",
+        "expired_at",
+    )
+    list_filter = ("status", "exam")
+    search_fields = ("public_id", "student__full_name", "student__email")
+    ordering = ("-started_at",)
+    date_hierarchy = "started_at"
+
+    def get_readonly_fields(self, request, obj=None):
+        return [campo.name for campo in self.model._meta.fields]
+
+
+@admin.register(AttemptQuestion)
+class AttemptQuestionAdmin(SomenteLeituraAdmin):
+    list_display = ("attempt", "display_order", "question", "public_token")
+    list_filter = ("question__type",)
+    ordering = ("attempt", "display_order")
+
+    def get_readonly_fields(self, request, obj=None):
+        return [campo.name for campo in self.model._meta.fields]
+
+
+@admin.register(AttemptOption)
+class AttemptOptionAdmin(SomenteLeituraAdmin):
+    list_display = ("attempt_question", "display_order", "option", "public_token")
+    ordering = ("attempt_question", "display_order")
+
+    def get_readonly_fields(self, request, obj=None):
+        return [campo.name for campo in self.model._meta.fields]
+
+
+@admin.register(Answer)
+class AnswerAdmin(SomenteLeituraAdmin):
+    list_display = ("attempt_question", "saved_at", "updated_at")
+    ordering = ("-saved_at",)
+
+    def get_readonly_fields(self, request, obj=None):
+        return [campo.name for campo in self.model._meta.fields]
+
+
+@admin.register(AnswerOption)
+class AnswerOptionAdmin(SomenteLeituraAdmin):
+    list_display = ("answer", "attempt_option", "created_at")
+    ordering = ("-created_at",)
 
     def get_readonly_fields(self, request, obj=None):
         return [campo.name for campo in self.model._meta.fields]

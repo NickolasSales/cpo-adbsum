@@ -340,3 +340,49 @@ a:hover > .cpo-indicador--ativo {
   margin-top: auto;
   padding-top: .75rem;
 }
+
+/* ---------------------------------------------------------------
+   Tela da prova (Etapa 4)
+
+   Mobile-first e sem invencao: o cronometro precisa continuar
+   visivel durante a rolagem, porque uma prova longa no celular
+   passa a maior parte do tempo fora do topo da pagina.
+   --------------------------------------------------------------- */
+
+.cpo-prova__topo {
+  position: sticky;
+  top: 0;
+  z-index: 1020;
+  background: var(--cpo-superficie, #fff);
+  border-bottom: 1px solid rgba(0, 0, 0, .08);
+  padding: .75rem 0;
+  margin: -1rem 0 0;
+}
+
+.cpo-relogio {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 1.05rem;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+
+/* Cor apenas reforca o que o numero ja diz. Quem nao distingue as
+   cores continua lendo o tempo restante normalmente. */
+.cpo-relogio--alerta { color: #9a6700; }
+.cpo-relogio--critico { color: #b42318; }
+
+.cpo-estado-salvo {
+  min-width: 5.5rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.cpo-questao textarea {
+  min-height: 6rem;
+}
+
+@media (max-width: 575.98px) {
+  .cpo-relogio { font-size: 1rem; }
+  .cpo-estado-salvo { min-width: 4.5rem; }
+}

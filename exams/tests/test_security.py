@@ -118,19 +118,55 @@ def test_anonimo_nao_alcanca_o_gabarito(client, prova_pronta):
     assert "/login/" in resposta.url
 
 
-def test_area_do_aluno_continua_sem_provas(student_client_logado, prova_publicada, matricula):
+def test_a_area_do_aluno_mostra_a_prova_sem_mostrar_o_conteudo(
+    student_client_logado, prova_publicada, matricula
+):
     """
-    A exposicao da prova ao aluno e da Etapa 4. Publicar uma prova agora nao
-    pode fazer nada aparecer para ele.
+    O que a Etapa 4 mudou, e o que ela nao mudou.
+
+    Ate a Etapa 3 este teste exigia lista vazia: publicar nao podia expor nada,
+    porque nao havia como o aluno fazer a prova. Agora ele ve o cartao — e essa
+    e a mudanca desejada.
+
+    O que continua valendo, e e o que este teste passa a proteger: o cartao
+    mostra apenas metadados. Enunciado, alternativas e gabarito nao aparecem
+    aqui, nem antes de a prova abrir, nem depois. Para ver questao e preciso
+    iniciar uma tentativa, que e POST e passa por todos os portoes.
     """
     resposta = student_client_logado.get(
         "/aluno/modulos/{}/".format(prova_publicada.module_id)
     )
     assert resposta.status_code == 200
-    assert list(resposta.context["provas"]) == []
+
+    cartoes = list(resposta.context["provas"])
+    assert len(cartoes) == 1
+    assert cartoes[0].id == prova_publicada.pk
 
     conteudo = resposta.content.decode()
-    assert prova_publicada.title not in conteudo
+    # O titulo aparece; o conteudo da prova, nao.
+    assert prova_publicada.title in conteudo
+    for texto in ("capital do Brasil", "Brasilia", "numeros primos", "Terra e plana"):
+        assert texto not in conteudo
+    for marcador in ("is_correct", "gabarito", "internal_explanation"):
+        assert marcador not in conteudo.lower()
+
+
+def test_o_cartao_da_prova_nao_carrega_questoes(
+    student_client_logado, prova_publicada, matricula
+):
+    """
+    O selector do modulo devolve metadados, e nao a prova.
+
+    Se o cartao trouxesse as questoes junto, um template descuidado poderia
+    imprimi-las na listagem — antes mesmo de a prova abrir.
+    """
+    resposta = student_client_logado.get(
+        "/aluno/modulos/{}/".format(prova_publicada.module_id)
+    )
+
+    cartao = resposta.context["provas"][0]
+    for atributo in ("questions", "questoes", "options", "gabarito"):
+        assert not hasattr(cartao, atributo)
 
 
 # ---------------------------------------------------------------------------
