@@ -1,0 +1,110 @@
+{% extends "student/base_student.html" %}
+
+{% comment %}
+Resultado da tentativa, para o aluno.
+
+O que esta tela NAO mostra, e nao pode passar a mostrar sem uma decisao
+explicita:
+
+    alternativa correta          o gabarito nunca sai do servidor
+    is_correct                   idem
+    explicacao interna           uso da equipe
+    comentario do avaliador      uso administrativo
+    nota parcial                 enquanto a correcao nao fecha, nao ha nota
+
+O contexto e montado a partir de campos escalares da tentativa — nota,
+resultado, mensagem —, entao nao existe objeto de questao nesta pagina para
+vazar nada por descuido de template.
+
+O numero da nota depende de show_score_after_submission, configurado na prova.
+O resultado (aprovado ou reprovado) aparece sempre: esconde-lo tornaria a tela
+inutil, e o aluno descobriria de qualquer forma pelo certificado.
+{% endcomment %}
+
+{% block title %}Resultado - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none"
+     href="{% url 'student:module_detail' pk=prova.module_id %}">
+    &larr; {{ prova.module.name }}
+  </a>
+</nav>
+
+{% if not corrigida %}
+
+  <div class="cpo-cartao p-4 text-center">
+    <div class="display-6 mb-2" aria-hidden="true">&#8987;</div>
+    <h1 class="h5 mb-3">
+      {% if enviada %}Prova enviada.{% else %}Tempo encerrado.{% endif %}
+    </h1>
+    <p class="mb-1">Sua avaliacao esta aguardando correcao.</p>
+    <p class="text-body-secondary mb-0">
+      Voce sera avisado quando o resultado estiver disponivel.
+    </p>
+  </div>
+
+{% else %}
+
+  <div class="cpo-cartao p-4">
+    <div class="text-center mb-3">
+      <h1 class="h5 mb-3">Avaliacao concluida</h1>
+      {% if aprovado %}
+        <span class="cpo-resultado cpo-resultado--aprovado">Aprovado</span>
+      {% else %}
+        <span class="cpo-resultado cpo-resultado--reprovado">Reprovado</span>
+      {% endif %}
+    </div>
+
+    {% if mostrar_nota %}
+      <div class="text-center border-top pt-3">
+        <div class="small text-body-secondary">Sua nota</div>
+        <div class="cpo-nota-grande">{{ nota }}</div>
+        <div class="small text-body-secondary">Nota minima: {{ nota_minima }}</div>
+      </div>
+    {% endif %}
+  </div>
+
+  {% if reprovado and mensagem_reprovacao %}
+    <div class="cpo-cartao p-3 p-md-4 mt-3">
+      <p class="mb-0">{{ mensagem_reprovacao }}</p>
+    </div>
+  {% endif %}
+
+  {% if aprovado %}
+    <div class="alert alert-info mt-3" role="alert">
+      <p class="fw-medium mb-1">Certificado</p>
+      <p class="mb-0 small">
+        Seu certificado sera disponibilizado em breve.
+      </p>
+    </div>
+  {% endif %}
+
+{% endif %}
+
+<dl class="row small mt-4 mb-0">
+  <dt class="col-6 col-sm-4 fw-normal text-body-secondary">Prova</dt>
+  <dd class="col-6 col-sm-8">{{ prova.title }}</dd>
+
+  <dt class="col-6 col-sm-4 fw-normal text-body-secondary">Modulo</dt>
+  <dd class="col-6 col-sm-8">{{ prova.module.name }}</dd>
+
+  <dt class="col-6 col-sm-4 fw-normal text-body-secondary">Tentativa</dt>
+  <dd class="col-6 col-sm-8">{{ tentativa.attempt_number }}</dd>
+
+  {% if enviada %}
+    <dt class="col-6 col-sm-4 fw-normal text-body-secondary">Enviada em</dt>
+    <dd class="col-6 col-sm-8">{{ tentativa.submitted_at|date:"d/m/Y H:i" }}</dd>
+  {% else %}
+    <dt class="col-6 col-sm-4 fw-normal text-body-secondary">Encerrada em</dt>
+    <dd class="col-6 col-sm-8">{{ tentativa.expired_at|date:"d/m/Y H:i" }}</dd>
+  {% endif %}
+</dl>
+
+<div class="cpo-barra-acoes mt-4">
+  <a class="btn btn-outline-secondary btn-sm"
+     href="{% url 'student:module_detail' pk=prova.module_id %}">
+    Voltar ao modulo
+  </a>
+</div>
+{% endblock %}

@@ -48,7 +48,7 @@
 
 <div class="cpo-cartao">
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0 cpo-tabela">
+    <table class="table table-hover align-middle mb-0 cpo-tabela cpo-lista--cartoes">
       <thead>
         <tr>
           <th>Nome</th>
@@ -57,20 +57,20 @@
           <th class="text-center d-none d-sm-table-cell">Modulos</th>
           <th class="d-none d-lg-table-cell">Origem</th>
           <th class="d-none d-lg-table-cell">Criado em</th>
-          <th class="text-end">Acoes</th>
+          <th class="text-end cpo-acoes">Acoes</th>
         </tr>
       </thead>
       <tbody>
         {% for aluno in alunos %}
           <tr>
-            <td>
+            <td class="cpo-celula-titulo">
               <a href="{% url 'admin_panel:student_detail' aluno.pk %}" class="fw-medium text-decoration-none">
                 {{ aluno.full_name }}
               </a>
               <div class="d-md-none small text-body-secondary">{{ aluno.email }}</div>
             </td>
-            <td class="d-none d-md-table-cell small text-body-secondary">{{ aluno.email }}</td>
-            <td>
+            <td class="d-none d-md-table-cell small text-body-secondary cpo-quebra" data-rotulo="E-mail">{{ aluno.email }}</td>
+            <td data-rotulo="Situacao">
               {% if aluno.is_active %}
                 <span class="cpo-badge cpo-badge--ok">Ativo</span>
               {% else %}
@@ -80,15 +80,15 @@
                 <span class="cpo-badge cpo-badge--alerta" title="Precisa trocar a senha no proximo acesso">Senha inicial</span>
               {% endif %}
             </td>
-            <td class="text-center d-none d-sm-table-cell">{{ aluno.total_modulos }}</td>
-            <td class="d-none d-lg-table-cell small text-body-secondary">
+            <td class="text-center d-none d-sm-table-cell" data-rotulo="Modulos">{{ aluno.total_modulos }}</td>
+            <td class="d-none d-lg-table-cell small text-body-secondary" data-rotulo="Origem">
               {{ aluno.student_profile.get_source_display|default:"-" }}
             </td>
-            <td class="d-none d-lg-table-cell small text-body-secondary">
+            <td class="d-none d-lg-table-cell small text-body-secondary" data-rotulo="Criado em">
               {{ aluno.date_joined|date:"d/m/Y" }}
             </td>
-            <td class="text-end">
-              <div class="d-flex gap-1 justify-content-end">
+            <td class="text-end cpo-acoes">
+              <div class="d-flex gap-1 justify-content-end flex-wrap">
                 <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:student_update' aluno.pk %}">Editar</a>
                 {% if aluno.is_active %}
                   <button type="button" class="btn btn-sm btn-outline-danger"
@@ -105,7 +105,7 @@
           </tr>
         {% empty %}
           <tr>
-            <td colspan="7" class="text-center text-body-secondary py-5">
+            <td colspan="7" class="text-center text-body-secondary py-5 cpo-celula-vazia">
               {% if busca or situacao %}
                 Nenhum aluno encontrado com esses filtros.
               {% else %}

@@ -85,7 +85,7 @@
 
 <div class="cpo-cartao">
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0 cpo-tabela">
+    <table class="table table-hover align-middle mb-0 cpo-tabela cpo-lista--cartoes">
       <thead>
         <tr>
           <th class="text-end">Linha</th>
@@ -99,16 +99,16 @@
       <tbody>
         {% for linha in linhas %}
           <tr>
-            <td class="text-end small text-body-secondary">{{ linha.numero }}</td>
-            <td>
+            <td class="text-end small text-body-secondary" data-rotulo="Linha">{{ linha.numero }}</td>
+            <td class="cpo-celula-titulo">
               <span class="fw-medium">{{ linha.nome|default:"-" }}</span>
               <div class="d-md-none small text-body-secondary">{{ linha.email|default:"-" }}</div>
             </td>
-            <td class="d-none d-md-table-cell small text-body-secondary">
+            <td class="d-none d-md-table-cell small text-body-secondary cpo-quebra" data-rotulo="E-mail">
               {{ linha.email|default:"-" }}
             </td>
-            <td class="small">{{ linha.modulo|default:"-" }}</td>
-            <td>
+            <td class="small" data-rotulo="Modulo">{{ linha.modulo|default:"-" }}</td>
+            <td data-rotulo="Situacao">
               {% if linha.importavel %}
                 <span class="cpo-badge cpo-badge--ok">{{ linha.status }}</span>
               {% elif linha.status == "MATRICULA EXISTENTE" or linha.status == "MATRICULA INATIVA EXISTENTE" or linha.status == "LINHA DUPLICADA" %}
@@ -120,13 +120,13 @@
                 <div class="d-lg-none small text-body-secondary mt-1">{{ linha.aviso }}</div>
               {% endif %}
             </td>
-            <td class="d-none d-lg-table-cell small text-body-secondary">
+            <td class="d-none d-lg-table-cell small text-body-secondary" data-rotulo="Observacoes">
               {{ linha.aviso|default:"-" }}
             </td>
           </tr>
         {% empty %}
           <tr>
-            <td colspan="6" class="text-center text-body-secondary py-5">
+            <td colspan="6" class="text-center text-body-secondary py-5 cpo-celula-vazia">
               O arquivo nao possui nenhuma linha de dados.
             </td>
           </tr>

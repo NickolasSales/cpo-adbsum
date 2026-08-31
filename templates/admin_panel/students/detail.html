@@ -24,8 +24,10 @@ Toda acao que altera estado e POST com CSRF; as destrutivas passam por modal.
     <h1 class="h4 mb-1">{{ aluno.full_name }}</h1>
     <p class="text-body-secondary small mb-0">{{ aluno.email }}</p>
   </div>
-  <div class="d-flex flex-wrap gap-2">
+  <div class="cpo-barra-acoes">
     <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:student_update' aluno.pk %}">Editar</a>
+    <a class="btn btn-sm btn-outline-secondary"
+       href="{% url 'admin_panel:student_password_reset' aluno.pk %}">Resetar senha</a>
     <a class="btn btn-sm btn-primary"
        href="{% url 'admin_panel:enrollment_create' %}?aluno={{ aluno.pk }}">Matricular</a>
     {% if aluno.is_active %}
@@ -91,26 +93,26 @@ Toda acao que altera estado e POST com CSRF; as destrutivas passam por modal.
     <h2 class="h6 mb-2">Matriculas</h2>
     <div class="cpo-cartao">
       <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0 cpo-tabela">
+        <table class="table table-hover align-middle mb-0 cpo-tabela cpo-lista--cartoes">
           <thead>
             <tr>
               <th>Modulo</th>
               <th>Situacao</th>
               <th>Acesso</th>
-              <th class="text-end">Acoes</th>
+              <th class="text-end cpo-acoes">Acoes</th>
             </tr>
           </thead>
           <tbody>
             {% for matricula in matriculas %}
               <tr>
-                <td>
+                <td class="cpo-celula-titulo">
                   <a href="{% url 'admin_panel:module_detail' matricula.module.pk %}"
                      class="fw-medium text-decoration-none">
                     {{ matricula.module.code }}
                   </a>
                   <div class="small text-body-secondary">{{ matricula.module.name }}</div>
                 </td>
-                <td>
+                <td data-rotulo="Situacao">
                   {% if matricula.status == "ACTIVE" %}
                     <span class="cpo-badge cpo-badge--ok">Ativa</span>
                   {% elif matricula.status == "COMPLETED" %}
@@ -119,20 +121,20 @@ Toda acao que altera estado e POST com CSRF; as destrutivas passam por modal.
                     <span class="cpo-badge cpo-badge--neutro">Inativa</span>
                   {% endif %}
                 </td>
-                <td>
+                <td data-rotulo="Acesso">
                   {% if matricula.access_enabled %}
                     <span class="cpo-badge cpo-badge--ok">Liberado</span>
                   {% else %}
                     <span class="cpo-badge cpo-badge--alerta">Bloqueado</span>
                   {% endif %}
                 </td>
-                <td class="text-end">
+                <td class="text-end cpo-acoes">
                   {% include "admin_panel/enrollments/_acoes.html" with matricula=matricula %}
                 </td>
               </tr>
             {% empty %}
               <tr>
-                <td colspan="4" class="text-center text-body-secondary py-5">
+                <td colspan="4" class="text-center text-body-secondary py-5 cpo-celula-vazia">
                   Este aluno ainda nao possui matriculas.
                 </td>
               </tr>

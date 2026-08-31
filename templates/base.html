@@ -9,24 +9,53 @@
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   {% block extra_head %}{% endblock %}
 </head>
+{% comment %}
+Esqueleto de todas as telas.
+
+O <main> fica DENTRO de um shell, e nao solto no <body>, por um motivo
+estrutural: o painel administrativo precisa de lateral + conteudo lado a lado,
+e a unica forma de o conteudo saber quanto espaco lhe sobra e ser irmao da
+lateral dentro de um container flex.
+
+A versao anterior punha a lateral em position:fixed e empurrava o <main> com
+margin-left. Como o <main> tambem carregava .container-fluid (width:100%), a
+caixa de margem passava a medir 100% + 250px — ou seja, a pagina inteira
+ficava 250px mais larga que a viewport, em TODA tela administrativa. Era essa
+a origem da barra horizontal, e nenhum .table-responsive conseguia salvar,
+porque o estouro acontecia acima dele.
+
+Blocos, do lado de fora para dentro:
+
+    chrome      barra superior; fica fora do shell para atravessar a tela
+    shell_class container do shell (vira flex no painel administrativo)
+    aside       lateral, irma do <main> dentro do shell
+    main_class  classes do proprio <main>
+    fora_shell  offcanvas, modais e o que precisa escapar do fluxo
+{% endcomment %}
 <body class="{% block body_class %}{% endblock %}">
 
   {% block chrome %}{% endblock %}
 
-  <main class="{% block main_class %}container py-4{% endblock %}">
-    {% if messages %}
-      <div class="mb-3">
-        {% for message in messages %}
-          <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
+  <div class="{% block shell_class %}cpo-shell{% endblock %}">
+    {% block aside %}{% endblock %}
 
-    {% block content %}{% endblock %}
-  </main>
+    <main class="{% block main_class %}container py-4{% endblock %}">
+      {% if messages %}
+        <div class="mb-3">
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  {% block fora_shell %}{% endblock %}
 
   <script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
   {% block extra_scripts %}{% endblock %}

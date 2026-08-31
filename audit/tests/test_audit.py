@@ -53,9 +53,16 @@ def test_falha_de_login_com_email_inexistente_tambem_registra(client):
 
 
 def test_troca_de_senha_gera_registro(
-    client, student_com_troca_pendente, senha, senha_nova
+    client, admin_com_troca_pendente, senha, senha_nova
 ):
-    fazer_login(client, student_com_troca_pendente.email, senha)
+    """
+    Quem troca a propria senha e o ADMIN.
+
+    A partir da Etapa 5 o aluno nao altera a propria senha; a dele e definida
+    pelo administrador e gera STUDENT_PASSWORD_RESET, coberto em
+    students/tests/test_password_policy.py.
+    """
+    fazer_login(client, admin_com_troca_pendente.email, senha)
     client.post(
         URL_TROCAR_SENHA,
         {
@@ -66,7 +73,7 @@ def test_troca_de_senha_gera_registro(
     )
 
     log = AuditLog.objects.get(event=AuditEvent.PASSWORD_CHANGED)
-    assert log.actor_id == student_com_troca_pendente.pk
+    assert log.actor_id == admin_com_troca_pendente.pk
     assert log.entity_type == "User"
 
 

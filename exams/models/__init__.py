@@ -23,14 +23,20 @@ servidor. A barreira de renderizacao esta em exams.selectors.
 """
 
 from exams.models.attempt import (  # noqa: F401
+    CASAS_DA_NOTA,
+    ESTADOS_CORRIGIVEIS,
     LIMITE_ESSAY,
     LIMITE_SHORT_TEXT,
+    TIPOS_AUTOCORRIGIVEIS,
     Answer,
     AnswerOption,
     AttemptOption,
     AttemptQuestion,
+    AttemptResult,
     AttemptStatus,
     ExamAttempt,
+    GradingStatus,
+    QuestionGradingStatus,
 )
 from exams.models.exam import (  # noqa: F401
     MENSAGEM_REPROVACAO_PADRAO,
@@ -66,8 +72,14 @@ __all__ = [
     "AnswerOption",
     "AttemptOption",
     "AttemptQuestion",
+    "AttemptResult",
     "AttemptStatus",
+    "CASAS_DA_NOTA",
+    "ESTADOS_CORRIGIVEIS",
     "ExamAttempt",
+    "GradingStatus",
     "LIMITE_ESSAY",
     "LIMITE_SHORT_TEXT",
+    "QuestionGradingStatus",
+    "TIPOS_AUTOCORRIGIVEIS",
 ]

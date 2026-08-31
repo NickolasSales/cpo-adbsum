@@ -39,6 +39,11 @@ urlpatterns = [
         views.StudentUpdateView.as_view(),
         name="student_update",
     ),
+    path(
+        "alunos/<int:pk>/resetar-senha/",
+        views.StudentPasswordResetView.as_view(),
+        name="student_password_reset",
+    ),
     path("alunos/<int:pk>/bloquear/", views.student_block, name="student_block"),
     path("alunos/<int:pk>/desbloquear/", views.student_unblock, name="student_unblock"),
 ]

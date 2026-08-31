@@ -44,7 +44,9 @@ def test_create_student_cria_usuario_e_perfil_na_mesma_operacao():
 
     assert aluno.role == UserRole.STUDENT
     assert aluno.is_active is True
-    assert aluno.must_change_password is True
+    # Sem password explicito, cai na senha padrao do ambiente — e o caminho
+    # da importacao em lote. A troca obrigatoria deixou de existir.
+    assert aluno.must_change_password is False
 
     perfil = StudentProfile.objects.get(user=aluno)
     assert perfil.source == StudentSource.MANUAL

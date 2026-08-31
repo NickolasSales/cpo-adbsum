@@ -64,13 +64,37 @@
       </div>
 
       {% comment %}
-      Bloco de Verdadeiro ou Falso. Os textos das alternativas sao fixos e criados
-      pelo backend; aqui o administrador escolhe apenas qual e a correta.
+      Bloco de Verdadeiro ou Falso.
+
+      Desenhado a mao, e nao por {{ form.resposta_verdadeira }}. A renderizacao
+      generica do RadioSelect produzia <div><label><input> Texto</label></div>,
+      sem o container .form-check que o Bootstrap espera — e a classe
+      form-check-input que o campo carregava tem margin-left: -1.5em para
+      cancelar o padding desse container. Sem o pai, cada radio era puxado 1.5em
+      para fora da caixa: circulo deslocado, rotulo sobreposto e texto de ajuda
+      atravessando os campos.
+
+      Aqui cada opcao e um <label> proprio que ENVOLVE o input, entao clicar em
+      qualquer ponto da linha marca a opcao — inclusive no celular, onde acertar
+      um circulo de 16px com o dedo e otimista.
+
+      Sao exatamente duas opcoes, e nao um formset: os textos "Verdadeiro" e
+      "Falso" sao fixos e criados pelo backend, que ignora qualquer alternativa
+      que venha no POST quando o tipo e TRUE_FALSE.
       {% endcomment %}
       <div id="bloco-vf" class="mb-4 d-none">
         <hr class="my-4">
         <h2 class="h6 mb-2">Resposta correta</h2>
-        {{ form.resposta_verdadeira }}
+
+        <div class="cpo-vf" role="radiogroup" aria-label="Resposta correta">
+          {% for opcao in form.resposta_verdadeira %}
+            <label class="cpo-vf__opcao" for="{{ opcao.id_for_label }}">
+              {{ opcao.tag }}
+              <span>{{ opcao.choice_label }}</span>
+            </label>
+          {% endfor %}
+        </div>
+
         {% if form.resposta_verdadeira.errors %}
           <div class="form-text text-danger">{{ form.resposta_verdadeira.errors.0 }}</div>
         {% endif %}

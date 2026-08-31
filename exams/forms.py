@@ -264,11 +264,24 @@ class QuestionForm(forms.Form):
         help_text="Visivel somente para a equipe. Nunca chega ao aluno.",
     )
 
+    # Sem class="form-check-input" aqui, e o motivo importa.
+    #
+    # Essa classe do Bootstrap carrega margin-left: -1.5em, pensada para
+    # cancelar o padding-left: 1.5em que o container .form-check fornece. O
+    # RadioSelect do Django nao gera esse container: ele gera <div><label>
+    # <input> Texto</label></div>. Sem o pai, a margem negativa puxava cada
+    # radio 1.5em para fora da propria caixa — o circulo saia do lugar, o
+    # rotulo escorregava por cima do anterior e o texto de ajuda atravessava
+    # os campos. Era esse o bug relatado.
+    #
+    # A correcao nao e trocar a classe por outra: e nao usar a renderizacao
+    # generica. O template desenha as duas opcoes com .cpo-vf, que e feito
+    # para exatamente duas escolhas de texto fixo.
     resposta_verdadeira = forms.ChoiceField(
         label="Resposta correta",
         required=False,
         choices=[("true", TEXTO_VERDADEIRO), ("false", TEXTO_FALSO)],
-        widget=forms.RadioSelect(attrs={"class": CLASSE_CHECK}),
+        widget=forms.RadioSelect,
     )
 
     def clean(self):

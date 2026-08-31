@@ -814,6 +814,336 @@ prova; se um dia for preciso, será uma operação própria.
 
 ---
 
+---
+
+## 9.4 Correção, notas e aprovação
+
+O que a Etapa 5 acrescenta é o outro lado da prova: o que acontece depois que
+o aluno entrega.
+
+### Duas dimensões que não se misturam
+
+`ExamAttempt.status` responde **"o aluno ainda está fazendo?"** e continua com
+os mesmos quatro valores da Etapa 4. `grading_status` responde **"já sabemos a
+nota?"**. São perguntas independentes.
+
+```
+status           IN_PROGRESS · SUBMITTED · EXPIRED · RESET
+grading_status   PENDING · AWAITING_REVIEW · GRADED
+result           APPROVED · FAILED   (nulo enquanto não fecha)
+```
+
+Um campo único — `IN_PROGRESS/SUBMITTED/APPROVED` — obrigaria a perder uma das
+duas informações no momento em que a prova fosse aprovada. Por isso `result`
+nunca entra em `status`.
+
+### Fluxo
+
+```
+SUBMITTED / EXPIRED
+    │
+    ▼
+grade_objective_questions()      corrige tudo que a máquina sabe corrigir
+    │
+    ├── nenhuma pendência manual ──▶ GRADED · nota · APPROVED/FAILED
+    │
+    └── há dissertativa a ler ────▶ AWAITING_REVIEW
+                                        │
+                                 save_manual_grade()   (quantas vezes quiser)
+                                        │
+                                 finalize_grading()  ──▶ GRADED
+```
+
+A correção roda **fora** da transação do envio, de propósito. Se rodasse
+dentro e falhasse, o rollback levaria junto a entrega do aluno — ele teria
+clicado em finalizar e a prova voltaria a ficar aberta. A entrega é um fato
+dele; a correção é trabalho do sistema, e `grade_objective_questions` é
+idempotente, então uma falha ali é recuperável.
+
+### Correção automática: tudo ou nada
+
+| Tipo | Regra |
+|---|---|
+| `SINGLE_CHOICE` | conjunto exato → pontos completos; qualquer outro caso → zero |
+| `TRUE_FALSE` | idem |
+| `MULTIPLE_CHOICE` | **conjunto exato**: faltando uma → zero; com uma a mais → zero |
+| `SHORT_TEXT`, `ESSAY` | manual |
+
+Não há pontuação parcial, e isso é decisão de negócio. Meio ponto por acertar
+metade de uma múltipla escolha premiaria quem marca tudo — que é exatamente a
+estratégia que a regra de conjunto exato existe para desencorajar.
+
+A comparação é de **conjuntos**, não de listas: com `randomize_options` ligado
+cada aluno vê as alternativas em ordem diferente, e comparar sequências
+reprovaria pela posição.
+
+O gabarito é lido no servidor, de `QuestionOption.is_correct`. Ele nunca
+esteve dentro da tentativa — `AttemptOption` guarda a referência e a posição,
+nunca a resposta certa.
+
+### Questão manual em branco vale zero automaticamente
+
+Uma redação em branco não tem conteúdo para avaliar. Deixá-la pendente
+obrigaria o administrador a abrir cada uma só para escrever `0`, e a fila de
+correção viraria uma fila de cliques — pior, uma prova inteiramente em branco
+ficaria eternamente `AWAITING_REVIEW` se ninguém lembrasse dela.
+
+O que fica pendente é o que **tem texto**. Espaço e quebra de linha não contam
+como conteúdo.
+
+### Expirada também é corrigida
+
+Uma tentativa `EXPIRED` passa pela correção como qualquer outra. O que ficou em
+branco vale zero, e o resultado é um resultado. Tratar expirada como "sem
+nota" deixaria o aluno num limbo permanente, sem explicação.
+
+### A fórmula, e por que a precisão importa
+
+```python
+precise_score = obtained_points / total_points_snapshot * Decimal("10")
+aprovado      = precise_score >= passing_score_snapshot
+```
+
+A comparação usa o valor **cheio**, antes de qualquer arredondamento visual:
+
+```
+nota matemática  7.996
+nota exibida     8,00
+nota mínima      8,00
+resultado        REPROVADO
+```
+
+Se a comparação usasse o valor exibido, esse aluno seria aprovado e a tela
+mostraria "8,00 · Aprovado" sem nada que revelasse o erro. Por isso
+`final_score` é `DecimalField(decimal_places=6)` — guardar `8.00` destruiria
+justamente o dígito que separa aprovado de reprovado.
+
+O helper `nota_para_exibicao` existe para que o arredondamento more num lugar
+só, longe de quem decide. Ele devolve **`str`**, e isso é deliberado: uma
+string não pode ser comparada com a nota mínima por engano — a tentativa
+levanta `TypeError` em vez de aprovar alguém em silêncio.
+
+Tudo em `Decimal`, do primeiro ponto até a comparação. Com `float`, dez
+questões de 0,1 ponto somariam `0.9999999999999999` e reprovariam quem acertou
+tudo.
+
+### O que o banco garante sobre a correção
+
+| Constraint | Exige |
+|---|---|
+| `tentativa_correcao_situacao_conhecida` | `grading_status` dentro do enum |
+| `tentativa_resultado_conhecido` | `result` nulo ou dentro do enum |
+| `tentativa_nota_so_existe_se_corrigida` | nota, resultado e `graded_at` existem **se e somente se** `GRADED` |
+| `tentativa_pontos_obtidos_nao_negativos` | as três somas ≥ 0 |
+| `tentativa_nota_final_entre_0_e_10` | nota nula ou na escala |
+| `tentativa_questao_pontos_ate_o_valor` | `awarded_points <= points_snapshot` |
+| `tentativa_questao_pontos_coerentes_com_situacao` | questão corrigida tem nota; pendente não tem |
+
+O teto por questão compara com `points_snapshot`, e não com `question.points`:
+uma `CheckConstraint` enxerga apenas a própria linha, e essa é a razão prática
+de o snapshot existir.
+
+### `points_snapshot`
+
+`AttemptQuestion.points_snapshot` copia o valor da questão no início. Hoje a
+prova publicada é imutável e o valor coincidiria com `question.points`, mas a
+nota de um aluno é registro histórico: "sobre quantos pontos esta questão foi
+avaliada" não pode depender de nada que aconteça depois.
+
+A migration `0007` preenche o campo nas tentativas que já existiam.
+Deliberadamente **não** o torna obrigatório: um `NOT NULL` exigiria que toda
+linha existente estivesse preenchida no instante do deploy, e um único
+registro órfão faria a migration falhar em produção sem caminho óbvio de saída.
+
+### Concorrência
+
+`finalize_grading` e `save_manual_grade` fazem `select_for_update` na
+`ExamAttempt`. Dois administradores clicando em "Finalizar" ao mesmo tempo
+produzem **uma** finalização: o segundo encontra a tentativa já `GRADED` e
+devolve o resultado existente, sem recalcular e sem gravar um segundo evento.
+
+### Rotas
+
+| URL | Método | Quem |
+|---|---|---|
+| `/admin-panel/correcoes/` | GET | ADMIN |
+| `/admin-panel/correcoes/<uuid>/` | GET | ADMIN |
+| `/admin-panel/correcoes/<uuid>/salvar/` | **POST** | ADMIN |
+| `/admin-panel/correcoes/<uuid>/finalizar/` | **POST** | ADMIN |
+| `/admin-panel/notas/` | GET | ADMIN |
+| `/admin-panel/notas/<uuid>/` | GET | ADMIN |
+| `/admin-panel/notas/exportar/` | GET | ADMIN |
+| `/aluno/resultados/<uuid>/` | GET | dono da tentativa |
+
+| Situação | Resposta |
+|---|---|
+| STUDENT numa tela administrativa | **403** — a área existe, falta permissão |
+| resultado de outro aluno | **404** — a existência é que não se confirma |
+| finalizar com questão manual sem nota | **409**, com a lista |
+| GET numa rota de escrita | **405** |
+
+### O que o aluno vê
+
+| Situação | Tela |
+|---|---|
+| `PENDING` / `AWAITING_REVIEW` | "Sua avaliação está aguardando correção." Sem número nenhum |
+| `GRADED` | Aprovado ou Reprovado |
+| `GRADED` + `show_score_after_submission` | mais a nota e a nota mínima |
+| `FAILED` | mais o `failure_message` da prova |
+| `APPROVED` | mais "Certificado será disponibilizado em breve" |
+
+**Não existe nota provisória.** Mesmo quando as objetivas já foram corrigidas e
+o sistema sabe que o aluno tem 6 dos 10 pontos, a tela não diz isso: metade de
+uma nota não é informação, e o aluno calcularia a própria aprovação com dados
+incompletos.
+
+`show_score_after_submission=False` esconde o **número**, não o resultado.
+Esconder também "aprovado ou reprovado" tornaria a tela inútil.
+
+O resultado **nunca** mostra alternativa correta, `is_correct`, explicação
+interna nem comentário do avaliador. O contexto é montado a partir de campos
+escalares da tentativa, então não existe objeto de questão nessa página para
+vazar nada por descuido de template.
+
+### Contrato do certificado (Etapa 6)
+
+Decidido agora, implementado depois:
+
+```
+Aprovado → Certificado emitido → Enrollment.status = COMPLETED
+                                 Enrollment.access_enabled = False
+```
+
+Concluir **um** módulo não bloqueia o aluno globalmente: com MOD1 concluído e
+MOD2 ativo, ele continua acessando MOD2. O encerramento do acesso global,
+quando todos os módulos estiverem concluídos, também fica para a Etapa 6 — e
+não acontece sem certificado.
+
+---
+
+## 9.5 Senha do aluno
+
+**Mudança de negócio da Etapa 5: quem define a senha do aluno é o
+administrador, e o aluno não a altera.**
+
+| Momento | O que acontece |
+|---|---|
+| Criação individual | o administrador digita a senha; é obrigatória |
+| Importação em lote | cai na senha padrão do ambiente |
+| Esqueceu a senha | **Resetar senha** na ficha do aluno |
+| Aluno tentando `/alterar-senha/` | **403** |
+
+`must_change_password` nasce `False` em todos os casos. Obrigar a troca
+prenderia o aluno num formulário que ele não tem permissão de enviar.
+
+O campo continua no modelo e continua valendo para **ADMIN**, que troca a
+própria senha normalmente. O que ele não faz mais é comandar o fluxo do
+STUDENT — se continuasse, um aluno antigo criado com a flag ligada seria
+mandado para uma tela que agora responde 403, e voltaria para lá a cada
+request. Um loop sem saída, em produção, para quem já existia.
+
+### Garantias
+
+- A senha entra por `set_password`; nenhum caminho atribui `user.password`
+- `PasswordInput` **sem** `render_value`: depois de um erro de validação o
+  campo volta vazio, em vez de reimprimir a senha no HTML da resposta
+- Os validadores do Django valem também para a senha que o admin define
+- A senha nunca entra em `AuditLog`, log, mensagem, HTML ou query string.
+  `STUDENT_PASSWORD_RESET` grava apenas `{"redefinida": true}` — nem o hash,
+  nem o comprimento, que ajuda quem tenta adivinhar e não ajuda quem investiga.
+  A chave se chama `redefinida`, e não `password_reset`, porque o sanitizador
+  da auditoria descarta por **substring**: qualquer chave contendo `password`
+  vira `[REMOVIDO]`. O evento perderia o próprio conteúdo. A escolha foi
+  renomear a chave, não abrir exceção na regra que protege a trilha inteira
+- **Resetar derruba as sessões abertas com a senha anterior.** O hash entra no
+  cálculo da chave de sessão do Django, então o request seguinte do aluno já
+  não está autenticado. Não há sistema paralelo de sessão; o comportamento vem
+  do framework, e existe teste que o exercita de ponta a ponta
+
+**A senha de importação precisa ser distribuída por canal seguro.** Ela é a
+mesma para todos os alunos importados até que o administrador use "Resetar
+senha".
+
+---
+
+## 9.6 Responsividade
+
+### A causa real do overflow horizontal
+
+O `<main>` do painel administrativo carregava, ao mesmo tempo:
+
+```css
+.container-fluid          { width: 100%; }
+.cpo-conteudo--deslocado  { margin-left: 250px; }   /* ≥ 992px */
+```
+
+Margem fica **fora** da caixa mesmo com `box-sizing: border-box`. A caixa de
+margem media `100% + 250px` — ou seja, a página inteira era 250px mais larga
+que a viewport, em **toda** tela administrativa. Nenhum `.table-responsive`
+resolvia, porque o estouro nascia acima dele.
+
+### A correção
+
+Lateral e conteúdo passaram a ser **irmãos num shell flex**:
+
+```css
+.cpo-shell--painel { display: flex; }
+.cpo-lateral--fixa { flex: 0 0 250px; position: sticky; height: 100vh; }
+.cpo-conteudo      { flex: 1 1 auto; min-width: 0; }
+```
+
+O `min-width: 0` é o detalhe que sustenta o resto: por padrão um item flex não
+encolhe abaixo da largura natural do conteúdo, então uma tabela larga
+empurraria a página em vez de rolar dentro do próprio cartão.
+
+`body { overflow-x: clip }` existe como última linha de defesa, não como
+correção. `clip` e não `hidden`: `hidden` cria contexto de rolagem e quebraria
+o `position: sticky` do cronômetro da prova e da coluna de ações.
+
+### Tabelas viram cartões abaixo de 768px
+
+Um único markup para as duas formas. Cada `<td>` declara `data-rotulo` com o
+nome da coluna; no celular esse rótulo vira o prefixo da linha, porque sem o
+`<thead>` o valor sozinho não diz o que é.
+
+Duplicar o template numa versão "tabela" e outra "cartões" duplicaria também as
+condições de exibição — e um dia as duas discordariam.
+
+A coluna de ações é `position: sticky; right: 0` no desktop e vira uma faixa de
+botões no rodapé do cartão no celular. Em nenhuma largura o botão "Editar" fica
+fora do alcance.
+
+### Verificação
+
+Os testes deste projeto garantem as **condições estruturais**: a regra que
+causava o estouro não existe mais, `min-width: 0` está presente, toda tabela
+tem versão de cartão, o hamburger existe em toda tela administrativa e o
+offcanvas carrega os mesmos itens da lateral.
+
+**Não há navegador na suíte**, então nenhum teste mede `document.body.scrollWidth`.
+A confirmação visual em cada largura é trabalho de quem tem uma tela.
+
+### Verdadeiro ou falso: o bug e a correção
+
+O campo `resposta_verdadeira` usava `RadioSelect` com
+`class="form-check-input"`. No Bootstrap 5 essa classe carrega
+`margin-left: -1.5em`, pensada para cancelar o `padding-left: 1.5em` que o
+container `.form-check` fornece. O `RadioSelect` do Django não gera esse
+container — ele gera `<div><label><input> Texto</label></div>`.
+
+Sem o pai, a margem negativa puxava cada radio 1,5em para **fora** da própria
+caixa: círculo deslocado, rótulo escorregando por cima do anterior, texto de
+ajuda atravessando os campos.
+
+A correção não foi trocar a classe por outra: foi parar de usar a renderização
+genérica. O template desenha as duas opções com `.cpo-vf`, feito para
+exatamente duas escolhas de texto fixo, com `<label>` envolvendo o input — assim
+clicar em qualquer ponto da linha marca a opção, o que importa no celular.
+
+O backend já estava correto e continua sendo a fonte da verdade: os dois textos
+são criados pelo serviço, e qualquer alternativa que venha no POST é ignorada
+quando o tipo é `TRUE_FALSE`.
+
 ## 10. Decisões de arquitetura desta etapa
 
 **Um único `config/settings.py`, parametrizado por ambiente.**

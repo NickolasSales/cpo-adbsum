@@ -36,7 +36,7 @@
 
 <div class="cpo-cartao">
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0 cpo-tabela">
+    <table class="table table-hover align-middle mb-0 cpo-tabela cpo-lista--cartoes">
       <thead>
         <tr>
           <th class="text-center">Ordem</th>
@@ -45,35 +45,35 @@
           <th class="text-end">Valor</th>
           <th class="text-center d-none d-sm-table-cell">Obrigatoria</th>
           <th class="text-center d-none d-sm-table-cell">Ativa</th>
-          <th class="text-end">Acoes</th>
+          <th class="text-end cpo-acoes">Acoes</th>
         </tr>
       </thead>
       <tbody>
         {% for questao in questoes %}
           <tr>
-            <td class="text-center">{{ questao.order }}</td>
-            <td class="d-none d-md-table-cell small">{{ questao.get_type_display }}</td>
-            <td>
+            <td class="text-center" data-rotulo="Ordem">{{ questao.order }}</td>
+            <td class="d-none d-md-table-cell small" data-rotulo="Tipo">{{ questao.get_type_display }}</td>
+            <td class="cpo-celula-titulo">
               {{ questao.text|truncatechars:90 }}
               <div class="d-md-none small text-body-secondary">{{ questao.get_type_display }}</div>
               {% if questao.usa_alternativas %}
                 <div class="small text-body-secondary">{{ questao.options.all|length }} alternativa(s)</div>
               {% endif %}
             </td>
-            <td class="text-end">{{ questao.points }}</td>
-            <td class="text-center d-none d-sm-table-cell">
+            <td class="text-end" data-rotulo="Valor">{{ questao.points }}</td>
+            <td class="text-center d-none d-sm-table-cell" data-rotulo="Obrigatoria">
               {% if questao.required %}Sim{% else %}Nao{% endif %}
             </td>
-            <td class="text-center d-none d-sm-table-cell">
+            <td class="text-center d-none d-sm-table-cell" data-rotulo="Ativa">
               {% if questao.active %}
                 <span class="cpo-badge cpo-badge--ok">Ativa</span>
               {% else %}
                 <span class="cpo-badge cpo-badge--neutro">Inativa</span>
               {% endif %}
             </td>
-            <td class="text-end">
+            <td class="text-end cpo-acoes">
               {% if prova.estrutura_editavel %}
-                <div class="d-flex gap-1 justify-content-end">
+                <div class="d-flex gap-1 justify-content-end flex-wrap">
                   <a class="btn btn-sm btn-outline-secondary"
                      href="{% url 'admin_panel:question_update' prova.pk questao.pk %}">Editar</a>
                   <button type="button" class="btn btn-sm btn-outline-danger"
@@ -86,7 +86,7 @@
           </tr>
         {% empty %}
           <tr>
-            <td colspan="7" class="text-center text-body-secondary py-5">
+            <td colspan="7" class="text-center text-body-secondary py-5 cpo-celula-vazia">
               Nenhuma questao cadastrada ainda.
             </td>
           </tr>

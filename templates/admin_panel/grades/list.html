@@ -1,0 +1,158 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Notas fechadas.
+
+Mesmo padrao responsivo das demais listagens: tabela no desktop, cartoes no
+celular, pelo mesmo markup.
+
+O resultado nunca depende so de cor. "Aprovado" e "Reprovado" aparecem escritos
+dentro da etiqueta, porque cerca de 8% dos homens tem alguma deficiencia de
+visao de cores e verde-vermelho e exatamente o par que eles confundem.
+{% endcomment %}
+
+{% block title %}Notas - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">Notas</h1>
+    <p class="text-body-secondary small mb-0">{{ total_geral }} nota(s) fechada(s).</p>
+  </div>
+  <div class="cpo-barra-acoes">
+    <a class="btn btn-sm btn-outline-secondary"
+       href="{% url 'admin_panel:grade_export' %}?{{ request.GET.urlencode }}">
+      Exportar CSV
+    </a>
+  </div>
+</div>
+
+<form method="get" class="cpo-cartao p-3 mb-3">
+  <div class="row g-2 align-items-end cpo-form-empilha">
+    <div class="col-12 col-md">
+      <label for="q" class="form-label small fw-medium mb-1">Buscar</label>
+      <input type="search" id="q" name="q" value="{{ busca }}" class="form-control form-control-sm"
+             placeholder="Aluno, e-mail ou prova">
+    </div>
+    <div class="col-12 col-sm-6 col-md-2">
+      <label for="modulo" class="form-label small fw-medium mb-1">Modulo</label>
+      <select id="modulo" name="modulo" class="form-select form-select-sm">
+        <option value="">Todos</option>
+        {% for modulo in modulos %}
+          <option value="{{ modulo.pk }}" {% if filtro_modulo == modulo.pk|stringformat:"s" %}selected{% endif %}>
+            {{ modulo.code }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-sm-6 col-md-2">
+      <label for="prova" class="form-label small fw-medium mb-1">Prova</label>
+      <select id="prova" name="prova" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        {% for prova in provas %}
+          <option value="{{ prova.pk }}" {% if filtro_prova == prova.pk|stringformat:"s" %}selected{% endif %}>
+            {{ prova.title }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-sm-6 col-md-2">
+      <label for="resultado" class="form-label small fw-medium mb-1">Resultado</label>
+      <select id="resultado" name="resultado" class="form-select form-select-sm">
+        <option value="">Todos</option>
+        {% for valor, rotulo in resultados %}
+          <option value="{{ valor }}" {% if filtro_resultado == valor %}selected{% endif %}>{{ rotulo }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label for="de" class="form-label small fw-medium mb-1">De</label>
+      <input type="date" id="de" name="de" value="{{ filtro_de }}" class="form-control form-control-sm">
+    </div>
+    <div class="col-6 col-md-2">
+      <label for="ate" class="form-label small fw-medium mb-1">Ate</label>
+      <input type="date" id="ate" name="ate" value="{{ filtro_ate }}" class="form-control form-control-sm">
+    </div>
+    <div class="col-12 col-md-auto">
+      <div class="cpo-barra-acoes">
+        <button type="submit" class="btn btn-sm btn-primary">Filtrar</button>
+        {% if busca or filtro_modulo or filtro_prova or filtro_resultado or filtro_de or filtro_ate %}
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:grade_list' %}">Limpar</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</form>
+
+<div class="cpo-cartao">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 cpo-tabela cpo-lista--cartoes">
+      <thead>
+        <tr>
+          <th>Aluno</th>
+          <th class="d-none d-md-table-cell">Prova</th>
+          <th class="d-none d-lg-table-cell">Modulo</th>
+          <th class="text-center d-none d-lg-table-cell">Tentativa</th>
+          <th class="text-end d-none d-sm-table-cell">Pontos</th>
+          <th class="text-end">Nota</th>
+          <th class="text-end d-none d-md-table-cell">Nota min.</th>
+          <th>Resultado</th>
+          <th class="d-none d-lg-table-cell">Corrigida em</th>
+          <th class="text-end cpo-acoes">Acoes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in notas %}
+          <tr>
+            <td class="cpo-celula-titulo">
+              {{ item.tentativa.student.full_name }}
+              <div class="small text-body-secondary cpo-quebra">{{ item.tentativa.student.email }}</div>
+              <div class="d-md-none small text-body-secondary">{{ item.tentativa.exam.title }}</div>
+            </td>
+            <td class="d-none d-md-table-cell" data-rotulo="Prova">{{ item.tentativa.exam.title }}</td>
+            <td class="d-none d-lg-table-cell" data-rotulo="Modulo">
+              <code>{{ item.tentativa.exam.module.code }}</code>
+            </td>
+            <td class="text-center d-none d-lg-table-cell" data-rotulo="Tentativa">
+              {{ item.tentativa.attempt_number }}
+            </td>
+            <td class="text-end d-none d-sm-table-cell" data-rotulo="Pontos">
+              {{ item.tentativa.obtained_points }} / {{ item.tentativa.total_points_snapshot }}
+            </td>
+            <td class="text-end fw-semibold" data-rotulo="Nota">{{ item.nota }}</td>
+            <td class="text-end d-none d-md-table-cell" data-rotulo="Nota minima">{{ item.minima }}</td>
+            <td data-rotulo="Resultado">
+              {% if item.tentativa.result == "APPROVED" %}
+                <span class="cpo-badge cpo-badge--ok">Aprovado</span>
+              {% else %}
+                <span class="cpo-badge cpo-badge--erro">Reprovado</span>
+              {% endif %}
+            </td>
+            <td class="d-none d-lg-table-cell small text-body-secondary" data-rotulo="Corrigida em">
+              {{ item.tentativa.graded_at|date:"d/m/Y H:i" }}
+            </td>
+            <td class="text-end cpo-acoes">
+              <div class="d-flex gap-1 justify-content-end flex-wrap">
+                <a class="btn btn-sm btn-outline-secondary"
+                   href="{% url 'admin_panel:grade_detail' item.tentativa.public_id %}">Abrir</a>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="10" class="text-center text-body-secondary py-5 cpo-celula-vazia">
+              {% if busca or filtro_modulo or filtro_prova or filtro_resultado or filtro_de or filtro_ate %}
+                Nenhuma nota encontrada com esses filtros.
+              {% else %}
+                Nenhuma nota fechada ainda.
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "admin_panel/_paginacao.html" %}
+{% endblock %}

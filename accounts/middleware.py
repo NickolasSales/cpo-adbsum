@@ -37,7 +37,22 @@ class MustChangePasswordMiddleware:
     def __call__(self, request):
         user = getattr(request, "user", None)
 
-        if user is not None and user.is_authenticated and user.must_change_password:
+        # A partir da Etapa 5 o aluno nao troca a propria senha: quem a define
+        # e o administrador. A flag continua no modelo, mas deixa de comandar
+        # o fluxo do STUDENT — se continuasse, um aluno antigo criado com
+        # must_change_password=True ficaria preso num redirect infinito para
+        # uma tela que a TrocarSenhaView agora recusa com 403.
+        #
+        # A flag segue valendo para ADMIN, que continua trocando a propria
+        # senha normalmente.
+        pendente = (
+            user is not None
+            and user.is_authenticated
+            and user.must_change_password
+            and not user.is_student
+        )
+
+        if pendente:
             caminho = request.path_info
 
             liberado = (

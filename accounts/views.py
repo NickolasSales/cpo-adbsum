@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView, LogoutView
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import resolve_url
 from django.urls import reverse_lazy
 from django.views.generic import FormView
@@ -47,14 +48,32 @@ class SairView(LogoutView):
 
 class TrocarSenhaView(LoginRequiredMixin, FormView):
     """
-    Troca de senha do usuario autenticado.
+    Troca de senha do usuario autenticado. Somente ADMIN.
 
-    Serve tanto a troca voluntaria quanto a obrigatoria imposta pela flag
-    must_change_password. A view e a mesma; o que muda e o texto exibido.
+    A partir da Etapa 5 a senha do aluno e definida pelo administrador, e o
+    aluno nao a altera. A rota continua existindo porque o ADMIN continua
+    trocando a propria senha por aqui; para o STUDENT ela responde 403.
+
+    403 e nao 404: a rota existe e o aluno sabe que existe — ela e o mesmo
+    endereco que ele usava antes. O que mudou foi a permissao, e e isso que a
+    resposta precisa dizer. Um 404 sugeriria que a tela sumiu e produziria
+    chamado de suporte por um comportamento que e intencional.
+
+    O link para esta tela tambem foi removido da area do aluno; o 403 e a
+    barreira de verdade, porque esconder o link nao impede ninguem de digitar
+    o endereco.
     """
 
     template_name = "accounts/change_password.html"
     form_class = TrocarSenhaForm
+
+    def dispatch(self, request, *args, **kwargs):
+        user = getattr(request, "user", None)
+        if user is not None and user.is_authenticated and user.is_student:
+            raise PermissionDenied(
+                "A senha dos alunos e definida pela administracao."
+            )
+        return super().dispatch(request, *args, **kwargs)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()

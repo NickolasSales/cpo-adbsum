@@ -309,3 +309,68 @@ def attempt_submit(request, public_id):
         return render(request, "student/exams/attempt.html", contexto, status=409)
 
     return redirect("student:attempt", public_id=tentativa.public_id)
+
+
+class AttemptResultView(StudentRequiredMixin, TemplateView):
+    """
+    Resultado da tentativa para o aluno. Somente o dono.
+
+    O que aparece depende da correcao:
+
+        AWAITING_REVIEW / PENDING   "aguardando correcao", sem numero nenhum
+        GRADED                      resultado, e a nota se a prova permitir
+
+    Nao existe nota provisoria. Mesmo quando as objetivas ja foram corrigidas e
+    o sistema sabe que o aluno tem 6 dos 10 pontos, a tela nao diz isso:
+    metade de uma nota nao e informacao, e um aluno que ler "6 pontos ate
+    agora" vai calcular a propria aprovacao com dados incompletos.
+
+    Gabarito nunca aparece aqui — nem alternativa correta, nem is_correct, nem
+    explicacao interna, nem o comentario do avaliador, que e uso
+    administrativo. O contexto e montado a partir de campos escalares da
+    tentativa, entao nao ha objeto de questao nesta tela para vazar nada.
+    """
+
+    template_name = "student/exams/result.html"
+
+    def get(self, request, *args, **kwargs):
+        self.tentativa = _tentativa_ou_404(request, kwargs["public_id"])
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        from exams.models import AttemptResult, GradingStatus
+        from exams.services import grading
+
+        contexto = super().get_context_data(**kwargs)
+        tentativa = self.tentativa
+        prova = tentativa.exam
+
+        corrigida = tentativa.grading_status == GradingStatus.GRADED
+        aprovado = corrigida and tentativa.result == AttemptResult.APPROVED
+
+        contexto["tentativa"] = tentativa
+        contexto["prova"] = prova
+        contexto["corrigida"] = corrigida
+        contexto["aprovado"] = aprovado
+        contexto["reprovado"] = corrigida and not aprovado
+        contexto["enviada"] = tentativa.status == AttemptStatus.SUBMITTED
+
+        # A prova decide se o aluno ve o numero. O resultado ele ve sempre:
+        # esconder "aprovado ou reprovado" tornaria a tela inutil.
+        mostrar_nota = corrigida and prova.show_score_after_submission
+        contexto["mostrar_nota"] = mostrar_nota
+        contexto["nota"] = (
+            grading.nota_para_exibicao(tentativa.final_score) if mostrar_nota else ""
+        )
+        contexto["nota_minima"] = (
+            grading.nota_para_exibicao(tentativa.passing_score_snapshot)
+            if mostrar_nota
+            else ""
+        )
+
+        # Mensagem de reprovacao configurada na prova. So aparece a quem
+        # reprovou — mostra-la a um aprovado seria cruel e confuso.
+        contexto["mensagem_reprovacao"] = (
+            prova.failure_message if contexto["reprovado"] else ""
+        )
+        return contexto

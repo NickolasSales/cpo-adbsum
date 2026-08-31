@@ -28,6 +28,8 @@ MENU_ADMIN = [
     {"nome": "Modulos", "url": "admin_panel:module_list", "secao": "modulos"},
     {"nome": "Matriculas", "url": "admin_panel:enrollment_list", "secao": "matriculas"},
     {"nome": "Provas", "url": "admin_panel:exam_list", "secao": "provas"},
+    {"nome": "Correcoes", "url": "admin_panel:correction_list", "secao": "correcoes"},
+    {"nome": "Notas", "url": "admin_panel:grade_list", "secao": "notas"},
 ]
 
 # Itens ainda nao implementados. Aparecem desabilitados e identificados pela
@@ -35,8 +37,6 @@ MENU_ADMIN = [
 # nao existe. Cada item sai desta lista quando a sua tela entrar no ar, e
 # nenhuma rota vazia e criada so para preencher o menu.
 MENU_ADMIN_FUTURO = [
-    {"nome": "Correcoes", "etapa": "Etapa 5"},
-    {"nome": "Notas", "etapa": "Etapa 5"},
     {"nome": "Certificados", "etapa": "Etapa 6"},
     {"nome": "Logs", "etapa": "Etapa 8"},
 ]

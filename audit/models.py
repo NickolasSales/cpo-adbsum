@@ -67,6 +67,28 @@ class AuditEvent(models.TextChoices):
     ATTEMPT_SUBMITTED = "ATTEMPT_SUBMITTED", "Tentativa enviada"
     ATTEMPT_EXPIRED = "ATTEMPT_EXPIRED", "Tentativa expirada"
 
+    # Senha definida pelo administrador (Etapa 5)
+    #
+    # A metadata registra que houve reset, e nada mais. Senha, hash e ate o
+    # comprimento ficam de fora: o comprimento e informacao util para quem
+    # tenta adivinhar a senha e inutil para quem investiga o que aconteceu.
+    STUDENT_PASSWORD_RESET = "STUDENT_PASSWORD_RESET", "Senha do aluno redefinida"
+
+    # Correcao (Etapa 5)
+    #
+    # Tres eventos por tentativa corrigida, e nao um por questao avaliada. O
+    # detalhe de cada questao ja fica em AttemptQuestion, com autor e data.
+    #
+    # MANUAL_GRADE_SAVED existe porque salvar rascunho e uma acao real do
+    # avaliador que altera pontuacao — mas a metadata guarda a questao e os
+    # pontos, nunca o texto da resposta nem o comentario.
+    #
+    # A nota final PODE aparecer em GRADING_COMPLETED: ela nao e segredo, e a
+    # trilha precisa responder "que nota foi fechada, por quem e quando".
+    GRADING_STARTED = "GRADING_STARTED", "Correcao iniciada"
+    MANUAL_GRADE_SAVED = "MANUAL_GRADE_SAVED", "Nota manual registrada"
+    GRADING_COMPLETED = "GRADING_COMPLETED", "Correcao finalizada"
+
 
 class AuditLog(models.Model):
     """

@@ -56,13 +56,24 @@ def test_detalhe_de_um_admin_nao_existe(admin_client_logado, admin_user):
 # ---------------------------------------------------------------------------
 
 
-def test_criacao_grava_aluno_completo(admin_client_logado, senha_padrao):
+SENHA_DEFINIDA = "Cadastro#Novo2026"
+
+
+def test_criacao_grava_aluno_completo(admin_client_logado):
+    """
+    A partir da Etapa 5 o administrador define a senha no proprio formulario.
+
+    Antes a conta nascia com a senha padrao do ambiente e o aluno era obrigado
+    a troca-la; agora ele nao troca a propria senha, entao a flag nasce False.
+    """
     resposta = admin_client_logado.post(
         URL_NOVO,
         {
             "full_name": "Ana Beatriz",
             "email": "Ana.Beatriz@Exemplo.TEST",
             "notes": "Turma da manha",
+            "password1": SENHA_DEFINIDA,
+            "password2": SENHA_DEFINIDA,
         },
     )
     assert resposta.status_code == 302
@@ -70,8 +81,8 @@ def test_criacao_grava_aluno_completo(admin_client_logado, senha_padrao):
     aluno = User.objects.get(email="ana.beatriz@exemplo.test")
     assert aluno.role == UserRole.STUDENT
     assert aluno.is_active is True
-    assert aluno.must_change_password is True
-    assert aluno.check_password(senha_padrao) is True
+    assert aluno.must_change_password is False
+    assert aluno.check_password(SENHA_DEFINIDA) is True
 
     perfil = StudentProfile.objects.get(user=aluno)
     assert perfil.source == StudentSource.MANUAL
@@ -84,7 +95,14 @@ def test_criacao_com_email_existente_nao_duplica(admin_client_logado, student_us
     antes = User.objects.count()
 
     resposta = admin_client_logado.post(
-        URL_NOVO, {"full_name": "Outro Joao", "email": student_user.email, "notes": ""}
+        URL_NOVO,
+        {
+            "full_name": "Outro Joao",
+            "email": student_user.email,
+            "notes": "",
+            "password1": SENHA_DEFINIDA,
+            "password2": SENHA_DEFINIDA,
+        },
     )
     assert resposta.status_code == 200
     assert User.objects.count() == antes
@@ -94,7 +112,14 @@ def test_criacao_com_email_de_admin_e_recusada(admin_client_logado, admin_user):
     antes = User.objects.count()
 
     resposta = admin_client_logado.post(
-        URL_NOVO, {"full_name": "Tentativa", "email": admin_user.email, "notes": ""}
+        URL_NOVO,
+        {
+            "full_name": "Tentativa",
+            "email": admin_user.email,
+            "notes": "",
+            "password1": SENHA_DEFINIDA,
+            "password2": SENHA_DEFINIDA,
+        },
     )
     assert resposta.status_code == 200
     assert User.objects.count() == antes
@@ -133,11 +158,13 @@ def test_criacao_ignora_campos_de_privilegio(admin_client_logado):
             "full_name": "Tentativa Escalada",
             "email": "escalada@exemplo.test",
             "notes": "",
+            "password1": SENHA_DEFINIDA,
+            "password2": SENHA_DEFINIDA,
             "role": UserRole.ADMIN,
             "is_staff": "on",
             "is_superuser": "on",
             "is_active": "on",
-            "must_change_password": "",
+            "must_change_password": "on",
         },
     )
 
@@ -145,7 +172,9 @@ def test_criacao_ignora_campos_de_privilegio(admin_client_logado):
     assert aluno.role == UserRole.STUDENT
     assert aluno.is_staff is False
     assert aluno.is_superuser is False
-    assert aluno.must_change_password is True
+    # must_change_password veio "on" no POST e foi descartado: quem decide o
+    # valor e o servico, e ele grava False.
+    assert aluno.must_change_password is False
 
 
 def test_edicao_ignora_campos_de_privilegio(admin_client_logado, student_user):

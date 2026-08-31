@@ -1,0 +1,137 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Detalhe de uma nota fechada. ADMIN apenas.
+
+Mostra o resumo e depois questao por questao, com gabarito. E a tela que
+responde a um pedido de revisao: de onde veio cada ponto.
+
+Os pontos aparecem separados entre objetivas e manuais. Sem essa separacao,
+"quanto veio da maquina e quanto veio de uma pessoa" — a primeira pergunta de
+qualquer recurso de nota — exigiria somar as questoes a mao.
+{% endcomment %}
+
+{% block title %}Nota - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:grade_list' %}">
+    &larr; Notas
+  </a>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div class="min-w-0">
+    <h1 class="h4 mb-1">{{ tentativa.exam.title }}</h1>
+    <p class="text-body-secondary small mb-0 cpo-quebra">
+      {{ tentativa.student.full_name }} &middot; {{ tentativa.student.email }}
+    </p>
+  </div>
+</div>
+
+<div class="cpo-cartao p-3 p-md-4 mb-3">
+  <div class="row g-3 align-items-center">
+    <div class="col-12 col-md-3">
+      <div class="small text-body-secondary">Nota final</div>
+      <div class="cpo-nota-grande">{{ nota_exibida }}</div>
+      <div class="small text-body-secondary">minima {{ minima_exibida }}</div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="small text-body-secondary mb-1">Resultado</div>
+      {% if tentativa.result == "APPROVED" %}
+        <span class="cpo-resultado cpo-resultado--aprovado">Aprovado</span>
+      {% else %}
+        <span class="cpo-resultado cpo-resultado--reprovado">Reprovado</span>
+      {% endif %}
+    </div>
+    <div class="col-12 col-md-6">
+      <div class="row g-2">
+        <div class="col-6 col-lg-3">
+          <div class="small text-body-secondary">Objetivas</div>
+          <div class="fw-semibold">{{ tentativa.objective_points }}</div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="small text-body-secondary">Manuais</div>
+          <div class="fw-semibold">{{ tentativa.manual_points }}</div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="small text-body-secondary">Total obtido</div>
+          <div class="fw-semibold">{{ tentativa.obtained_points }}</div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="small text-body-secondary">Total da prova</div>
+          <div class="fw-semibold">{{ tentativa.total_points_snapshot }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="my-3">
+
+  <div class="row g-3 small">
+    <div class="col-6 col-md-3">
+      <div class="text-body-secondary">Modulo</div>
+      <div><code>{{ tentativa.exam.module.code }}</code></div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="text-body-secondary">Tentativa</div>
+      <div>{{ tentativa.attempt_number }}</div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="text-body-secondary">Situacao da prova</div>
+      <div>{{ tentativa.get_status_display }}</div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="text-body-secondary">Corrigida em</div>
+      <div>{{ tentativa.graded_at|date:"d/m/Y H:i" }}</div>
+    </div>
+  </div>
+</div>
+
+<h2 class="h6 mb-2">Questao por questao</h2>
+
+<div class="cpo-cartao">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0 cpo-tabela cpo-lista--cartoes">
+      <thead>
+        <tr>
+          <th class="text-center">#</th>
+          <th>Questao</th>
+          <th class="d-none d-md-table-cell">Tipo</th>
+          <th class="d-none d-lg-table-cell">Correcao</th>
+          <th class="text-end">Pontos</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for linha in linhas %}
+          <tr>
+            <td class="text-center" data-rotulo="Questao">{{ linha.numero }}</td>
+            <td class="cpo-celula-titulo">
+              {{ linha.questao.text|truncatechars:120 }}
+              {% if linha.comentario %}
+                <div class="small text-body-secondary mt-1">
+                  Comentario: {{ linha.comentario }}
+                </div>
+              {% endif %}
+            </td>
+            <td class="d-none d-md-table-cell small" data-rotulo="Tipo">{{ linha.tipo }}</td>
+            <td class="d-none d-lg-table-cell small" data-rotulo="Correcao">
+              {% if linha.situacao == "AUTO_GRADED" %}
+                Automatica
+              {% elif linha.situacao == "MANUALLY_GRADED" %}
+                Avaliador
+              {% else %}
+                Pendente
+              {% endif %}
+            </td>
+            <td class="text-end" data-rotulo="Pontos">
+              <span class="fw-semibold">{{ linha.pontos }}</span>
+              <span class="small text-body-secondary">/ {{ linha.valor }}</span>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

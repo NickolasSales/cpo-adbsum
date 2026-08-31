@@ -23,7 +23,7 @@ from common.mixins import admin_required
 from common.views import PainelAdminMixin
 from courses.models import Enrollment, EnrollmentStatus
 from students import services
-from students.forms import ImportUploadForm, StudentForm
+from students.forms import ImportUploadForm, ResetPasswordForm, StudentForm
 from students.importers import analisar, confirmar, ler_arquivo
 
 # A analise fica na sessao do servidor entre o preview e a confirmacao.
@@ -97,16 +97,26 @@ class StudentDetailView(PainelAdminMixin, DetailView):
 
 
 class StudentCreateView(PainelAdminMixin, FormView):
-    """Cadastro manual de aluno."""
+    """
+    Cadastro manual de aluno.
+
+    A partir da Etapa 5 o administrador define a senha aqui mesmo. A senha
+    digitada vai direto para o servico e nunca e devolvida ao HTML, gravada
+    em log ou registrada na auditoria.
+    """
 
     template_name = "admin_panel/students/form.html"
     form_class = StudentForm
     secao = "alunos"
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["criando"] = True
+        return kwargs
+
     def get_context_data(self, **kwargs):
         contexto = super().get_context_data(**kwargs)
         contexto["titulo"] = "Novo aluno"
-        contexto["senha_configurada"] = services.senha_inicial_configurada()
         return contexto
 
     def form_valid(self, form):
@@ -114,7 +124,55 @@ class StudentCreateView(PainelAdminMixin, FormView):
             aluno = services.create_student(
                 full_name=form.cleaned_data["full_name"],
                 email=form.cleaned_data["email"],
+                password=form.senha,
                 notes=form.cleaned_data.get("notes", ""),
+                actor=self.request.user,
+                request=self.request,
+            )
+        except DomainError as erro:
+            form.add_error(None, str(erro))
+            return self.form_invalid(form)
+
+        # A mensagem nao repete a senha. Quem a definiu acabou de digita-la, e
+        # o texto de sucesso viaja para a proxima tela pela sessao.
+        messages.success(
+            self.request,
+            "Aluno {} cadastrado. Informe a senha ao aluno por um canal "
+            "seguro.".format(aluno.full_name),
+        )
+        return redirect("admin_panel:student_detail", pk=aluno.pk)
+
+
+class StudentPasswordResetView(PainelAdminMixin, FormView):
+    """
+    Redefinicao da senha de um aluno pelo administrador.
+
+    Existe porque o aluno nao troca mais a propria senha: sem esta tela,
+    esquecer a senha viraria um beco sem saida.
+
+    GET mostra o formulario, POST aplica. A senha vigente nunca e exibida —
+    ela so existe como hash, e nem o administrador a conhece.
+    """
+
+    template_name = "admin_panel/students/reset_password.html"
+    form_class = ResetPasswordForm
+    secao = "alunos"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.aluno = get_object_or_404(services.alunos_queryset(), pk=kwargs["pk"])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        contexto = super().get_context_data(**kwargs)
+        contexto["aluno"] = self.aluno
+        contexto["titulo"] = "Resetar senha"
+        return contexto
+
+    def form_valid(self, form):
+        try:
+            services.reset_student_password(
+                self.aluno,
+                new_password=form.cleaned_data["password1"],
                 actor=self.request.user,
                 request=self.request,
             )
@@ -124,10 +182,10 @@ class StudentCreateView(PainelAdminMixin, FormView):
 
         messages.success(
             self.request,
-            "Aluno {} cadastrado. Ele devera trocar a senha no primeiro "
-            "acesso.".format(aluno.full_name),
+            "Senha de {} redefinida. As sessoes abertas com a senha anterior "
+            "deixam de valer.".format(self.aluno.full_name),
         )
-        return redirect("admin_panel:student_detail", pk=aluno.pk)
+        return redirect("admin_panel:student_detail", pk=self.aluno.pk)
 
 
 class StudentUpdateView(PainelAdminMixin, FormView):

@@ -26,6 +26,20 @@ from exams.services.attempt import (  # noqa: F401
     tentativa_do_aluno_ou_none,
     tentativas_do_aluno,
 )
+from exams.services.grading import (  # noqa: F401
+    ManuaisPendentes,
+    NotaForaDoIntervalo,
+    TentativaNaoCorrigivel,
+    calculate_final_score,
+    finalize_grading,
+    grade_objective_questions,
+    linhas_da_correcao,
+    nota_para_exibicao,
+    questoes_manuais_pendentes,
+    save_manual_grade,
+    tentativas_corrigidas,
+    tentativas_para_corrigir,
+)
 from exams.services.exam import (  # noqa: F401
     close_exam,
     create_exam,
@@ -48,6 +62,18 @@ from exams.services.validation import (  # noqa: F401
 )
 
 __all__ = [
+    "ManuaisPendentes",
+    "NotaForaDoIntervalo",
+    "TentativaNaoCorrigivel",
+    "calculate_final_score",
+    "finalize_grading",
+    "grade_objective_questions",
+    "linhas_da_correcao",
+    "nota_para_exibicao",
+    "questoes_manuais_pendentes",
+    "save_manual_grade",
+    "tentativas_corrigidas",
+    "tentativas_para_corrigir",
     "ObrigatoriasPendentes",
     "SemAcessoAProva",
     "TentativaNaoEditavel",

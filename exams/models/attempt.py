@@ -40,6 +40,8 @@ from django.conf import settings
 from django.db import models
 from django.db.models import F, Q
 
+from exams.models.exam import QuestionType
+
 # Limites de tamanho aplicados no servidor. O maxlength do HTML e conforto de
 # interface, nao validacao: um POST montado a mao o ignora.
 #
@@ -87,6 +89,83 @@ class AttemptStatus(models.TextChoices):
 ESTADOS_ENCERRADOS = frozenset(
     {AttemptStatus.SUBMITTED, AttemptStatus.EXPIRED, AttemptStatus.RESET}
 )
+
+# Estados que devem ser corrigidos. Expirada tambem entra: o aluno teve o
+# tempo dele, o que ficou em branco vale zero, e uma prova expirada com nota
+# zero e um resultado — nao a ausencia de um.
+ESTADOS_CORRIGIVEIS = frozenset({AttemptStatus.SUBMITTED, AttemptStatus.EXPIRED})
+
+
+class GradingStatus(models.TextChoices):
+    """
+    Situacao da CORRECAO, que e outra dimensao que a situacao da tentativa.
+
+    ExamAttempt.status responde "o aluno ainda esta fazendo?"; grading_status
+    responde "ja sabemos a nota?". Sao perguntas independentes: uma tentativa
+    SUBMITTED pode estar PENDING, AWAITING_REVIEW ou GRADED, e a resposta muda
+    sem que o aluno faca nada.
+
+    Misturar as duas num campo so — um status que fosse
+    IN_PROGRESS/SUBMITTED/APPROVED — obrigaria a escolher qual das duas
+    informacoes perder no momento em que a prova fosse aprovada.
+
+        PENDING           encerrada, correcao ainda nao rodou
+        AWAITING_REVIEW   objetivas corrigidas, falta avaliador
+        GRADED            nota final fechada
+    """
+
+    PENDING = "PENDING", "Aguardando correcao"
+    AWAITING_REVIEW = "AWAITING_REVIEW", "Aguardando avaliador"
+    GRADED = "GRADED", "Corrigida"
+
+
+class AttemptResult(models.TextChoices):
+    """
+    Aprovacao. Nulo enquanto a correcao nao fecha.
+
+    Nunca chega do navegador: e sempre calculado a partir de
+    obtained_points e passing_score_snapshot, no servidor.
+    """
+
+    APPROVED = "APPROVED", "Aprovado"
+    FAILED = "FAILED", "Reprovado"
+
+
+class QuestionGradingStatus(models.TextChoices):
+    """
+    Situacao da correcao de UMA questao.
+
+        PENDING           textual sem nota ainda
+        AUTO_GRADED       objetiva corrigida pela maquina
+        MANUALLY_GRADED   textual avaliada por uma pessoa
+
+    A diferenca entre AUTO_GRADED e MANUALLY_GRADED nao e decorativa: ela
+    responde "quem deu esta nota" sem depender de graded_by, que fica nulo nas
+    automaticas, e permite recontar objetivas sem tocar no trabalho do
+    avaliador.
+    """
+
+    PENDING = "PENDING", "Pendente"
+    AUTO_GRADED = "AUTO_GRADED", "Corrigida automaticamente"
+    MANUALLY_GRADED = "MANUALLY_GRADED", "Corrigida pelo avaliador"
+
+
+# Tipos que a maquina corrige sozinha. Os demais dependem de leitura humana.
+TIPOS_AUTOCORRIGIVEIS = frozenset(
+    {
+        QuestionType.SINGLE_CHOICE,
+        QuestionType.MULTIPLE_CHOICE,
+        QuestionType.TRUE_FALSE,
+    }
+)
+
+# Casas decimais do final_score.
+#
+# Seis, e nao duas. A nota exibida ao aluno tem duas casas, mas a comparacao
+# com a nota minima acontece ANTES de qualquer arredondamento: guardar 8.00
+# quando o valor real era 7.996 destruiria a informacao que separa aprovado de
+# reprovado, e a tela mostraria "8,00 - Reprovado" sem nada que explicasse.
+CASAS_DA_NOTA = 6
 
 
 class ExamAttemptQuerySet(models.QuerySet):
@@ -172,6 +251,54 @@ class ExamAttempt(models.Model):
     passing_score_snapshot = models.DecimalField(
         "nota minima na largada", max_digits=4, decimal_places=2
     )
+
+    # --- correcao (Etapa 5) ------------------------------------------------
+    #
+    # Dimensao separada de `status`. Ver GradingStatus para o porque.
+    grading_status = models.CharField(
+        "situacao da correcao",
+        max_length=16,
+        choices=GradingStatus.choices,
+        default=GradingStatus.PENDING,
+        db_index=True,
+    )
+    result = models.CharField(
+        "resultado",
+        max_length=8,
+        choices=AttemptResult.choices,
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+
+    # Somas por origem, e nao apenas o total. Separar objetivas de manuais
+    # permite recontar a parte automatica sem tocar no trabalho do avaliador,
+    # e responde "quanto veio da maquina e quanto veio de uma pessoa" — que e
+    # a primeira pergunta de qualquer recurso de nota.
+    objective_points = models.DecimalField(
+        "pontos das objetivas", max_digits=8, decimal_places=2, default=0
+    )
+    manual_points = models.DecimalField(
+        "pontos das manuais", max_digits=8, decimal_places=2, default=0
+    )
+    obtained_points = models.DecimalField(
+        "pontos obtidos", max_digits=8, decimal_places=2, default=0
+    )
+
+    # Seis casas decimais, de proposito.
+    #
+    # A nota exibida tem duas, mas a comparacao com a nota minima acontece
+    # ANTES de arredondar. Guardar 8.00 quando o valor real era 7.996
+    # destruiria justamente o digito que separa aprovado de reprovado, e a
+    # tela mostraria "8,00 - Reprovado" sem nada que explicasse.
+    final_score = models.DecimalField(
+        "nota final",
+        max_digits=9,
+        decimal_places=CASAS_DA_NOTA,
+        null=True,
+        blank=True,
+    )
+    graded_at = models.DateTimeField("corrigida em", null=True, blank=True)
 
     # Evidencia para auditoria, nunca autenticacao. A tentativa nao e amarrada
     # a IP nem a dispositivo: o aluno pode legitimamente trocar de rede, sair
@@ -300,6 +427,57 @@ class ExamAttempt(models.Model):
                 condition=Q(status__in=AttemptStatus.values),
                 name="tentativa_situacao_conhecida",
             ),
+            # --- correcao (Etapa 5) ---------------------------------------
+            models.CheckConstraint(
+                condition=Q(grading_status__in=GradingStatus.values),
+                name="tentativa_correcao_situacao_conhecida",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(result__isnull=True) | Q(result__in=AttemptResult.values)
+                ),
+                name="tentativa_resultado_conhecido",
+            ),
+            # Resultado e nota existem se, e somente se, a correcao fechou.
+            # Um resultado sem nota nao teria como ser conferido; uma nota sem
+            # correcao fechada seria um numero que o aluno poderia ver antes
+            # de a avaliacao terminar.
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        grading_status=GradingStatus.GRADED,
+                        result__isnull=False,
+                        final_score__isnull=False,
+                        graded_at__isnull=False,
+                    )
+                    | (
+                        ~Q(grading_status=GradingStatus.GRADED)
+                        & Q(
+                            result__isnull=True,
+                            final_score__isnull=True,
+                            graded_at__isnull=True,
+                        )
+                    )
+                ),
+                name="tentativa_nota_so_existe_se_corrigida",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(objective_points__gte=0)
+                    & Q(manual_points__gte=0)
+                    & Q(obtained_points__gte=0)
+                ),
+                name="tentativa_pontos_obtidos_nao_negativos",
+            ),
+            # A nota vive na mesma escala da nota minima. Um final_score de
+            # 87 significaria que alguem confundiu porcentagem com escala.
+            models.CheckConstraint(
+                condition=(
+                    Q(final_score__isnull=True)
+                    | (Q(final_score__gte=0) & Q(final_score__lte=10))
+                ),
+                name="tentativa_nota_final_entre_0_e_10",
+            ),
         ]
         indexes = [
             models.Index(
@@ -309,6 +487,13 @@ class ExamAttempt(models.Model):
             # status em andamento com prazo vencido.
             models.Index(
                 fields=["status", "expires_at"], name="tentativa_situacao_prazo_idx"
+            ),
+            # Serve as duas telas novas: a fila de correcao filtra por
+            # AWAITING_REVIEW e a de notas por GRADED, ambas ordenando por
+            # data de envio.
+            models.Index(
+                fields=["grading_status", "submitted_at"],
+                name="tentativa_correcao_idx",
             ),
         ]
 
@@ -376,6 +561,53 @@ class AttemptQuestion(models.Model):
     )
     display_order = models.PositiveIntegerField("ordem de exibicao")
 
+    # Valor da questao no momento em que a prova foi apresentada.
+    #
+    # A prova publicada e imutavel, entao hoje isto sempre coincide com
+    # question.points. Ainda assim vale a copia: a nota de um aluno e um
+    # registro historico, e a pergunta "sobre quantos pontos esta questao foi
+    # avaliada" nao pode depender de nada que aconteca depois — nem de uma
+    # futura edicao emergencial, nem de um script de correcao de dados.
+    #
+    # Nulo apenas para as tentativas que ja existiam antes desta etapa; a
+    # migration de dados preenche todas a partir da Question relacionada.
+    points_snapshot = models.DecimalField(
+        "valor da questao na largada",
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+
+    # --- correcao (Etapa 5) ------------------------------------------------
+    awarded_points = models.DecimalField(
+        "pontos concedidos",
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+    grading_status = models.CharField(
+        "situacao da correcao",
+        max_length=16,
+        choices=QuestionGradingStatus.choices,
+        default=QuestionGradingStatus.PENDING,
+        db_index=True,
+    )
+    graded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="corrigida por",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="questoes_corrigidas",
+    )
+    graded_at = models.DateTimeField("corrigida em", null=True, blank=True)
+
+    # Observacao do avaliador. Uso administrativo: nao chega ao aluno nesta
+    # etapa, e mostrar feedback por questao sera decisao separada.
+    grader_comment = models.TextField("comentario do avaliador", blank=True)
+
     created_at = models.DateTimeField("criada em", auto_now_add=True)
 
     class Meta:
@@ -394,6 +626,46 @@ class AttemptQuestion(models.Model):
             models.CheckConstraint(
                 condition=Q(display_order__gte=0),
                 name="tentativa_questao_posicao_nao_negativa",
+            ),
+            models.CheckConstraint(
+                condition=Q(grading_status__in=QuestionGradingStatus.values),
+                name="tentativa_questao_correcao_conhecida",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(awarded_points__isnull=True) | Q(awarded_points__gte=0)
+                ),
+                name="tentativa_questao_pontos_nao_negativos",
+            ),
+            # O teto e o valor da propria questao. Uma dissertativa de 2,00
+            # pontos que recebesse 5,00 elevaria a nota da prova acima do
+            # total possivel — e nenhuma tela mostraria de onde veio.
+            #
+            # Compara com points_snapshot, e nao com question.points: uma
+            # check enxerga apenas a propria linha, e e essa a razao pratica
+            # de o snapshot existir.
+            models.CheckConstraint(
+                condition=(
+                    Q(awarded_points__isnull=True)
+                    | Q(points_snapshot__isnull=True)
+                    | Q(awarded_points__lte=F("points_snapshot"))
+                ),
+                name="tentativa_questao_pontos_ate_o_valor",
+            ),
+            # Pontos e situacao contam a mesma historia: uma questao corrigida
+            # tem nota, uma pendente nao tem.
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        grading_status=QuestionGradingStatus.PENDING,
+                        awarded_points__isnull=True,
+                    )
+                    | (
+                        ~Q(grading_status=QuestionGradingStatus.PENDING)
+                        & Q(awarded_points__isnull=False)
+                    )
+                ),
+                name="tentativa_questao_pontos_coerentes_com_situacao",
             ),
         ]
 

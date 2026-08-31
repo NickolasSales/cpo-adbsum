@@ -468,7 +468,10 @@ def test_fluxo_do_arquivo_ate_a_confirmacao_cria_aluno_e_matriculas(
     aluno = User.objects.get(email="ana.nova@exemplo.test")
     assert resumo["alunos_criados"] == 1
     assert resumo["matriculas_criadas"] == 2
-    assert aluno.must_change_password is True
+    # A partir da Etapa 5 o aluno nao troca a propria senha, entao a flag
+    # nasce False tambem na importacao: obriga-lo a trocar o mandaria para
+    # uma tela que agora responde 403.
+    assert aluno.must_change_password is False
     assert set(
         Enrollment.objects.filter(student=aluno).values_list("module__code", flat=True)
     ) == {"MOD1", "MOD2"}

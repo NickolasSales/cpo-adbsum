@@ -3,27 +3,45 @@
 {% comment %}
 Layout do painel administrativo.
 
-A lateral e fixa a partir de 992px e vira offcanvas no celular. Os itens
-ainda nao implementados aparecem desabilitados e com a etapa em que serao
-entregues, para deixar explicito o que existe e o que nao existe.
+Lateral e conteudo sao IRMAOS dentro de um shell flex. A lateral nao e mais
+position:fixed empurrando o conteudo com margin-left — aquele arranjo somava
+250px a um elemento que ja media 100% da viewport e produzia barra horizontal
+em todas as telas administrativas.
+
+Agora a lateral e um item flex de largura fixa e o conteudo e um item flex
+com min-width:0. Esse min-width e o detalhe que faz tudo funcionar: sem ele,
+um item flex se recusa a encolher abaixo da largura natural do conteudo, e
+uma tabela larga empurraria a pagina inteira em vez de rolar dentro do
+proprio cartao.
+
+No celular a lateral vira offcanvas, que fica fora do shell para nao
+participar do fluxo.
 {% endcomment %}
 
-{% block main_class %}cpo-conteudo--deslocado container-fluid px-3 px-lg-4 py-4{% endblock %}
+{% block body_class %}cpo-admin{% endblock %}
+
+{% block shell_class %}cpo-shell cpo-shell--painel{% endblock %}
+
+{% block main_class %}cpo-conteudo px-3 px-lg-4 py-4{% endblock %}
 
 {% block chrome %}
-<nav class="cpo-topo d-lg-none px-3 py-2 d-flex align-items-center gap-2">
-  <button class="btn btn-sm btn-outline-secondary" type="button"
+<nav class="cpo-topo cpo-topo--admin d-lg-none px-3 py-2 d-flex align-items-center gap-2">
+  <button class="btn btn-sm btn-outline-secondary cpo-hamburguer" type="button"
           data-bs-toggle="offcanvas" data-bs-target="#menuAdmin"
           aria-controls="menuAdmin" aria-label="Abrir menu">
     <span aria-hidden="true">&#9776;</span>
   </button>
-  <a class="cpo-marca" href="{% url 'admin_panel:dashboard' %}">{{ INSTITUTION_NAME }} Provas</a>
+  <a class="cpo-marca text-truncate" href="{% url 'admin_panel:dashboard' %}">{{ INSTITUTION_NAME }} Provas</a>
 </nav>
+{% endblock %}
 
+{% block aside %}
 <div class="cpo-lateral cpo-lateral--fixa d-none d-lg-flex flex-column p-3">
   {% include "admin_panel/_menu.html" %}
 </div>
+{% endblock %}
 
+{% block fora_shell %}
 <div class="offcanvas offcanvas-start cpo-lateral" tabindex="-1" id="menuAdmin"
      aria-label="Menu administrativo">
   <div class="offcanvas-header">

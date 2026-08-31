@@ -149,18 +149,54 @@ a { color: var(--cpo-primaria); }
   margin-left: auto;
 }
 
-/* Em telas grandes a lateral fica fixa; no celular ela vira offcanvas. */
+/* ---------------------------------------------------------------
+   Shell: lateral + conteudo
+
+   A versao anterior punha a lateral em position:fixed e empurrava o
+   conteudo com margin-left. O conteudo tambem era .container-fluid,
+   ou seja width:100%, e margem fica FORA da caixa mesmo com
+   box-sizing:border-box — a pagina media 100% + 250px e ganhava barra
+   horizontal em toda tela administrativa. Nenhum .table-responsive
+   resolvia, porque o estouro nascia acima dele.
+
+   Agora sao dois itens flex irmaos. O min-width:0 do conteudo e o que
+   sustenta o resto: por padrao um item flex nao encolhe abaixo da
+   largura natural do seu conteudo, entao uma tabela larga empurraria a
+   pagina em vez de rolar dentro do proprio cartao.
+   --------------------------------------------------------------- */
+
+.cpo-shell {
+  width: 100%;
+  max-width: 100%;
+}
+
+.cpo-conteudo {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
 @media (min-width: 992px) {
+  .cpo-shell--painel {
+    display: flex;
+    align-items: flex-start;
+  }
+
   .cpo-lateral--fixa {
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    left: 0;
+    flex: 0 0 var(--cpo-largura-lateral);
     width: var(--cpo-largura-lateral);
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    height: 100dvh;
     overflow-y: auto;
     z-index: 1030;
   }
-  .cpo-conteudo--deslocado { margin-left: var(--cpo-largura-lateral); }
+
+  .cpo-shell--painel > .cpo-conteudo {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
 }
 
 /* ---------------------------------------------------------------
@@ -385,4 +421,372 @@ a:hover > .cpo-indicador--ativo {
 @media (max-width: 575.98px) {
   .cpo-relogio { font-size: 1rem; }
   .cpo-estado-salvo { min-width: 4.5rem; }
+}
+
+/* ---------------------------------------------------------------
+   Etapa 5 - responsividade estrutural
+
+   Regra que atravessa tudo: nenhum elemento pode ser mais largo que a
+   viewport. O estouro sempre nasce de alguem que se recusa a encolher,
+   entao a maior parte do que vem abaixo e autorizacao para encolher:
+   min-width:0 e max-width:100%.
+   --------------------------------------------------------------- */
+
+html,
+body {
+  max-width: 100%;
+}
+
+/* Ultima linha de defesa, e nao a correcao.
+   A causa estrutural do estouro foi corrigida no shell acima; isto existe
+   para que um componente novo mal comportado degrade em vez de devolver a
+   barra horizontal ao usuario. `clip` no lugar de `hidden` de proposito:
+   `hidden` cria contexto de rolagem e quebraria o position:sticky do
+   cronometro da prova e da coluna de acoes. */
+body {
+  overflow-x: clip;
+}
+
+/* Conteudo que nao pode transbordar do proprio container. */
+.cpo-cartao,
+.cpo-conteudo .row,
+.cpo-conteudo .col,
+.cpo-conteudo [class^="col-"],
+.cpo-conteudo [class*=" col-"] {
+  min-width: 0;
+}
+
+/* Texto longo sem espaco — e-mail, URL, codigo — quebra em vez de esticar
+   a celula. E o caso classico de tabela que estoura sem que nenhuma regra
+   de largura pareca errada. */
+.cpo-quebra {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.cpo-conteudo code,
+.cpo-tabela code {
+  overflow-wrap: anywhere;
+}
+
+/* Imagens e midia nunca ultrapassam o container. */
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* ---------------------------------------------------------------
+   Tabelas
+
+   .table-responsive continua existindo, mas como rede de seguranca para
+   o desktop estreito — nao como a solucao. A solucao e a tabela caber:
+   colunas secundarias somem por breakpoint, e abaixo de 768px a tabela
+   inteira vira cartoes.
+   --------------------------------------------------------------- */
+
+.cpo-tabela {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+/* Rola dentro do cartao, nunca a pagina. */
+.cpo-cartao > .table-responsive {
+  border-radius: .75rem;
+  max-width: 100%;
+}
+
+/* Coluna de acoes sempre alcancavel no desktop: gruda na direita da area
+   que rola, em vez de esperar o usuario arrastar a tabela. */
+@media (min-width: 768px) {
+  .cpo-tabela .cpo-acoes {
+    position: sticky;
+    right: 0;
+    background: #fff;
+    box-shadow: -8px 0 8px -8px rgba(15, 23, 42, .18);
+    z-index: 2;
+  }
+
+  .cpo-tabela thead .cpo-acoes {
+    background: #fff;
+  }
+
+  .cpo-tabela tbody tr:hover .cpo-acoes {
+    background: #f8fafc;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Tabela vira cartao abaixo de 768px
+
+   Um unico markup para as duas formas. Duplicar o template numa versao
+   "tabela" e outra "cartoes" duplicaria tambem as condicoes de exibicao —
+   e um dia as duas discordariam sobre o que mostrar.
+
+   Cada celula declara data-rotulo com o nome da coluna; no celular esse
+   rotulo vira o prefixo da linha, porque sem o cabecalho o valor sozinho
+   nao diz o que e.
+   --------------------------------------------------------------- */
+
+@media (max-width: 767.98px) {
+  .cpo-lista--cartoes,
+  .cpo-lista--cartoes tbody,
+  .cpo-lista--cartoes tr,
+  .cpo-lista--cartoes td {
+    display: block;
+    width: 100%;
+  }
+
+  .cpo-lista--cartoes thead {
+    display: none;
+  }
+
+  .cpo-lista--cartoes {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .cpo-lista--cartoes tr {
+    background: #fff;
+    border: 1px solid var(--cpo-borda);
+    border-radius: .75rem;
+    padding: .9rem 1rem;
+    margin-bottom: .75rem;
+  }
+
+  .cpo-lista--cartoes tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .cpo-lista--cartoes td {
+    border: 0 !important;
+    padding: .2rem 0 !important;
+    text-align: left !important;
+  }
+
+  /* O rotulo so aparece quando o template o declara. Colunas cujo valor
+     ja se explica — o titulo do registro, as acoes — ficam sem ele. */
+  .cpo-lista--cartoes td[data-rotulo]::before {
+    content: attr(data-rotulo);
+    display: block;
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-weight: 600;
+    color: var(--cpo-texto-suave);
+    margin-top: .35rem;
+  }
+
+  /* A celula de titulo abre o cartao. */
+  .cpo-lista--cartoes td.cpo-celula-titulo {
+    font-size: 1.02rem;
+    font-weight: 600;
+    padding-bottom: .35rem !important;
+  }
+
+  /* Acoes viram uma faixa de botoes no rodape do cartao. */
+  .cpo-lista--cartoes td.cpo-acoes {
+    padding-top: .75rem !important;
+    margin-top: .5rem;
+    border-top: 1px solid var(--cpo-borda) !important;
+  }
+
+  .cpo-lista--cartoes td.cpo-acoes > div {
+    justify-content: flex-start !important;
+    flex-wrap: wrap;
+    gap: .5rem !important;
+  }
+
+  .cpo-lista--cartoes td.cpo-acoes .btn {
+    flex: 1 1 auto;
+    min-height: 2.5rem;
+  }
+
+  /* Estado vazio continua sendo uma linha unica, centralizada. */
+  .cpo-lista--cartoes td.cpo-celula-vazia {
+    text-align: center !important;
+  }
+
+  /* Sem tabela, nao ha o que rolar. */
+  .cpo-cartao > .table-responsive {
+    overflow-x: visible;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Botoes e acoes
+   --------------------------------------------------------------- */
+
+/* Barras de acao quebram linha em vez de empurrar a pagina. */
+.cpo-barra-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+@media (max-width: 575.98px) {
+  /* Alvo de toque confortavel. Um botao de 40px com texto espremido
+     erra mais do que acerta no dedo. */
+  .cpo-barra-acoes .btn {
+    flex: 1 1 auto;
+    min-height: 2.75rem;
+  }
+
+  .cpo-barra-acoes--empilha .btn {
+    flex: 1 1 100%;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Formularios
+   --------------------------------------------------------------- */
+
+.cpo-conteudo .form-control,
+.cpo-conteudo .form-select,
+.cpo-conteudo textarea {
+  max-width: 100%;
+}
+
+/* Formulario de cadastro/edicao: largura confortavel de leitura no
+   desktop, largura total no celular. Um campo de e-mail com 1600px de
+   largura nao ajuda ninguem. */
+.cpo-form-estreito {
+  width: 100%;
+  max-width: 720px;
+}
+
+.cpo-form-medio {
+  width: 100%;
+  max-width: 980px;
+}
+
+@media (max-width: 575.98px) {
+  /* Uma coluna no celular, independentemente do grid escolhido no
+     desktop. */
+  .cpo-form-empilha > [class^="col-"],
+  .cpo-form-empilha > [class*=" col-"] {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Modais dentro da tela
+   --------------------------------------------------------------- */
+
+.modal-dialog {
+  max-width: calc(100% - 1rem);
+}
+
+@media (min-width: 576px) {
+  .modal-dialog {
+    max-width: 500px;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Verdadeiro ou falso (Etapa 5)
+
+   Interface propria, e nao o formset generico de alternativas: sao duas
+   opcoes de texto fixo, e a unica escolha do administrador e qual delas
+   e a correta.
+   --------------------------------------------------------------- */
+
+.cpo-vf {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  max-width: 22rem;
+}
+
+.cpo-vf__opcao {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .7rem .9rem;
+  border: 1px solid var(--cpo-borda);
+  border-radius: .5rem;
+  background: #fff;
+  cursor: pointer;
+  margin: 0;
+  min-height: 2.9rem;
+}
+
+.cpo-vf__opcao:hover {
+  border-color: var(--cpo-primaria);
+}
+
+.cpo-vf__opcao input[type="radio"] {
+  flex: 0 0 auto;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
+}
+
+.cpo-vf__opcao span {
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.cpo-vf__opcao:has(input:checked) {
+  border-color: var(--cpo-primaria);
+  background: #eff6ff;
+}
+
+/* ---------------------------------------------------------------
+   Correcao e notas (Etapa 5)
+   --------------------------------------------------------------- */
+
+.cpo-resposta-aluno {
+  background: #f8fafc;
+  border: 1px solid var(--cpo-borda);
+  border-radius: .5rem;
+  padding: .85rem 1rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0;
+  font-size: .95rem;
+  line-height: 1.6;
+}
+
+.cpo-resposta-aluno--vazia {
+  color: var(--cpo-texto-suave);
+  font-style: italic;
+}
+
+.cpo-nota-grande {
+  font-size: 2.1rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.cpo-resultado {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  font-weight: 600;
+  font-size: .95rem;
+  padding: .4rem .8rem;
+  border-radius: .5rem;
+  border: 1px solid transparent;
+}
+
+.cpo-resultado--aprovado {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.cpo-resultado--reprovado {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
 }

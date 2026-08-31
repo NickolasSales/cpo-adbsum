@@ -358,7 +358,9 @@ def test_confirmacao_importa(admin_client_logado, modulo, outro_modulo, senha_pa
     assert Enrollment.objects.count() == 4
 
     joao = User.objects.get(email="joao@example.com")
-    assert joao.must_change_password is True
+    # Etapa 5: sem troca obrigatoria. A senha da importacao continua sendo a
+    # padrao do ambiente, e o administrador pode redefini-la depois.
+    assert joao.must_change_password is False
     assert joao.is_active is True
     assert joao.student_profile.source == StudentSource.IMPORT
     assert joao.password.startswith("pbkdf2_")

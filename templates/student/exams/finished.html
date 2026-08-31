@@ -7,9 +7,9 @@ Renderizada pela mesma rota da prova. Nao existe formulario aqui, e nao ha
 caminho de volta para a tela editavel: voltar pelo historico do navegador
 dispara um request novo, que passa pela mesma verificacao e cai aqui de novo.
 
-Sem nota. A correcao entra na Etapa 5, e ate la esta tela nao pode sugerir
-resultado nenhum — nem "voce acertou", nem uma barra de progresso, nem
-qualquer numero que o aluno interprete como desempenho.
+Sem nota AQUI. O resultado tem tela propria, alcancada pelo botao no fim, e
+esta continua sendo apenas a confirmacao do envio — nem "voce acertou", nem
+barra de progresso, nem numero que o aluno interprete como desempenho.
 {% endcomment %}
 
 {% block title %}{{ prova.title }} - {{ INSTITUTION_NAME }} Provas{% endblock %}
@@ -61,7 +61,11 @@ qualquer numero que o aluno interprete como desempenho.
   {% endif %}
 </dl>
 
-<div class="mt-4">
+<div class="cpo-barra-acoes mt-4">
+  <a class="btn btn-primary btn-sm"
+     href="{% url 'student:attempt_result' public_id=tentativa.public_id %}">
+    Ver resultado
+  </a>
   <a class="btn btn-outline-secondary btn-sm"
      href="{% url 'student:module_detail' pk=prova.module_id %}">
     Voltar ao modulo

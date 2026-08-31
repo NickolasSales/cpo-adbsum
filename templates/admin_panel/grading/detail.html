@@ -1,0 +1,239 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Correcao de uma tentativa.
+
+Esta e tela ADMIN: o gabarito aparece aqui, e precisa aparecer — sem ele nao ha
+como conferir a correcao automatica. Nenhum dado desta pagina alimenta tela de
+aluno; o resultado que o aluno ve tem template proprio e nao mostra gabarito.
+
+Cada questao manual e um formulario independente, com POST e CSRF proprios.
+Poderia ser um formulario unico com tudo dentro, mas ai corrigir a quinta
+redacao exigiria reenviar as quatro anteriores, e um erro de validacao em
+qualquer uma devolveria a tela inteira. Assim o avaliador salva uma, confere,
+salva a proxima — e fechar a nota e outra acao, deliberadamente separada.
+
+Objetivas aparecem somente leitura. Nao ha campo para altera-las e o servico
+recusa nota manual em questao objetiva mesmo que o POST venha forjado.
+{% endcomment %}
+
+{% block title %}Corrigir - {{ INSTITUTION_NAME }} Provas{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:correction_list' %}">
+    &larr; Correcoes
+  </a>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div class="min-w-0">
+    <h1 class="h4 mb-1">{{ tentativa.exam.title }}</h1>
+    <p class="text-body-secondary small mb-0 cpo-quebra">
+      {{ tentativa.student.full_name }} &middot; {{ tentativa.student.email }}
+    </p>
+  </div>
+</div>
+
+<div class="cpo-cartao p-3 mb-3">
+  <div class="row g-3">
+    <div class="col-6 col-md-3">
+      <div class="small text-body-secondary">Modulo</div>
+      <div class="fw-medium"><code>{{ tentativa.exam.module.code }}</code></div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="small text-body-secondary">Tentativa</div>
+      <div class="fw-medium">{{ tentativa.attempt_number }}</div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="small text-body-secondary">Situacao da prova</div>
+      <div class="fw-medium">{{ tentativa.get_status_display }}</div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="small text-body-secondary">
+        {% if tentativa.submitted_at %}Enviada em{% else %}Expirou em{% endif %}
+      </div>
+      <div class="fw-medium small">
+        {% if tentativa.submitted_at %}
+          {{ tentativa.submitted_at|date:"d/m/Y H:i" }}
+        {% else %}
+          {{ tentativa.expired_at|date:"d/m/Y H:i" }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if erro_de_finalizacao %}
+  <div class="alert alert-warning" role="alert">
+    <p class="fw-medium mb-1">Ainda faltam notas.</p>
+    <p class="mb-0 small">{{ erro_de_finalizacao }}</p>
+  </div>
+{% endif %}
+
+{% if ja_finalizada %}
+  <div class="alert alert-info" role="alert">
+    <p class="fw-medium mb-1">Correcao ja finalizada.</p>
+    <p class="mb-0 small">
+      Nota {{ nota_exibida }} &middot;
+      {% if tentativa.result == "APPROVED" %}Aprovado{% else %}Reprovado{% endif %}.
+      <a href="{% url 'admin_panel:grade_detail' tentativa.public_id %}">Ver detalhe da nota</a>.
+    </p>
+  </div>
+{% endif %}
+
+{% for linha in linhas %}
+  <div class="cpo-cartao p-3 p-md-4 mb-3">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+      <div class="min-w-0">
+        <span class="cpo-badge cpo-badge--neutro">Questao {{ linha.numero }}</span>
+        <span class="cpo-badge cpo-badge--info">{{ linha.tipo }}</span>
+        {% if linha.situacao == "PENDING" %}
+          <span class="cpo-badge cpo-badge--alerta">Pendente</span>
+        {% elif linha.situacao == "AUTO_GRADED" %}
+          <span class="cpo-badge cpo-badge--ok">Corrigida automaticamente</span>
+        {% else %}
+          <span class="cpo-badge cpo-badge--ok">Corrigida pelo avaliador</span>
+        {% endif %}
+      </div>
+      <div class="small text-body-secondary">Vale {{ linha.valor }}</div>
+    </div>
+
+    <p class="mb-3">{{ linha.questao.text }}</p>
+
+    {% if linha.automatica %}
+      {# Somente leitura. O gabarito fica visivel para conferencia. #}
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <div class="small text-body-secondary mb-1">Resposta do aluno</div>
+          {% if linha.marcadas %}
+            <ul class="mb-0 ps-3">
+              {% for texto in linha.marcadas %}<li>{{ texto }}</li>{% endfor %}
+            </ul>
+          {% else %}
+            <p class="cpo-resposta-aluno cpo-resposta-aluno--vazia mb-0">Nao respondeu.</p>
+          {% endif %}
+        </div>
+        <div class="col-12 col-md-6">
+          <div class="small text-body-secondary mb-1">Gabarito</div>
+          <ul class="mb-0 ps-3">
+            {% for texto in linha.corretas %}<li>{{ texto }}</li>{% endfor %}
+          </ul>
+        </div>
+      </div>
+      <div class="mt-3 pt-3 border-top">
+        <span class="small text-body-secondary">Pontos:</span>
+        <span class="fw-semibold">{{ linha.pontos }}</span>
+        <span class="small text-body-secondary">de {{ linha.valor }}</span>
+      </div>
+
+    {% else %}
+      <div class="mb-3">
+        <div class="small text-body-secondary mb-1">Resposta do aluno</div>
+        {% if linha.texto_resposta %}
+          <p class="cpo-resposta-aluno">{{ linha.texto_resposta }}</p>
+        {% else %}
+          <p class="cpo-resposta-aluno cpo-resposta-aluno--vazia mb-0">
+            Respondeu em branco.
+          </p>
+        {% endif %}
+      </div>
+
+      {% if ja_finalizada %}
+        <div class="pt-3 border-top">
+          <span class="small text-body-secondary">Pontos:</span>
+          <span class="fw-semibold">{{ linha.pontos }}</span>
+          <span class="small text-body-secondary">de {{ linha.valor }}</span>
+          {% if linha.comentario %}
+            <p class="small text-body-secondary mb-0 mt-2">{{ linha.comentario }}</p>
+          {% endif %}
+        </div>
+      {% else %}
+        <form method="post" class="pt-3 border-top"
+              action="{% url 'admin_panel:correction_save' tentativa.public_id %}">
+          {% csrf_token %}
+          <input type="hidden" name="questao" value="{{ linha.id }}">
+
+          <div class="row g-3 cpo-form-empilha align-items-end">
+            <div class="col-12 col-sm-4 col-md-3">
+              <label for="pontos-{{ linha.id }}" class="form-label small fw-medium mb-1">
+                Pontos concedidos
+              </label>
+              <input type="number" class="form-control form-control-sm"
+                     id="pontos-{{ linha.id }}" name="pontos"
+                     value="{{ linha.pontos|default_if_none:'' }}"
+                     min="0" max="{{ linha.valor }}" step="0.25" required>
+              <div class="form-text small">Maximo {{ linha.valor }}.</div>
+            </div>
+            <div class="col-12 col-sm-8 col-md-7">
+              <label for="comentario-{{ linha.id }}" class="form-label small fw-medium mb-1">
+                Comentario <span class="text-body-secondary fw-normal">(opcional)</span>
+              </label>
+              <input type="text" class="form-control form-control-sm"
+                     id="comentario-{{ linha.id }}" name="comentario"
+                     value="{{ linha.comentario }}" maxlength="500">
+            </div>
+            <div class="col-12 col-md-2">
+              <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+                Salvar
+              </button>
+            </div>
+          </div>
+        </form>
+      {% endif %}
+    {% endif %}
+  </div>
+{% endfor %}
+
+{% if not ja_finalizada %}
+  <div class="cpo-cartao p-3 p-md-4">
+    <h2 class="h6 mb-2">Finalizar correcao</h2>
+    {% if pendentes %}
+      <p class="small text-body-secondary mb-3">
+        Ainda faltam notas nas questoes
+        {% for numero in pendentes %}{{ numero }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+      </p>
+    {% else %}
+      <p class="small text-body-secondary mb-3">
+        Todas as questoes tem nota. Fechar a correcao calcula a nota final e
+        define o resultado. Depois disso nao ha alteracao por esta tela.
+      </p>
+    {% endif %}
+
+    <button type="button" class="btn btn-primary btn-sm"
+            data-bs-toggle="modal" data-bs-target="#modalFinalizar"
+            {% if pendentes %}disabled{% endif %}>
+      Finalizar correcao
+    </button>
+  </div>
+
+  <div class="modal fade" id="modalFinalizar" tabindex="-1"
+       aria-labelledby="tituloFinalizar" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h6" id="tituloFinalizar">Finalizar correcao</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"
+                  aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-0">
+            A nota final sera calculada e o resultado definido. O aluno passa a
+            ver o resultado, e esta tela nao permitira mais alteracao.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm"
+                  data-bs-dismiss="modal">Voltar</button>
+          <form method="post"
+                action="{% url 'admin_panel:correction_finalize' tentativa.public_id %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary btn-sm">Finalizar</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

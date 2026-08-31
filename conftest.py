@@ -89,6 +89,26 @@ def outro_student(db):
 
 
 @pytest.fixture
+def admin_com_troca_pendente(db):
+    """
+    Administrador obrigado a trocar a senha no proximo acesso.
+
+    A partir da Etapa 5 a flag must_change_password vale SOMENTE para ADMIN: o
+    aluno nao troca a propria senha, entao para ele a flag deixou de comandar
+    o fluxo. Esta fixture existe para que os testes do middleware continuem
+    exercitando a regra no papel onde ela ainda se aplica.
+    """
+    return User.objects.create_user(
+        email="admin.pendente@exemplo.test",
+        full_name="Carlos Pendente",
+        password=SENHA_VALIDA,
+        role=UserRole.ADMIN,
+        is_staff=True,
+        must_change_password=True,
+    )
+
+
+@pytest.fixture
 def student_com_troca_pendente(db):
     return User.objects.create_user(
         email="maria.pendente@exemplo.test",

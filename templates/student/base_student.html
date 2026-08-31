@@ -25,13 +25,15 @@ navegacao precisa caber no topo.
                 data-bs-toggle="dropdown" aria-expanded="false">
           Conta
         </button>
+        {% comment %}
+        A partir da Etapa 5 a senha do aluno e definida pela administracao,
+        entao nao ha item de troca de senha aqui. Esconder o link e cortesia,
+        e nao controle: quem digitar o endereco recebe 403 da propria view.
+
+        Bloco de comentario, e nao a forma de uma linha: aquela nao aceita
+        varias linhas, e o texto acabaria renderizado dentro do HTML.
+        {% endcomment %}
         <ul class="dropdown-menu dropdown-menu-end">
-          <li>
-            <a class="dropdown-item" href="{% url 'accounts:change_password' %}">
-              Alterar senha
-            </a>
-          </li>
-          <li><hr class="dropdown-divider"></li>
           <li>
             <form method="post" action="{% url 'accounts:logout' %}">
               {% csrf_token %}

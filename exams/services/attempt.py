@@ -48,6 +48,7 @@ from common.exceptions import DomainError
 from common.http import get_client_ip, get_user_agent
 from courses.models import Enrollment
 from exams.models import (
+    ESTADOS_CORRIGIVEIS,
     LIMITE_ESSAY,
     LIMITE_SHORT_TEXT,
     Answer,
@@ -389,7 +390,18 @@ def _montar_tentativa(tentativa, exam):
 
     AttemptQuestion.objects.bulk_create(
         [
-            AttemptQuestion(attempt=tentativa, question=questao, display_order=posicao)
+            AttemptQuestion(
+                attempt=tentativa,
+                question=questao,
+                display_order=posicao,
+                # Copia o valor da questao agora. Hoje a prova publicada e
+                # imutavel e o snapshot coincidiria com question.points, mas a
+                # nota de um aluno e registro historico: "sobre quantos pontos
+                # esta questao foi avaliada" nao pode depender de nada que
+                # aconteca depois. E e este campo que a constraint de teto
+                # compara, porque uma check enxerga apenas a propria linha.
+                points_snapshot=questao.points,
+            )
             for posicao, questao in enumerate(questoes)
         ]
     )
@@ -667,7 +679,16 @@ def submit_attempt(tentativa, *, request=None):
             },
         )
 
-    return travada
+    # Fora da transacao do envio, de proposito.
+    #
+    # Se a correcao rodasse aqui dentro e falhasse, o rollback levaria junto o
+    # envio do aluno — ele teria clicado em finalizar e a prova voltaria a
+    # ficar aberta, ou pior, perderia o carimbo de entrega. A entrega e um
+    # fato dele; a correcao e trabalho do sistema, e pode ser refeita.
+    #
+    # grade_objective_questions e idempotente, entao uma falha aqui e
+    # recuperavel: a proxima chamada corrige do mesmo jeito.
+    return _corrigir_apos_encerramento(travada, request=request)
 
 
 def questoes_obrigatorias_sem_resposta(tentativa):
@@ -733,7 +754,15 @@ def expire_attempt(tentativa, *, agora=None, request=None):
 
     with transaction.atomic():
         travada = ExamAttempt.objects.select_for_update().get(pk=tentativa.pk)
-        return _expirar(travada, agora=agora, request=request)
+        _expirar(travada, agora=agora, request=request)
+
+    # Tambem fora da transacao, pelo mesmo motivo do envio: a expiracao e um
+    # fato do relogio e nao pode ser desfeita por uma falha na correcao.
+    #
+    # Uma prova expirada e corrigida como qualquer outra, e o que ficou em
+    # branco vale zero. Tratar expirada como "sem nota" deixaria o aluno num
+    # limbo permanente, sem resultado e sem explicacao.
+    return _corrigir_apos_encerramento(travada, request=request)
 
 
 def _expirar(tentativa, *, agora, request=None):
@@ -849,3 +878,23 @@ def _mensagem_de_encerramento(status):
     if status == AttemptStatus.SUBMITTED:
         return "Esta prova ja foi enviada."
     return "Esta tentativa nao esta mais disponivel."
+
+
+def _corrigir_apos_encerramento(tentativa, *, request=None):
+    """
+    Dispara a correcao automatica de uma tentativa recem-encerrada.
+
+    Vive aqui, e nao em grading.py, para evitar import circular: grading.py ja
+    importa os modelos de tentativa, e attempt.py precisa apenas desta ponte.
+    O import e local pelo mesmo motivo.
+
+    Silencioso quanto a estado: se a tentativa nao estiver num estado
+    corrigivel, nada acontece. Quem chama acabou de encerra-la, entao o caso
+    normal e corrigir.
+    """
+    from exams.services.grading import grade_objective_questions
+
+    if tentativa.status not in ESTADOS_CORRIGIVEIS:
+        return tentativa
+
+    return grade_objective_questions(tentativa, request=request)

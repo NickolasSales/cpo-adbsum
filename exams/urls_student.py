@@ -46,3 +46,14 @@ urlpatterns = [
         name="attempt_submit",
     ),
 ]
+
+# Resultado da tentativa (Etapa 5). Mesmo identificador publico da prova: e a
+# mesma tentativa vista de outro angulo, e dois identificadores para o mesmo
+# objeto so criariam confusao.
+urlpatterns += [
+    path(
+        "resultados/<uuid:public_id>/",
+        views.AttemptResultView.as_view(),
+        name="attempt_result",
+    ),
+]

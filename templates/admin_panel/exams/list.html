@@ -51,7 +51,7 @@
 
 <div class="cpo-cartao">
   <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0 cpo-tabela">
+    <table class="table table-hover align-middle mb-0 cpo-tabela cpo-lista--cartoes">
       <thead>
         <tr>
           <th>Titulo</th>
@@ -63,13 +63,13 @@
           <th class="text-center d-none d-sm-table-cell">Questoes</th>
           <th class="text-end d-none d-sm-table-cell">Pontos</th>
           <th class="text-end d-none d-md-table-cell">Nota min.</th>
-          <th class="text-end">Acoes</th>
+          <th class="text-end cpo-acoes">Acoes</th>
         </tr>
       </thead>
       <tbody>
         {% for prova in provas %}
           <tr>
-            <td>
+            <td class="cpo-celula-titulo">
               <a href="{% url 'admin_panel:exam_detail' prova.pk %}" class="fw-medium text-decoration-none">
                 {{ prova.title }}
               </a>
@@ -77,10 +77,10 @@
                 {{ prova.module.code }} &middot; {{ prova.total_questoes }} questao(oes)
               </div>
             </td>
-            <td class="d-none d-md-table-cell"><code>{{ prova.module.code }}</code></td>
-            <td class="text-center">v{{ prova.version }}</td>
-            <td>{% include "admin_panel/exams/_status.html" %}</td>
-            <td class="d-none d-lg-table-cell small">
+            <td class="d-none d-md-table-cell" data-rotulo="Modulo"><code>{{ prova.module.code }}</code></td>
+            <td class="text-center" data-rotulo="Versao">v{{ prova.version }}</td>
+            <td data-rotulo="Situacao">{% include "admin_panel/exams/_status.html" %}</td>
+            <td class="d-none d-lg-table-cell small" data-rotulo="Janela">
               {% if prova.open_at and prova.close_at %}
                 {{ prova.open_at|date:"d/m/Y H:i" }}<br>
                 <span class="text-body-secondary">ate {{ prova.close_at|date:"d/m/Y H:i" }}</span>
@@ -88,20 +88,20 @@
                 <span class="text-body-secondary">nao definida</span>
               {% endif %}
             </td>
-            <td class="text-center d-none d-lg-table-cell">
+            <td class="text-center d-none d-lg-table-cell" data-rotulo="Duracao">
               {% if prova.duration_minutes %}{{ prova.duration_minutes }} min{% else %}&mdash;{% endif %}
             </td>
-            <td class="text-center d-none d-sm-table-cell">{{ prova.total_questoes }}</td>
-            <td class="text-end d-none d-sm-table-cell">
+            <td class="text-center d-none d-sm-table-cell" data-rotulo="Questoes">{{ prova.total_questoes }}</td>
+            <td class="text-end d-none d-sm-table-cell" data-rotulo="Pontos">
               {% if prova.status == "DRAFT" %}
                 {{ prova.soma_pontos|default:"0.00" }}
               {% else %}
                 {{ prova.total_points }}
               {% endif %}
             </td>
-            <td class="text-end d-none d-md-table-cell">{{ prova.passing_score }}</td>
-            <td class="text-end">
-              <div class="d-flex gap-1 justify-content-end">
+            <td class="text-end d-none d-md-table-cell" data-rotulo="Nota minima">{{ prova.passing_score }}</td>
+            <td class="text-end cpo-acoes">
+              <div class="d-flex gap-1 justify-content-end flex-wrap">
                 <a class="btn btn-sm btn-outline-secondary"
                    href="{% url 'admin_panel:exam_detail' prova.pk %}">Abrir</a>
               </div>
@@ -109,7 +109,7 @@
           </tr>
         {% empty %}
           <tr>
-            <td colspan="10" class="text-center text-body-secondary py-5">
+            <td colspan="10" class="text-center text-body-secondary py-5 cpo-celula-vazia">
               {% if busca or filtro_modulo or filtro_situacao %}
                 Nenhuma prova encontrada com esses filtros.
               {% else %}

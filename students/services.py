@@ -9,6 +9,8 @@ individual, sem risco de as duas divergirem.
 """
 
 from django.conf import settings
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from accounts.managers import normalizar_email
@@ -81,11 +83,41 @@ def verificar_email_disponivel(email, *, ignorando=None):
     raise DomainError("Ja existe um aluno cadastrado com este e-mail.")
 
 
+def validar_senha_de_aluno(senha, *, usuario=None):
+    """
+    Aplica os validadores de senha do Django e devolve a senha.
+
+    Roda os mesmos validadores configurados em AUTH_PASSWORD_VALIDATORS, para
+    que a senha definida pelo administrador nao seja mais fraca do que a que
+    o proprio aluno poderia escolher antes.
+
+    Recebe `usuario` quando ele ja existe: e o que permite ao
+    UserAttributeSimilarityValidator recusar uma senha parecida com o nome ou
+    o e-mail da pessoa.
+
+    A senha nunca e devolvida em mensagem de erro, log ou auditoria — apenas
+    para quem chamou, que a entrega imediatamente a set_password.
+    """
+    senha = senha or ""
+    if not senha:
+        raise DomainError("A senha e obrigatoria.")
+
+    try:
+        validate_password(senha, user=usuario)
+    except ValidationError as erro:
+        # As mensagens do Django descrevem a regra violada ("muito curta",
+        # "muito comum"), nunca o valor digitado.
+        raise DomainError(" ".join(erro.messages))
+
+    return senha
+
+
 @transaction.atomic
 def create_student(
     *,
     full_name,
     email,
+    password=None,
     notes="",
     source=StudentSource.MANUAL,
     actor=None,
@@ -97,9 +129,27 @@ def create_student(
 
     O perfil e criado explicitamente aqui, e nao por signal, para que o
     momento da criacao seja obvio em importacoes e testes.
+
+    Politica de senha, a partir da Etapa 5
+    --------------------------------------
+    Quem define a senha do aluno e o administrador. Na criacao individual ela
+    chega em `password` e e obrigatoria. Na importacao em lote `password` vem
+    vazio e cai na senha padrao do ambiente, porque nao ha como digitar uma
+    senha diferente para cada linha de uma planilha de duzentos alunos.
+
+    Em ambos os casos `must_change_password` nasce False: o aluno nao troca a
+    propria senha, entao obriga-lo a trocar no primeiro acesso o deixaria
+    preso num formulario que ele nao tem permissao de enviar.
+
+    A senha entra por create_user, que chama set_password internamente.
+    Nenhum caminho deste modulo atribui user.password diretamente.
     """
-    senha = obter_senha_inicial()
     email = verificar_email_disponivel(email)
+
+    if password:
+        senha = validar_senha_de_aluno(password)
+    else:
+        senha = obter_senha_inicial()
 
     full_name = (full_name or "").strip()
     if not full_name:
@@ -111,7 +161,7 @@ def create_student(
         password=senha,
         role=UserRole.STUDENT,
         is_active=True,
-        must_change_password=True,
+        must_change_password=False,
     )
     StudentProfile.objects.create(user=user, notes=notes or "", source=source)
 
@@ -242,5 +292,69 @@ def unblock_student(student, *, actor=None, request=None):
         student=student,
         entity_type="User",
         entity_id=student.pk,
+    )
+    return student
+
+
+@transaction.atomic
+def reset_student_password(student, *, new_password, actor=None, request=None):
+    """
+    Redefine a senha de um aluno por decisao administrativa.
+
+    A partir da Etapa 5 o aluno nao troca a propria senha, entao este e o
+    unico caminho existente para a senha de um aluno mudar. Esquecer a senha
+    deixou de ser um problema do aluno e passou a ser uma tarefa do
+    administrador.
+
+    O que este servico garante:
+
+        so aluno            um ADMIN nao pode ter a senha trocada por aqui;
+                            para isso existe o fluxo proprio dele
+        set_password        nunca atribuicao direta a user.password, que
+                            gravaria a senha em claro no banco
+        must_change_password  volta a False: obrigar a troca prenderia o aluno
+                            num formulario que ele nao tem permissao de enviar
+        auditoria           registra que houve reset, sem a senha
+
+    Sessoes antigas
+    ---------------
+    Trocar a senha muda o hash, e o hash entra no calculo da chave de sessao
+    do Django (AbstractBaseUser.get_session_auth_hash). Com
+    SessionAuthenticationMiddleware ativo — o padrao —, as sessoes abertas com
+    a senha anterior deixam de validar no request seguinte. Nao ha sistema
+    paralelo de sessao aqui: o comportamento vem do proprio Django, e existe
+    teste que o exercita de ponta a ponta.
+    """
+    if student.role != UserRole.STUDENT:
+        raise DomainError(
+            "Somente a senha de alunos pode ser redefinida por esta tela."
+        )
+
+    senha = validar_senha_de_aluno(new_password, usuario=student)
+
+    student.set_password(senha)
+    student.must_change_password = False
+    student.save(update_fields=["password", "must_change_password"])
+
+    record(
+        AuditEvent.STUDENT_PASSWORD_RESET,
+        request=request,
+        actor=actor,
+        student=student,
+        entity_type="User",
+        entity_id=student.pk,
+        # Somente o fato. Senha, hash e comprimento ficam de fora — o
+        # comprimento ajuda quem tenta adivinhar e nao ajuda quem investiga.
+        #
+        # A chave e "redefinida", e nao "password_reset", porque o sanitizador
+        # de audit.services descarta por SUBSTRING qualquer chave que contenha
+        # "password". Ele esta certo: e essa regra grosseira que garante que
+        # nenhuma chave futura carregue segredo por descuido. Renomear a chave
+        # aqui e mais barato — e mais seguro — do que abrir uma excecao na
+        # unica barreira que protege a trilha inteira.
+        #
+        # O evento ja se chama STUDENT_PASSWORD_RESET, entao o significado nao
+        # se perde.
+        metadata={"redefinida": True},
     )
     return student

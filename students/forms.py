@@ -54,11 +54,91 @@ class StudentForm(forms.Form):
         ),
     )
 
+    def __init__(self, *args, criando=False, **kwargs):
+        """
+        Os campos de senha existem apenas na criacao.
+
+        Na edicao eles nem sao construidos, em vez de ficarem opcionais: um
+        campo de senha vazio num formulario de edicao e um convite a apagar a
+        senha por engano, e a troca de senha tem tela propria — a de reset,
+        que audita a operacao. Aqui os campos simplesmente nao existem, entao
+        nem um POST forjado alcanca esse caminho.
+        """
+        super().__init__(*args, **kwargs)
+        self.criando = criando
+        if criando:
+            self.fields["password1"] = campo_de_senha("Senha")
+            self.fields["password2"] = campo_de_senha("Confirmar senha")
+
     def clean_full_name(self):
         nome = (self.cleaned_data.get("full_name") or "").strip()
         if not nome:
             raise forms.ValidationError("O nome completo e obrigatorio.")
         return nome
+
+    def clean(self):
+        dados = super().clean()
+        if self.criando:
+            conferir_confirmacao(self, dados)
+        return dados
+
+    @property
+    def senha(self):
+        """A senha digitada, ou None na edicao."""
+        return self.cleaned_data.get("password1") if self.criando else None
+
+
+def campo_de_senha(rotulo):
+    """
+    Campo de senha administrativo.
+
+    PasswordInput sem render_value: depois de um erro de validacao o campo
+    volta VAZIO. Reexibir o valor colocaria a senha no HTML de resposta, que
+    passa por proxy, cache do navegador e historico.
+    """
+    return forms.CharField(
+        label=rotulo,
+        strip=False,
+        widget=forms.PasswordInput(
+            attrs={
+                "class": CLASSE_CAMPO,
+                "autocomplete": "new-password",
+            }
+        ),
+    )
+
+
+def conferir_confirmacao(form, dados):
+    """
+    Exige que as duas senhas coincidam.
+
+    A validacao de forca fica no servico, que e por onde toda criacao passa —
+    inclusive a importacao em lote. Repeti-la aqui criaria duas listas de
+    regras que um dia divergiriam.
+
+    A mensagem de erro nunca cita nenhuma das duas senhas.
+    """
+    senha1 = dados.get("password1")
+    senha2 = dados.get("password2")
+    if senha1 and senha2 and senha1 != senha2:
+        form.add_error("password2", "As duas senhas nao coincidem.")
+
+
+class ResetPasswordForm(forms.Form):
+    """
+    Redefinicao da senha de um aluno pelo administrador.
+
+    Nao pede a senha atual: o administrador nao a conhece e nao deve conhecer.
+    A tela tambem nunca exibe a senha vigente — ela so existe como hash.
+    """
+
+    password1 = campo_de_senha("Nova senha")
+    password2 = campo_de_senha("Confirmar nova senha")
+
+    def clean(self):
+        dados = super().clean()
+        conferir_confirmacao(self, dados)
+        return dados
 
 
 class ImportUploadForm(forms.Form):
