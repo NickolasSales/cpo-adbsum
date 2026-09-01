@@ -345,11 +345,22 @@ class AttemptResultView(StudentRequiredMixin, TemplateView):
         tentativa = self.tentativa
         prova = tentativa.exam
 
-        corrigida = tentativa.grading_status == GradingStatus.GRADED
+        # Anulada vem primeiro e desliga todo o resto.
+        #
+        # Uma tentativa anulada pode ter nota, resultado e correcao fechada —
+        # a anulacao preserva tudo isso de proposito. Mas nada daquilo vale
+        # mais, e apresentar "Aprovado" numa tentativa que foi anulada seria
+        # a pior informacao possivel: o aluno acreditaria que concluiu.
+        anulada = tentativa.status == AttemptStatus.RESET
+
+        corrigida = (
+            not anulada and tentativa.grading_status == GradingStatus.GRADED
+        )
         aprovado = corrigida and tentativa.result == AttemptResult.APPROVED
 
         contexto["tentativa"] = tentativa
         contexto["prova"] = prova
+        contexto["anulada"] = anulada
         contexto["corrigida"] = corrigida
         contexto["aprovado"] = aprovado
         contexto["reprovado"] = corrigida and not aprovado
@@ -357,7 +368,9 @@ class AttemptResultView(StudentRequiredMixin, TemplateView):
 
         # A prova decide se o aluno ve o numero. O resultado ele ve sempre:
         # esconder "aprovado ou reprovado" tornaria a tela inutil.
-        mostrar_nota = corrigida and prova.show_score_after_submission
+        mostrar_nota = (
+            corrigida and prova.show_score_after_submission and not anulada
+        )
         contexto["mostrar_nota"] = mostrar_nota
         contexto["nota"] = (
             grading.nota_para_exibicao(tentativa.final_score) if mostrar_nota else ""
@@ -379,7 +392,7 @@ class AttemptResultView(StudentRequiredMixin, TemplateView):
         # tela de resultado. Import local para nao criar dependencia de
         # importacao entre exams e certificates.
         contexto["certificado"] = None
-        if aprovado:
+        if aprovado and not anulada:
             from certificates.services import certificado_da_tentativa
 
             contexto["certificado"] = certificado_da_tentativa(tentativa)

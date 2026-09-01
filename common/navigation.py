@@ -25,9 +25,19 @@ def url_do_painel(user):
 MENU_ADMIN = [
     {"nome": "Dashboard", "url": "admin_panel:dashboard", "secao": "dashboard"},
     {"nome": "Alunos", "url": "admin_panel:student_list", "secao": "alunos"},
+    {
+        "nome": "Administradores",
+        "url": "admin_panel:admin_user_list",
+        "secao": "administradores",
+    },
     {"nome": "Modulos", "url": "admin_panel:module_list", "secao": "modulos"},
     {"nome": "Matriculas", "url": "admin_panel:enrollment_list", "secao": "matriculas"},
     {"nome": "Provas", "url": "admin_panel:exam_list", "secao": "provas"},
+    {
+        "nome": "Tentativas",
+        "url": "admin_panel:attempt_list",
+        "secao": "tentativas",
+    },
     {"nome": "Correcoes", "url": "admin_panel:correction_list", "secao": "correcoes"},
     {"nome": "Notas", "url": "admin_panel:grade_list", "secao": "notas"},
     {
@@ -35,12 +45,15 @@ MENU_ADMIN = [
         "url": "admin_panel:certificate_list",
         "secao": "certificados",
     },
+    {"nome": "Logs", "url": "admin_panel:audit_log_list", "secao": "logs"},
 ]
 
 # Itens ainda nao implementados. Aparecem desabilitados e identificados pela
 # etapa em que serao entregues, para que a interface nao prometa o que ainda
 # nao existe. Cada item sai desta lista quando a sua tela entrar no ar, e
 # nenhuma rota vazia e criada so para preencher o menu.
-MENU_ADMIN_FUTURO = [
-    {"nome": "Logs", "etapa": "Etapa 8"},
-]
+#
+# Vazia desde a Etapa 7: todas as telas que o menu prometia existem. A lista
+# permanece porque o mecanismo continua util na proxima vez que algo for
+# anunciado antes de existir.
+MENU_ADMIN_FUTURO = []

@@ -209,16 +209,17 @@ def test_expirada_com_carimbo_de_expiracao_e_aceita(tentativa):
 
 def test_anulada_aceita_qualquer_combinacao_de_carimbos(tentativa):
     """
-    RESET fica de fora da exigencia de formato, e isso e escolha, nao omissao.
+    RESET continua fora da exigencia de FORMATO dos carimbos de encerramento.
 
-    O reset administrativo ainda nao existe. Quando existir, a decisao mais
-    provavel e preservar o carimbo da tentativa anulada — apagar o
-    submitted_at destruiria justamente a informacao que explica por que a
-    anulacao foi necessaria. Fixar o formato agora seria decidir, sem
-    discussao, a regra de uma etapa futura.
+    Este teste foi escrito na Etapa 4 dizendo "se alguem um dia apertar a
+    constraint, ele falha e a conversa acontece". A Etapa 7 apertou, e a
+    conversa e esta: a folga nos carimbos permanece — a anulacao PRESERVA o
+    submitted_at ou o expired_at que a tentativa tinha, e uma tentativa
+    anulada em andamento nao tem carimbo nenhum, entao as quatro combinacoes
+    sao legitimas.
 
-    O teste cobre as quatro combinacoes para que a folga fique explicita: se
-    alguem um dia apertar a constraint, ele falha e a conversa acontece.
+    O que passou a ser exigido e outra coisa: reset_at. Ver
+    tentativa_anulacao_coerente, exercitada logo abaixo.
     """
     agora = timezone.now()
     combinacoes = [
@@ -229,10 +230,59 @@ def test_anulada_aceita_qualquer_combinacao_de_carimbos(tentativa):
     ]
 
     for carimbos in combinacoes:
-        assert forcar(tentativa, status=AttemptStatus.RESET, **carimbos) == 1
+        assert (
+            forcar(
+                tentativa,
+                status=AttemptStatus.RESET,
+                reset_at=agora,
+                **carimbos,
+            )
+            == 1
+        )
 
     tentativa.refresh_from_db()
     assert tentativa.status == AttemptStatus.RESET
+
+
+# ---------------------------------------------------------------------------
+# tentativa_anulacao_coerente
+#
+# RESET e reset_at contam a mesma historia, nos dois sentidos.
+# ---------------------------------------------------------------------------
+
+
+def test_anulada_sem_data_de_anulacao_e_recusada(tentativa):
+    """
+    Sem reset_at, a tentativa anulada nao diz QUANDO deixou de valer.
+
+    Essa data e o que separa "anulada antes da emissao do certificado" de
+    "anulada depois" — a pergunta que uma auditoria faz primeiro.
+    """
+    with pytest.raises(IntegrityError):
+        with transaction.atomic():
+            forcar(tentativa, status=AttemptStatus.RESET)
+
+
+def test_data_de_anulacao_em_tentativa_nao_anulada_e_recusada(tentativa):
+    """
+    O inverso, e igualmente perigoso.
+
+    Uma tentativa com reset_at preenchido parece anulada para qualquer
+    relatorio que olhe a data, e nao esta.
+    """
+    with pytest.raises(IntegrityError):
+        with transaction.atomic():
+            forcar(tentativa, reset_at=timezone.now())
+
+
+def test_anulacao_anterior_ao_inicio_e_recusada(tentativa):
+    with pytest.raises(IntegrityError):
+        with transaction.atomic():
+            forcar(
+                tentativa,
+                status=AttemptStatus.RESET,
+                reset_at=tentativa.started_at - timedelta(seconds=1),
+            )
 
 
 def test_o_servico_produz_apenas_estados_aceitos(tentativa, prova_aberta, aluno_matriculado):
@@ -429,10 +479,20 @@ def test_as_quatro_situacoes_do_enum_sao_aceitas(tentativa):
         {"status": AttemptStatus.IN_PROGRESS, "submitted_at": None, "expired_at": None},
         {"status": AttemptStatus.SUBMITTED, "submitted_at": agora, "expired_at": None},
         {"status": AttemptStatus.EXPIRED, "submitted_at": None, "expired_at": agora},
-        {"status": AttemptStatus.RESET, "submitted_at": None, "expired_at": None},
+        # RESET exige reset_at desde a Etapa 7: a anulacao precisa dizer
+        # quando aconteceu.
+        {
+            "status": AttemptStatus.RESET,
+            "submitted_at": None,
+            "expired_at": None,
+            "reset_at": timezone.now(),
+        },
     ]
 
     for campos in aceitos:
+        # reset_at so pode existir sob RESET, entao as demais situacoes o
+        # zeram explicitamente ao voltar.
+        campos.setdefault("reset_at", None)
         assert forcar(tentativa, **campos) == 1, campos
 
 

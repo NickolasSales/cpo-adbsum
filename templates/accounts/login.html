@@ -1,14 +1,20 @@
 {% extends "base.html" %}
 
-{% block title %}Entrar - {{ INSTITUTION_NAME }} Provas{% endblock %}
+{% block title %}Entrar - {{ APP_NAME }}{% endblock %}
 {% block main_class %}cpo-login{% endblock %}
 
 {% block content %}
 <div class="cpo-login__caixa">
 
   <div class="cpo-login__marca">
-    <strong>{{ INSTITUTION_NAME }} Provas</strong>
-    <span>Sistema de avaliacao por modulos</span>
+    <strong>{{ APP_NAME }}</strong>
+    {% comment %}
+    O subtitulo e um texto so, vindo de APP_SUBTITLE. A quebra em duas linhas
+    no celular e do navegador, e nao do markup: escrever a quebra a mao
+    deixaria o texto semantico partido, e um leitor de tela anunciaria dois
+    fragmentos.
+    {% endcomment %}
+    <span>{{ APP_SUBTITLE }}</span>
   </div>
 
   <div class="cpo-login__painel">

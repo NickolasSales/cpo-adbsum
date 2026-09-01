@@ -101,6 +101,25 @@ class AuditEvent(models.TextChoices):
     CERTIFICATE_ISSUED = "CERTIFICATE_ISSUED", "Certificado emitido"
     CERTIFICATE_REVOKED = "CERTIFICATE_REVOKED", "Certificado revogado"
 
+    # Contas administrativas (Etapa 7)
+    #
+    # Quem cria, edita, bloqueia ou redefine a senha de um administrador esta
+    # mexendo em quem pode mexer em tudo. Sao os eventos de maior peso da
+    # trilha, e o motivo de ela existir.
+    ADMIN_USER_CREATED = "ADMIN_USER_CREATED", "Administrador criado"
+    ADMIN_USER_UPDATED = "ADMIN_USER_UPDATED", "Administrador atualizado"
+    ADMIN_USER_BLOCKED = "ADMIN_USER_BLOCKED", "Administrador bloqueado"
+    ADMIN_USER_UNBLOCKED = "ADMIN_USER_UNBLOCKED", "Administrador desbloqueado"
+    ADMIN_PASSWORD_RESET = "ADMIN_PASSWORD_RESET", "Senha de administrador redefinida"
+
+    # Reset de tentativa (Etapa 7)
+    #
+    # Anula uma tentativa preservando o historico dela. Pode revogar
+    # certificado e reativar matricula, entao a metadata registra o que de
+    # fato aconteceu — sem repetir o motivo, que ja fica em
+    # ExamAttempt.reset_reason.
+    ATTEMPT_RESET = "ATTEMPT_RESET", "Tentativa anulada"
+
 
 class AuditLog(models.Model):
     """

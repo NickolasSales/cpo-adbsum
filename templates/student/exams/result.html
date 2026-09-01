@@ -21,7 +21,7 @@ O resultado (aprovado ou reprovado) aparece sempre: esconde-lo tornaria a tela
 inutil, e o aluno descobriria de qualquer forma pelo certificado.
 {% endcomment %}
 
-{% block title %}Resultado - {{ INSTITUTION_NAME }} Provas{% endblock %}
+{% block title %}Resultado - {{ APP_NAME }}{% endblock %}
 
 {% block content %}
 <nav aria-label="Trilha" class="mb-3">
@@ -31,7 +31,26 @@ inutil, e o aluno descobriria de qualquer forma pelo certificado.
   </a>
 </nav>
 
-{% if not corrigida %}
+{% if anulada %}
+
+  {% comment %}
+  Tentativa anulada pela administracao.
+
+  Nao aparece como aprovada nem como reprovada, mesmo quando a nota existe: a
+  anulacao preserva o historico de proposito, mas aquele resultado deixou de
+  valer. Dizer "Aprovado" aqui faria o aluno acreditar que concluiu o modulo.
+  {% endcomment %}
+  <div class="cpo-cartao p-4 text-center">
+    <div class="display-6 mb-2" aria-hidden="true">&#9888;</div>
+    <h1 class="h5 mb-3">Esta tentativa foi anulada administrativamente.</h1>
+    <p class="mb-1">O resultado dela nao vale mais.</p>
+    <p class="text-body-secondary mb-0">
+      Consulte a area do modulo para verificar se ha uma nova tentativa
+      disponivel.
+    </p>
+  </div>
+
+{% elif not corrigida %}
 
   <div class="cpo-cartao p-4 text-center">
     <div class="display-6 mb-2" aria-hidden="true">&#8987;</div>

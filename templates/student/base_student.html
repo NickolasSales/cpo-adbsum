@@ -13,8 +13,10 @@ navegacao precisa caber no topo.
 {% block chrome %}
 <nav class="cpo-topo">
   <div class="container d-flex align-items-center justify-content-between py-3 gap-3">
-    <a class="cpo-marca" href="{% url 'student:dashboard' %}">
-      {{ INSTITUTION_NAME }} Provas
+    <a class="cpo-marca d-flex flex-column lh-sm text-decoration-none"
+       href="{% url 'student:dashboard' %}">
+      <span>{{ APP_NAME }}</span>
+      <span class="small fw-normal text-body-secondary">Area do aluno</span>
     </a>
     <div class="d-flex align-items-center gap-3">
       <span class="small text-body-secondary d-none d-sm-inline">

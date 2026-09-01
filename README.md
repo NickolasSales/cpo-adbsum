@@ -1477,6 +1477,289 @@ certificado — está em `/etc/cpo-provas/OPERACAO.md` no servidor.
 
 ---
 
+## 9.9 Identidade da aplicação
+
+**Nome:** CPO AD Brás Sumaré
+**Subtítulo:** Sistema de avaliação para o Curso de Preparação de Obreiros
+
+### Um lugar só
+
+Antes da Etapa 7 o nome estava escrito à mão em **43 templates**, no formato
+`{{ INSTITUTION_NAME }} Provas`. Trocar a identidade exigia editar arquivo por
+arquivo, e bastava esquecer um para a aplicação aparecer com dois nomes ao mesmo
+tempo — provavelmente na tela que ninguém abre com frequência.
+
+Agora são três variáveis de ambiente, expostas pelo context processor:
+
+| Variável | Onde aparece |
+|---|---|
+| `APP_NAME` | login, laterais, `<title>` de toda página |
+| `APP_SUBTITLE` | login |
+| `INSTITUTION_NAME` | **impresso no certificado** |
+
+`INSTITUTION_NAME` é separado de `APP_NAME` de propósito. Um dia a interface pode
+se chamar de um jeito e o documento oficial de outro; hoje coincidem, mas são
+perguntas diferentes.
+
+Há teste varrendo `templates/` atrás de `"CPO Provas"` e do padrão antigo, e
+outro varrendo o código de aplicação atrás do nome literal. A centralização não
+depende de ninguém lembrar dela.
+
+### Certificados já emitidos não mudam
+
+`institution_name_snapshot` guarda o nome que constava **naquele** documento.
+Trocar `INSTITUTION_NAME` não reescreve nada, e **nenhuma migration toca nesse
+campo** — há um teste varrendo `certificates/migrations/` para garantir.
+
+---
+
+## 9.10 Contas administrativas
+
+`/admin-panel/administradores/`
+
+### O que é um administrador
+
+`User.role = ADMIN`. Nada mais.
+
+Isso **não** significa `is_staff` nem `is_superuser`. Os dois pertencem ao Django
+Admin, que aqui é ferramenta técnica de emergência. Uma conta criada pelo painel
+nasce assim:
+
+```
+role                  ADMIN
+is_active             True
+is_staff              False
+is_superuser          False
+must_change_password  False
+```
+
+Os cinco valores são literais no serviço, e **nenhum deles existe no
+formulário**. Não é questão de esconder: um POST forjado com `is_superuser=true`
+chega a uma view que nunca lê esse nome. Um formulário que declarasse o campo e o
+removesse no `clean()` seria uma defesa que depende de ninguém mexer no
+`clean()`; não declarar é uma defesa que depende de ninguém *adicionar* o campo.
+
+Por que importa tanto: `is_superuser=True` ignora todo o sistema de permissões do
+Django — inclusive as verificações que ainda não foram escritas.
+
+### Duas proteções que só podem viver no serviço
+
+**Não bloquear a si mesmo.** O administrador se trancaria para fora no mesmo
+instante.
+
+**Não bloquear o último ativo.** O sistema ficaria sem ninguém para desbloquear
+qualquer um, e a única saída seria linha de comando no servidor.
+
+A contagem do último ativo roda dentro da transação, com `select_for_update`
+sobre as contas administrativas ativas: sem o lock, dois administradores
+bloqueando um ao outro ao mesmo tempo poderiam passar os dois pela verificação.
+
+A interface esconde os botões correspondentes, mas isso é cortesia — há teste
+enviando o POST direto para provar que a recusa está no serviço.
+
+### Não existe excluir
+
+Uma conta administrativa é **ativa** ou **bloqueada**. Apagar a linha quebraria a
+leitura da trilha de auditoria, onde o autor de cada ação aponta para este
+usuário. Há teste confirmando que a rota de exclusão não existe.
+
+### Superusuário técnico
+
+Contas com `is_superuser` ou `is_staff` aparecem na lista com a etiqueta
+**Técnico**. A interface não concede nem remove esses atributos: eles foram
+dados fora dela, por `createsuperuser`, e continuam sendo assunto de linha de
+comando. Editar uma conta técnica pelo painel muda nome e e-mail, e mais nada —
+com teste.
+
+### Senha
+
+`reset_admin_password` não pede a senha atual: quem executa é outro
+administrador, que não a conhece e não deve conhecer. Para trocar a **própria**
+senha existe `/alterar-senha/`, que exige a senha vigente.
+
+Redefinir derruba as sessões abertas com a senha anterior. O hash entra no cálculo
+da chave de sessão do Django, então o request seguinte já não está autenticado —
+comportamento do framework, sem sistema paralelo de sessão.
+
+Redefinir a **própria** senha derruba a própria sessão. A view avisa e manda para
+o login, em vez de deixar o próximo clique cair lá parecendo erro.
+
+### Auditoria
+
+`ADMIN_USER_CREATED`, `ADMIN_USER_UPDATED`, `ADMIN_USER_BLOCKED`,
+`ADMIN_USER_UNBLOCKED`, `ADMIN_PASSWORD_RESET`.
+
+A edição registra apenas os **nomes** dos campos alterados
+(`{"changed_fields": ["full_name"]}`), nunca os valores: copiar antigo e novo
+levaria dado pessoal para a trilha sem necessidade.
+
+O reset grava `{"redefinida": true}` — e não `{"password_reset": true}`. O
+sanitizador de `audit.services` descarta por **substring** qualquer chave contendo
+`password`, e ele está certo: é essa regra grosseira que garante que nenhuma chave
+futura carregue segredo por descuido. Renomear a chave é mais barato, e mais
+seguro, do que abrir exceção na única barreira que protege a trilha inteira.
+
+---
+
+## 9.11 Tentativas e anulação administrativa
+
+`/admin-panel/tentativas/`
+
+### A tela
+
+Lista com filtro por aluno, módulo, prova, situação da tentativa, situação da
+correção, resultado e período.
+
+As três dimensões aparecem em **colunas separadas**, e não fundidas numa só: uma
+tentativa pode estar enviada e sem correção; corrigida e reprovada; anulada
+guardando a nota que tirou. Espremer as três perderia justamente o caso que o
+administrador foi investigar.
+
+O detalhe é a **única tela do sistema** que mostra gabarito, resposta do aluno,
+IP e user-agent na mesma página. Há teste confirmando que nada disso aparece na
+tela de resultado do aluno.
+
+### O que "resetar" significa
+
+Retirar a **validade** de uma tentativa, sem apagar o registro dela.
+
+| Muda | Permanece |
+|---|---|
+| `status` → `RESET` | respostas e alternativas marcadas |
+| `reset_at`, `reset_by`, `reset_reason` | pontos por questão, `final_score`, `result` |
+| | `grading_status`, `submitted_at`, `expired_at` |
+
+A tentativa anulada continua respondendo "o que este aluno escreveu, quanto tirou
+e quando entregou" — que é a informação que justifica a anulação.
+
+`reset_by` usa `SET_NULL`: o registro de que houve anulação precisa sobreviver ao
+dia em que aquela conta administrativa deixar de existir. Com `PROTECT` o
+histórico impediria a limpeza da conta; com `CASCADE` sumiria junto.
+
+### Motivo obrigatório
+
+Não aceita string vazia nem só espaços, limite de 1000 caracteres. Resetar anula
+o trabalho de um aluno e pode revogar um certificado: seis meses depois, "por que
+esta tentativa foi anulada?" precisa ter resposta no próprio registro, e não na
+memória de quem clicou.
+
+O motivo fica em `ExamAttempt.reset_reason` e **não** é duplicado no `AuditLog` —
+duas versões do mesmo texto livre só existem para divergir depois. E **não**
+aparece para o aluno: é nota administrativa, pode conter juízo sobre a conduta
+dele, e não foi escrita para ele ler.
+
+### O que o reset NÃO faz
+
+**Não abre a prova.** Se a janela encerrou, se o módulo está inativo ou se a
+matrícula não dá acesso, o aluno continua sem conseguir começar. Resetar libera o
+**slot** da tentativa, e nada mais — um atalho que ignorasse a janela seria um
+bypass escondido dentro de uma função chamada "reset".
+
+A tela avisa explicitamente quando a janela já fechou:
+
+> A tentativa foi resetada, porém a janela da prova está encerrada. O aluno não
+> poderá iniciar novamente até que exista uma prova/janela válida.
+
+### Numeração e limite
+
+Já valia desde a Etapa 4, e a Etapa 7 confirmou com teste:
+
+- `attempt_number` vem de `MAX + 1` sobre **todas** as tentativas — anular a 1 e
+  refazer produz 1 `RESET` e 1 nova de número 2, nunca duas de número 1
+- `que_contam_para_o_limite()` exclui `RESET` — a anulada não consome uma das
+  `max_attempts`
+
+### Cascata
+
+**Certificado.** Um certificado `ACTIVE` daquela tentativa é revogado na mesma
+transação, com motivo `"Tentativa resetada administrativamente."`. O código antigo
+continua consultável e a página pública passa a informar a revogação.
+
+**Matrícula.** Se a emissão havia deixado a matrícula `COMPLETED` com acesso
+encerrado, o reset avalia a reativação. Ela acontece **só** quando as três
+condições valem:
+
+1. a matrícula está `COMPLETED` (foi a emissão que a fechou)
+2. **não** resta outro certificado `ACTIVE` do mesmo aluno no mesmo módulo
+3. o módulo está ativo
+
+A condição 2 é a que importa: se restar outro certificado válido, o aluno ainda
+tem comprovação de conclusão, e reabrir o módulo contradiria o documento que ele
+tem na mão. Há teste montando exatamente esse cenário — duas provas do mesmo
+módulo, dois certificados, anulação de um só.
+
+A condição 3 impede que reativar uma matrícula ligue um módulo que a
+administração desligou de propósito.
+
+### Idempotência e concorrência
+
+Resetar uma tentativa já anulada levanta `TentativaJaAnulada`, e a view responde
+**409** — não um redirect silencioso. Quem clicou duas vezes precisa saber que a
+segunda não fez nada; uma confirmação de sucesso o levaria a acreditar que anulou
+de novo.
+
+`select_for_update` sobre a tentativa serializa dois administradores
+simultâneos. Há teste com duas threads reais contra PostgreSQL: 1 reset efetivo,
+1 recusa, 1 evento `ATTEMPT_RESET`.
+
+### O aluno
+
+A tela de resultado de uma tentativa anulada mostra:
+
+> Esta tentativa foi anulada administrativamente.
+> Consulte a área do módulo para verificar se há uma nova tentativa disponível.
+
+Nunca "Aprovado" nem "Reprovado", mesmo quando a nota existe — e ela existe, por
+preservação. Dizer "Aprovado" numa tentativa anulada faria o aluno acreditar que
+concluiu o módulo.
+
+A URL da tentativa também deixa de aceitar escrita: `RESET` já está em
+`ESTADOS_ENCERRADOS`, então autosave responde 409.
+
+---
+
+## 9.12 Trilha de auditoria
+
+`/admin-panel/logs/`
+
+### Somente leitura, e a ausência é a funcionalidade
+
+Não existe rota de editar, apagar ou limpar. Uma trilha alterável pela mesma
+interface que ela audita não serve para investigar nada: quem quisesse esconder
+uma ação apagaria a linha logo depois de executá-la.
+
+O modelo já bloqueia UPDATE e DELETE na camada de aplicação. A tela não tem nem
+formulário que os tente, e há teste confirmando que `audit_log_delete`,
+`audit_log_update` e `audit_log_clear` **não resolvem**.
+
+### Filtros
+
+Evento, ator, tipo de entidade e período. A busca por ator olha apenas nome e
+e-mail — campos indexáveis. Varrer a metadata em texto livre custaria uma leitura
+completa da tabela a cada digitação, e a trilha é a tabela que mais cresce no
+sistema.
+
+### Metadata é dado, nunca marcação
+
+O JSON chega ao template já **achatado em pares** `(caminho, valor)` pela view, e
+é renderizado com o escape padrão do Django.
+
+Não existe `|safe` nessa página, e não pode passar a existir: parte da metadata
+vem de campo que uma pessoa preencheu, e um `<script>` gravado meses atrás
+executaria justamente na tela de quem está investigando aquele evento. Há teste.
+
+Achatar na view, e não no template, também evita recursão no template — e evita
+que alguém um dia marque o bloco inteiro como seguro "para melhorar a
+formatação".
+
+### Desempenho
+
+Paginação de 50, ordenação por `-timestamp`, `select_related` no ator e no aluno.
+Sem o `select_related`, uma página de 50 eventos faria até 100 consultas extras só
+para escrever nomes. Há teste com `django_assert_max_num_queries`.
+
+---
+
 ## 10. Decisões de arquitetura desta etapa
 
 **Um único `config/settings.py`, parametrizado por ambiente.**

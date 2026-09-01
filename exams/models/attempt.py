@@ -64,12 +64,11 @@ class AttemptStatus(models.TextChoices):
 
     SUBMITTED e EXPIRED sao finais para edicao: nenhuma resposta muda depois.
 
-    RESET ja existe no enum, mas nao ha nada nesta etapa que produza esse
-    estado — o reset administrativo entra em etapa futura. Esta aqui para que
-    o valor nasca junto com a tabela, e nao numa migration posterior que
-    precisaria reescrever o historico ja gravado.
+    RESET entrou em producao na Etapa 7, produzido por reset_attempt. O valor
+    ja nascera junto com a tabela, na Etapa 4, justamente para nao precisar de
+    uma migration que reescrevesse historico ja gravado.
 
-    Quando o reset existir, a regra combinada sera:
+    A regra combinada:
 
         para max_attempts   contam todos os estados, EXCETO RESET
         para attempt_number nenhum numero e reaproveitado, nem o da anulada
@@ -77,6 +76,10 @@ class AttemptStatus(models.TextChoices):
     Ou seja, anular a tentativa 1 e refazer produz 1 RESET e 2 SUBMITTED, e
     nunca duas tentativas de numero 1. O numero identifica a tentativa no
     historico; o limite conta apenas o que valeu.
+
+    Anular preserva tudo: respostas, pontos, nota, resultado e os carimbos de
+    envio ou expiracao. O que a anulacao retira e a VALIDADE — nao o registro
+    de que aquilo aconteceu.
     """
 
     IN_PROGRESS = "IN_PROGRESS", "Em andamento"
@@ -306,6 +309,32 @@ class ExamAttempt(models.Model):
     ip_address = models.GenericIPAddressField("endereco IP", null=True, blank=True)
     user_agent = models.TextField("user-agent", blank=True)
 
+    # --- anulacao administrativa (Etapa 7) ---------------------------------
+    #
+    # Resetar NAO apaga nada. A tentativa passa a status=RESET, e todo o resto
+    # — respostas, pontos, nota, carimbos de envio ou expiracao — permanece.
+    # O que muda e a validade operacional: ela deixa de contar para o limite
+    # de tentativas e deixa de ser o resultado vigente do aluno.
+    reset_at = models.DateTimeField("anulada em", null=True, blank=True)
+    reset_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="anulada por",
+        # SET_NULL, e nao PROTECT: o registro de QUE a tentativa foi anulada,
+        # QUANDO e POR QUE precisa sobreviver ao dia em que aquela conta
+        # administrativa deixar de existir. Com PROTECT, o historico
+        # impediria a limpeza da conta; com CASCADE, sumiria junto.
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="attempts_reset",
+    )
+    reset_reason = models.TextField(
+        "motivo da anulacao",
+        blank=True,
+        max_length=1000,
+        help_text="Obrigatorio ao anular. Fica no registro, e nao na auditoria.",
+    )
+
     created_at = models.DateTimeField("criada em", auto_now_add=True)
     updated_at = models.DateTimeField("atualizada em", auto_now=True)
 
@@ -356,12 +385,14 @@ class ExamAttempt(models.Model):
             # e um registro ruim, e um registro que mente sobre quando o aluno
             # entregou.
             #
-            # RESET fica de fora da exigencia de formato de proposito. O reset
-            # administrativo ainda nao existe, e quando existir a decisao mais
-            # provavel e preservar o submitted_at ou o expired_at da tentativa
-            # anulada — apagar o carimbo destruiria justamente a informacao que
-            # justifica a anulacao. Amarrar o formato agora seria escolher, sem
-            # necessidade, a regra de uma etapa que ainda nao foi discutida.
+            # RESET fica de fora da exigencia de formato, e agora por um
+            # motivo concreto: a anulacao PRESERVA o submitted_at ou o
+            # expired_at que a tentativa ja tinha. Apagar o carimbo destruiria
+            # justamente a informacao que justifica a anulacao — e uma
+            # tentativa anulada em andamento nao tem carimbo nenhum. Os tres
+            # formatos sao validos sob RESET, entao a exigencia nao se aplica.
+            # Quem garante a coerencia da anulacao e
+            # tentativa_anulacao_coerente, mais abaixo.
             models.CheckConstraint(
                 condition=(
                     Q(
@@ -410,6 +441,26 @@ class ExamAttempt(models.Model):
                     | Q(expired_at__gte=F("started_at"))
                 ),
                 name="tentativa_expiracao_nao_anterior_ao_inicio",
+            ),
+            # RESET e reset_at contam a mesma historia, nos dois sentidos.
+            #
+            # Uma tentativa anulada sem data de anulacao nao diz quando
+            # deixou de valer — e essa data e o que separa "anulada antes da
+            # emissao do certificado" de "anulada depois". Uma tentativa nao
+            # anulada com reset_at preenchido e o inverso: parece anulada para
+            # qualquer relatorio que olhe a data, e nao esta.
+            models.CheckConstraint(
+                condition=(
+                    Q(status=AttemptStatus.RESET, reset_at__isnull=False)
+                    | ~Q(status=AttemptStatus.RESET) & Q(reset_at__isnull=True)
+                ),
+                name="tentativa_anulacao_coerente",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(reset_at__isnull=True) | Q(reset_at__gte=F("started_at"))
+                ),
+                name="tentativa_anulacao_nao_anterior_ao_inicio",
             ),
             # choices e validacao de formulario: o banco nunca ouviu falar
             # dela. Um UPDATE direto grava "HACKED" em status sem reclamar, e

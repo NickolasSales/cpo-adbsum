@@ -1,0 +1,120 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Ficha de uma conta administrativa.
+
+Os botoes que o servico recusaria nao aparecem: bloquear a propria conta e
+bloquear a ultima conta ativa. Esconder e cortesia com quem usa a tela — a
+recusa de verdade acontece em accounts.services, e existe teste que envia o
+POST direto para provar isso.
+
+Nao existe excluir. Uma conta administrativa e ativa ou bloqueada: apagar a
+linha quebraria a leitura da trilha de auditoria, onde o autor de cada acao
+aponta para este usuario.
+{% endcomment %}
+
+{% block title %}{{ admin_alvo.full_name }} - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div style="min-width: 0;">
+    <p class="small text-body-secondary mb-1">
+      <a href="{% url 'admin_panel:admin_user_list' %}">Administradores</a>
+    </p>
+    <h1 class="h4 mb-1 cpo-quebra">{{ admin_alvo.full_name }}</h1>
+    <p class="text-body-secondary small mb-0 cpo-quebra">{{ admin_alvo.email }}</p>
+  </div>
+  <div class="d-flex gap-1 flex-wrap">
+    {% if admin_alvo.is_active %}
+      <span class="cpo-badge cpo-badge--ok">Ativo</span>
+    {% else %}
+      <span class="cpo-badge cpo-badge--erro">Bloqueado</span>
+    {% endif %}
+    {% if e_tecnico %}
+      <span class="cpo-badge cpo-badge--info">Administrador tecnico</span>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-7">
+    <div class="cpo-cartao p-3 p-md-4">
+      <h2 class="h6 mb-3">Conta</h2>
+      <dl class="row mb-0 small">
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Nome</dt>
+        <dd class="col-7 col-sm-8 cpo-quebra">{{ admin_alvo.full_name }}</dd>
+
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">E-mail</dt>
+        <dd class="col-7 col-sm-8 cpo-quebra">{{ admin_alvo.email }}</dd>
+
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Papel</dt>
+        <dd class="col-7 col-sm-8">{{ admin_alvo.get_role_display }}</dd>
+
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Ultimo acesso</dt>
+        <dd class="col-7 col-sm-8">
+          {{ admin_alvo.last_login|date:"d/m/Y H:i"|default:"nunca entrou" }}
+        </dd>
+
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Criado em</dt>
+        <dd class="col-7 col-sm-8">{{ admin_alvo.date_joined|date:"d/m/Y H:i" }}</dd>
+      </dl>
+
+      {% if e_tecnico %}
+        <div class="alert alert-warning small mt-3 mb-0" role="alert">
+          Esta conta tem acesso tecnico ao <code>/django-admin/</code>. Esse
+          acesso foi concedido fora desta interface, por linha de comando, e
+          nao pode ser alterado aqui.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-5">
+    <div class="cpo-cartao p-3 p-md-4">
+      <h2 class="h6 mb-3">Acoes</h2>
+      <div class="cpo-barra-acoes mb-3">
+        <a class="btn btn-sm btn-outline-secondary"
+           href="{% url 'admin_panel:admin_user_update' admin_alvo.pk %}">Editar</a>
+        <a class="btn btn-sm btn-outline-secondary"
+           href="{% url 'admin_panel:admin_user_password_reset' admin_alvo.pk %}">
+          Resetar senha
+        </a>
+      </div>
+
+      {% if admin_alvo.is_active %}
+        {% if e_voce %}
+          <p class="small text-body-secondary mb-0">
+            Voce nao pode bloquear a sua propria conta: ficaria trancado para
+            fora do painel no mesmo instante.
+          </p>
+        {% elif e_o_ultimo_ativo %}
+          <p class="small text-body-secondary mb-0">
+            Esta e a unica conta administrativa ativa. Bloquea-la deixaria o
+            sistema sem ninguem para desbloquear qualquer um.
+          </p>
+        {% else %}
+          <form method="post"
+                action="{% url 'admin_panel:admin_user_block' admin_alvo.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-danger">
+              Bloquear acesso
+            </button>
+            <div class="form-text small">
+              A conta deixa de autenticar. O historico e a trilha de auditoria
+              permanecem.
+            </div>
+          </form>
+        {% endif %}
+      {% else %}
+        <form method="post"
+              action="{% url 'admin_panel:admin_user_unblock' admin_alvo.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-outline-primary">
+            Desbloquear acesso
+          </button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

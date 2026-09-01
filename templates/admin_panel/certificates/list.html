@@ -10,14 +10,14 @@ A busca aceita o codigo de verificacao porque e assim que um certificado chega
 ate a administracao — alguem liga com o papel na mao e le o codigo.
 {% endcomment %}
 
-{% block title %}Certificados - {{ INSTITUTION_NAME }}{% endblock %}
+{% block title %}Certificados - {{ APP_NAME }}{% endblock %}
 
 {% block content %}
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
   <div>
     <h1 class="h4 mb-1">Certificados</h1>
     <p class="text-body-secondary small mb-0">
-      {{ pagina.paginator.count }} certificado(s) encontrado(s).
+      {{ page_obj.paginator.count }} certificado(s) encontrado(s).
     </p>
   </div>
 </div>

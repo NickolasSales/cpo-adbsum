@@ -1,0 +1,246 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Tudo sobre uma tentativa, para inspecao administrativa.
+
+ATENCAO: esta pagina mostra gabarito, resposta do aluno, IP e user-agent. E
+area administrativa e so ela pode mostrar isso. A tela de resultado do aluno
+monta o conteudo a partir de campos escalares da tentativa e nao tem acesso a
+nenhum objeto de questao — nao ha caminho por onde este conteudo vaze para
+la.
+
+O botao de anular vive num modal com motivo obrigatorio, e o texto do modal
+descreve o efeito real ANTES do clique: o que e preservado, o que e revogado
+e o que a anulacao nao faz.
+{% endcomment %}
+
+{% block title %}Tentativa {{ tentativa.attempt_number }} - {{ tentativa.student.full_name }} - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div style="min-width: 0;">
+    <p class="small text-body-secondary mb-1">
+      <a href="{% url 'admin_panel:attempt_list' %}">Tentativas</a>
+    </p>
+    <h1 class="h4 mb-1 cpo-quebra">{{ tentativa.student.full_name }}</h1>
+    <p class="text-body-secondary small mb-0 cpo-quebra">
+      {{ prova.title }} &middot; tentativa {{ tentativa.attempt_number }}
+    </p>
+  </div>
+  <div class="d-flex gap-1 flex-wrap">
+    {% if anulada %}
+      <span class="cpo-badge cpo-badge--neutro">Anulada</span>
+    {% else %}
+      <span class="cpo-badge cpo-badge--info">{{ tentativa.get_status_display }}</span>
+    {% endif %}
+    {% if tentativa.result == "APPROVED" %}
+      <span class="cpo-badge cpo-badge--ok">Aprovado</span>
+    {% elif tentativa.result == "FAILED" %}
+      <span class="cpo-badge cpo-badge--erro">Reprovado</span>
+    {% endif %}
+  </div>
+</div>
+
+{% if anulada %}
+  <div class="alert alert-secondary" role="alert">
+    <p class="fw-medium mb-1">Tentativa anulada</p>
+    <p class="small mb-1">
+      Anulada em {{ tentativa.reset_at|date:"d/m/Y H:i" }}
+      por {{ tentativa.reset_by.full_name|default:"conta removida" }}.
+    </p>
+    <p class="small mb-0 cpo-quebra"><strong>Motivo:</strong> {{ tentativa.reset_reason }}</p>
+  </div>
+{% endif %}
+
+<div class="row g-3 mb-3">
+  <div class="col-12 col-lg-7">
+    <div class="cpo-cartao p-3 p-md-4">
+      <h2 class="h6 mb-3">A tentativa</h2>
+      <dl class="row mb-0 small">
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Aluno</dt>
+        <dd class="col-7 col-sm-8 cpo-quebra">
+          {{ tentativa.student.full_name }} ({{ tentativa.student.email }})
+        </dd>
+
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Modulo</dt>
+        <dd class="col-7 col-sm-8"><code>{{ prova.module.code }}</code> {{ prova.module.name }}</dd>
+
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Prova</dt>
+        <dd class="col-7 col-sm-8 cpo-quebra">{{ prova.title }}</dd>
+
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Situacao</dt>
+        <dd class="col-7 col-sm-8">{{ tentativa.get_status_display }}</dd>
+
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Correcao</dt>
+        <dd class="col-7 col-sm-8">{{ tentativa.get_grading_status_display }}</dd>
+
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Inicio</dt>
+        <dd class="col-7 col-sm-8">{{ tentativa.started_at|date:"d/m/Y H:i" }}</dd>
+
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Prazo</dt>
+        <dd class="col-7 col-sm-8">{{ tentativa.expires_at|date:"d/m/Y H:i" }}</dd>
+
+        {% if tentativa.submitted_at %}
+          <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Enviada em</dt>
+          <dd class="col-7 col-sm-8">{{ tentativa.submitted_at|date:"d/m/Y H:i" }}</dd>
+        {% endif %}
+        {% if tentativa.expired_at %}
+          <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Expirada em</dt>
+          <dd class="col-7 col-sm-8">{{ tentativa.expired_at|date:"d/m/Y H:i" }}</dd>
+        {% endif %}
+
+        {% if corrigida %}
+          <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Pontos</dt>
+          <dd class="col-7 col-sm-8">
+            {{ tentativa.obtained_points }} / {{ tentativa.total_points_snapshot }}
+          </dd>
+
+          <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Nota</dt>
+          <dd class="col-7 col-sm-8 fw-semibold">{{ nota }} (minima {{ nota_minima }})</dd>
+        {% endif %}
+      </dl>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-5">
+    <div class="cpo-cartao p-3 p-md-4 mb-3">
+      <h2 class="h6 mb-3">Origem da conexao</h2>
+      <p class="small text-body-secondary mb-3">
+        Uso administrativo. Nao aparece em nenhuma tela do aluno.
+      </p>
+      <dl class="row mb-0 small">
+        <dt class="col-4 text-body-secondary fw-normal">IP</dt>
+        <dd class="col-8"><code>{{ tentativa.ip_address|default:"nao registrado" }}</code></dd>
+
+        <dt class="col-4 text-body-secondary fw-normal">Navegador</dt>
+        <dd class="col-8 cpo-quebra small">{{ tentativa.user_agent|default:"nao registrado" }}</dd>
+      </dl>
+    </div>
+
+    <div class="cpo-cartao p-3 p-md-4">
+      <h2 class="h6 mb-3">Certificado</h2>
+      {% if certificado %}
+        <p class="small mb-2">
+          {% if certificado.esta_valido %}
+            <span class="cpo-badge cpo-badge--ok">Valido</span>
+          {% else %}
+            <span class="cpo-badge cpo-badge--erro">Revogado</span>
+          {% endif %}
+        </p>
+        <a class="btn btn-sm btn-outline-secondary"
+           href="{% url 'admin_panel:certificate_detail' certificado.pk %}">
+          Abrir certificado
+        </a>
+      {% else %}
+        <p class="small text-body-secondary mb-0">Nenhum certificado emitido a partir desta tentativa.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if pode_resetar %}
+  <div class="cpo-cartao p-3 p-md-4 mb-3">
+    <h2 class="h6 mb-2">Anular tentativa</h2>
+    <p class="small text-body-secondary mb-3">
+      Libera o slot da tentativa preservando todo o historico dela.
+      {% if not janela_aberta %}
+        <strong>A janela desta prova esta encerrada</strong>, entao o aluno nao
+        conseguira iniciar uma nova ate que exista prova ou janela valida.
+      {% endif %}
+    </p>
+    <button type="button" class="btn btn-sm btn-outline-danger"
+            data-bs-toggle="modal" data-bs-target="#modalResetar">
+      Resetar tentativa
+    </button>
+  </div>
+{% endif %}
+
+<div class="cpo-cartao p-3 p-md-4">
+  <h2 class="h6 mb-3">Respostas</h2>
+  {% for item in linhas %}
+    <div class="border-top pt-3 mt-3">
+      <p class="small text-body-secondary mb-1">
+        Questao {{ forloop.counter }} &middot; {{ item.linha.question.get_type_display }}
+        &middot; vale {{ item.linha.points_snapshot|default:item.linha.question.points }}
+        {% if item.linha.awarded_points is not None %}
+          &middot; obteve <strong>{{ item.linha.awarded_points }}</strong>
+        {% endif %}
+      </p>
+      <p class="mb-2 cpo-quebra">{{ item.linha.question.text }}</p>
+
+      {% if item.objetiva %}
+        <ul class="list-unstyled small mb-0">
+          {% for alternativa in item.alternativas %}
+            <li class="mb-1 cpo-quebra">
+              {% if alternativa.marcada %}<strong>[marcada]</strong>{% else %}[&nbsp;&nbsp;]{% endif %}
+              {{ alternativa.texto }}
+              {% if alternativa.correta %}
+                <span class="cpo-badge cpo-badge--ok">gabarito</span>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% elif item.texto %}
+        <div class="cpo-resposta-aluno cpo-quebra">{{ item.texto }}</div>
+        {% if item.linha.grader_comment %}
+          <p class="small text-body-secondary mt-2 mb-0 cpo-quebra">
+            <strong>Comentario do avaliador:</strong> {{ item.linha.grader_comment }}
+          </p>
+        {% endif %}
+      {% endif %}
+
+      {% if item.em_branco %}
+        <p class="small text-body-secondary fst-italic mb-0">Em branco.</p>
+      {% endif %}
+    </div>
+  {% empty %}
+    <p class="small text-body-secondary mb-0">Esta tentativa nao possui questoes registradas.</p>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block fora_shell %}
+{{ block.super }}
+{% if pode_resetar %}
+  <div class="modal fade" id="modalResetar" tabindex="-1" aria-labelledby="tituloResetar" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <form method="post" action="{% url 'admin_panel:attempt_reset' tentativa.pk %}"
+            class="modal-content">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h2 class="modal-title h6" id="tituloResetar">Resetar tentativa</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small mb-2">Esta operacao anulara esta tentativa.</p>
+          <ul class="small mb-3 ps-3">
+            <li>As respostas e a nota sao <strong>preservadas</strong> como historico.</li>
+            <li>Se existir certificado valido, ele sera <strong>revogado</strong>.</li>
+            <li>
+              O aluno podera consumir uma nova tentativa se a prova ainda
+              estiver disponivel.
+            </li>
+          </ul>
+          {% if not janela_aberta %}
+            <div class="alert alert-warning small py-2" role="alert">
+              A janela desta prova esta encerrada. O aluno nao podera iniciar
+              novamente ate que exista prova ou janela valida.
+            </div>
+          {% endif %}
+          <label for="motivo" class="form-label small fw-medium">Motivo do reset</label>
+          <textarea id="motivo" name="motivo" rows="3" maxlength="1000" required
+                    class="form-control"
+                    placeholder="Exemplo: aluno relatou queda de energia durante a realizacao."></textarea>
+          <div class="form-text small">Fica registrado na propria tentativa.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn-sm btn-danger">Resetar tentativa</button>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

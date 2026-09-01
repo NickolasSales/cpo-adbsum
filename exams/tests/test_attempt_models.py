@@ -33,7 +33,8 @@ def nova_tentativa(aluno, prova, **campos):
     """
     Escreve direto na tabela, sem passar por start_attempt.
 
-    Quem pede um estado encerrado ganha o carimbo correspondente de graca.
+    Quem pede um estado encerrado ganha o carimbo correspondente de graca —
+    submitted_at, expired_at ou reset_at, conforme a situacao.
     Nao e conveniencia: sem isso o helper produziria linhas que o sistema real
     nunca produz — uma SUBMITTED sem submitted_at, por exemplo — e que a
     constraint tentativa_status_e_timestamps_coerentes recusa. Os testes que
@@ -59,6 +60,10 @@ def nova_tentativa(aluno, prova, **campos):
         padroes.setdefault("submitted_at", padroes["started_at"])
     elif situacao == AttemptStatus.EXPIRED:
         padroes.setdefault("expired_at", padroes["expires_at"])
+    elif situacao == AttemptStatus.RESET:
+        # tentativa_anulacao_coerente, desde a Etapa 7: RESET sem reset_at nao
+        # diz quando a tentativa deixou de valer.
+        padroes.setdefault("reset_at", padroes["started_at"])
 
     return ExamAttempt.objects.create(student=aluno, exam=prova, **padroes)
 
@@ -423,11 +428,13 @@ def test_estados_finais_nao_sao_editaveis(tentativa):
 
 def test_reset_nao_conta_para_o_limite(prova_aberta, aluno_matriculado):
     """
-    Fixa a regra antes de o reset existir.
+    A regra foi fixada na Etapa 4 e o reset chegou na Etapa 7.
 
-    Quando a etapa futura implementar o reset administrativo, uma tentativa
-    anulada nao pode consumir a chance do aluno — anular e justamente devolver
-    a chance. O numero, esse, nunca e reaproveitado.
+    Uma tentativa anulada nao consome a chance do aluno — anular e justamente
+    devolver a chance. O numero, esse, nunca e reaproveitado.
+
+    reset_at acompanha porque a constraint tentativa_anulacao_coerente exige:
+    RESET sem data de anulacao nao diz quando a tentativa deixou de valer.
     """
     nova_tentativa(
         aluno_matriculado, prova_aberta, attempt_number=1, status=AttemptStatus.RESET

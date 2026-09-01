@@ -175,6 +175,9 @@ TELAS_ADMIN = [
     "admin_panel:correction_list",
     "admin_panel:grade_list",
     "admin_panel:certificate_list",
+    "admin_panel:admin_user_list",
+    "admin_panel:attempt_list",
+    "admin_panel:audit_log_list",
 ]
 
 
@@ -215,12 +218,15 @@ def test_o_menu_de_celular_tem_os_mesmos_itens_do_desktop(admin_client_logado):
 
     itens = (
         "Alunos",
+        "Administradores",
         "Modulos",
         "Matriculas",
         "Provas",
+        "Tentativas",
         "Correcoes",
         "Notas",
         "Certificados",
+        "Logs",
     )
     for item in itens:
         # Uma vez na lateral, outra no offcanvas.

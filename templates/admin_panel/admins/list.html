@@ -1,0 +1,127 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Contas administrativas.
+
+Mesmo padrao das demais listagens: tabela no desktop, cartoes abaixo de 768px,
+pelo mesmo markup.
+
+A etiqueta "Tecnico" marca quem tem is_superuser ou is_staff — contas criadas
+por createsuperuser, que entram em /django-admin/. Nenhuma conta criada por
+esta tela recebe esses atributos.
+{% endcomment %}
+
+{% block title %}Administradores - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">Administradores</h1>
+    <p class="text-body-secondary small mb-0">
+      {{ page_obj.paginator.count }} conta(s) &middot; {{ total_ativos }} ativa(s).
+    </p>
+  </div>
+  <div class="cpo-barra-acoes">
+    <a class="btn btn-sm btn-primary" href="{% url 'admin_panel:admin_user_create' %}">
+      Novo administrador
+    </a>
+  </div>
+</div>
+
+<form method="get" class="cpo-cartao p-3 mb-3">
+  <div class="row g-2 align-items-end cpo-form-empilha">
+    <div class="col-12 col-md">
+      <label for="q" class="form-label small fw-medium mb-1">Buscar</label>
+      <input type="search" id="q" name="q" value="{{ busca }}"
+             class="form-control form-control-sm" placeholder="Nome ou e-mail">
+    </div>
+    <div class="col-12 col-sm-6 col-md-3">
+      <label for="situacao" class="form-label small fw-medium mb-1">Situacao</label>
+      <select id="situacao" name="situacao" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        <option value="ativos" {% if filtro_situacao == "ativos" %}selected{% endif %}>Ativo</option>
+        <option value="bloqueados" {% if filtro_situacao == "bloqueados" %}selected{% endif %}>Bloqueado</option>
+      </select>
+    </div>
+    <div class="col-12 col-md-auto">
+      <div class="cpo-barra-acoes">
+        <button type="submit" class="btn btn-sm btn-primary">Filtrar</button>
+        {% if busca or filtro_situacao %}
+          <a class="btn btn-sm btn-outline-secondary"
+             href="{% url 'admin_panel:admin_user_list' %}">Limpar</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</form>
+
+<div class="cpo-cartao">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 cpo-tabela cpo-lista--cartoes">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th class="d-none d-md-table-cell">E-mail</th>
+          <th>Situacao</th>
+          <th class="d-none d-lg-table-cell">Ultimo acesso</th>
+          <th class="d-none d-xl-table-cell">Criado em</th>
+          <th class="text-end cpo-acoes">Acoes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for conta in pagina %}
+          <tr>
+            <td class="cpo-celula-titulo">
+              {{ conta.full_name }}
+              {% if conta.is_superuser or conta.is_staff %}
+                <span class="cpo-badge cpo-badge--info">Tecnico</span>
+              {% endif %}
+              <div class="d-md-none small text-body-secondary cpo-quebra">
+                {{ conta.email }}
+              </div>
+            </td>
+            <td class="d-none d-md-table-cell cpo-quebra" data-rotulo="E-mail">
+              {{ conta.email }}
+            </td>
+            <td data-rotulo="Situacao">
+              {% if conta.is_active %}
+                <span class="cpo-badge cpo-badge--ok">Ativo</span>
+              {% else %}
+                <span class="cpo-badge cpo-badge--erro">Bloqueado</span>
+              {% endif %}
+            </td>
+            <td class="d-none d-lg-table-cell small text-body-secondary"
+                data-rotulo="Ultimo acesso">
+              {{ conta.last_login|date:"d/m/Y H:i"|default:"nunca entrou" }}
+            </td>
+            <td class="d-none d-xl-table-cell small text-body-secondary"
+                data-rotulo="Criado em">
+              {{ conta.date_joined|date:"d/m/Y" }}
+            </td>
+            <td class="text-end cpo-acoes">
+              <div class="d-flex gap-1 justify-content-end flex-wrap">
+                <a class="btn btn-sm btn-outline-secondary"
+                   href="{% url 'admin_panel:admin_user_detail' conta.pk %}">Ver</a>
+                <a class="btn btn-sm btn-outline-secondary"
+                   href="{% url 'admin_panel:admin_user_update' conta.pk %}">Editar</a>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-body-secondary py-5 cpo-celula-vazia">
+              {% if busca or filtro_situacao %}
+                Nenhum administrador encontrado com esses filtros.
+              {% else %}
+                Nenhum administrador cadastrado.
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "admin_panel/_paginacao.html" %}
+{% endblock %}

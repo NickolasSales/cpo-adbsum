@@ -1,0 +1,126 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Criacao e edicao de administrador.
+
+O mesmo template atende as duas telas; "criando" e o que muda.
+
+Nao existe campo de papel, de is_staff nem de is_superuser aqui, e nao e
+questao de esconder: eles nao existem no formulario. Um POST forjado com
+is_superuser=true chega a uma view que nunca le esse nome e a um servico que
+grava o valor literal False.
+
+Na criacao o administrador define a senha, com PasswordInput sem
+render_value: depois de um erro de validacao os campos voltam VAZIOS, porque
+reexibir o valor colocaria a senha no HTML da resposta.
+{% endcomment %}
+
+{% block title %}{{ titulo }} - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<div class="cpo-form-estreito">
+
+  <nav aria-label="Trilha" class="mb-3">
+    {% if admin_alvo %}
+      <a class="small text-decoration-none"
+         href="{% url 'admin_panel:admin_user_detail' admin_alvo.pk %}">
+        &larr; {{ admin_alvo.full_name }}
+      </a>
+    {% else %}
+      <a class="small text-decoration-none" href="{% url 'admin_panel:admin_user_list' %}">
+        &larr; Administradores
+      </a>
+    {% endif %}
+  </nav>
+
+  <h1 class="h4 mb-1">{{ titulo }}</h1>
+  <p class="text-body-secondary small mb-3">
+    {% if criando %}
+      A conta nasce com acesso ao painel administrativo. Ela nao recebe acesso
+      tecnico ao /django-admin/.
+    {% else %}
+      Nome e e-mail. Papel e permissoes nao sao editaveis por aqui.
+    {% endif %}
+  </p>
+
+  {% if criando %}
+    <div class="alert alert-info small" role="alert">
+      Voce define a senha. Entregue-a por canal seguro &mdash; ela nao e
+      exibida de novo depois de salva. Para troca-la mais tarde, use
+      <strong>Resetar senha</strong> na ficha da conta.
+    </div>
+  {% endif %}
+
+  <div class="cpo-cartao p-3 p-md-4">
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger py-2 small" role="alert">
+        {% for erro in form.non_field_errors %}
+          <div>{{ erro }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      <div class="mb-3">
+        <label for="{{ form.full_name.id_for_label }}" class="form-label small fw-medium">
+          {{ form.full_name.label }}
+        </label>
+        {{ form.full_name }}
+        {% if form.full_name.errors %}
+          <div class="form-text text-danger">{{ form.full_name.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <div class="mb-3">
+        <label for="{{ form.email.id_for_label }}" class="form-label small fw-medium">
+          {{ form.email.label }}
+        </label>
+        {{ form.email }}
+        {% if form.email.errors %}
+          <div class="form-text text-danger">{{ form.email.errors.0 }}</div>
+        {% else %}
+          <div class="form-text small">E o login. Precisa ser unico no sistema.</div>
+        {% endif %}
+      </div>
+
+      {% if criando %}
+        <div class="row g-3 cpo-form-empilha">
+          <div class="col-12 col-md-6 mb-3">
+            <label for="{{ form.password1.id_for_label }}" class="form-label small fw-medium">
+              {{ form.password1.label }}
+            </label>
+            {{ form.password1 }}
+            {% if form.password1.errors %}
+              <div class="form-text text-danger">{{ form.password1.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-12 col-md-6 mb-3">
+            <label for="{{ form.password2.id_for_label }}" class="form-label small fw-medium">
+              {{ form.password2.label }}
+            </label>
+            {{ form.password2 }}
+            {% if form.password2.errors %}
+              <div class="form-text text-danger">{{ form.password2.errors.0 }}</div>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="cpo-barra-acoes pt-2">
+        <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
+        {% if admin_alvo %}
+          <a class="btn btn-outline-secondary btn-sm"
+             href="{% url 'admin_panel:admin_user_detail' admin_alvo.pk %}">Cancelar</a>
+        {% else %}
+          <a class="btn btn-outline-secondary btn-sm"
+             href="{% url 'admin_panel:admin_user_list' %}">Cancelar</a>
+        {% endif %}
+      </div>
+    </form>
+
+  </div>
+</div>
+{% endblock %}

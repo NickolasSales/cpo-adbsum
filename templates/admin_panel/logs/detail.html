@@ -1,0 +1,92 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Um registro da trilha.
+
+A metadata chega da view ja achatada em pares (caminho, valor) e e escrita com
+o escape padrao do Django. Nao existe `|safe` nesta pagina, e nao pode passar
+a existir: parte da metadata vem de campo que uma pessoa preencheu, e um
+`<script>` gravado meses atras executaria justamente na tela de quem esta
+investigando aquele evento.
+{% endcomment %}
+
+{% block title %}Registro {{ evento.pk }} - Logs - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<div class="cpo-form-medio">
+
+  <nav aria-label="Trilha" class="mb-3">
+    <a class="small text-decoration-none" href="{% url 'admin_panel:audit_log_list' %}">
+      &larr; Logs
+    </a>
+  </nav>
+
+  <h1 class="h4 mb-1 cpo-quebra">{{ evento.get_event_display }}</h1>
+  <p class="text-body-secondary small mb-3">
+    {{ evento.timestamp|date:"d/m/Y H:i:s" }}
+  </p>
+
+  <div class="cpo-cartao p-3 p-md-4 mb-3">
+    <h2 class="h6 mb-3">Registro</h2>
+    <dl class="row mb-0 small">
+      <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Evento</dt>
+      <dd class="col-7 col-sm-8"><code>{{ evento.event }}</code></dd>
+
+      <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Ator</dt>
+      <dd class="col-7 col-sm-8 cpo-quebra">
+        {% if evento.actor %}
+          {{ evento.actor.full_name }} ({{ evento.actor.email }})
+        {% else %}
+          <span class="text-body-secondary">sistema, anonimo ou conta removida</span>
+        {% endif %}
+      </dd>
+
+      {% if evento.student %}
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Aluno afetado</dt>
+        <dd class="col-7 col-sm-8 cpo-quebra">{{ evento.student.full_name }}</dd>
+      {% endif %}
+
+      <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Entidade</dt>
+      <dd class="col-7 col-sm-8">
+        {% if evento.entity_type %}
+          {{ evento.entity_type }}
+          {% if evento.entity_id %}<code>#{{ evento.entity_id }}</code>{% endif %}
+        {% else %}
+          <span class="text-body-secondary">&mdash;</span>
+        {% endif %}
+      </dd>
+
+      <dt class="col-5 col-sm-4 text-body-secondary fw-normal">IP</dt>
+      <dd class="col-7 col-sm-8"><code>{{ evento.ip_address|default:"nao registrado" }}</code></dd>
+
+      <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Navegador</dt>
+      <dd class="col-7 col-sm-8 cpo-quebra small">
+        {{ evento.user_agent|default:"nao registrado" }}
+      </dd>
+    </dl>
+  </div>
+
+  <div class="cpo-cartao p-3 p-md-4">
+    <h2 class="h6 mb-3">Metadados</h2>
+    {% if metadata %}
+      <div class="table-responsive">
+        <table class="table table-sm mb-0 small">
+          <tbody>
+            {% for caminho, valor in metadata %}
+              <tr>
+                <th class="fw-normal text-body-secondary cpo-quebra" style="width: 40%;">
+                  {{ caminho }}
+                </th>
+                <td class="cpo-quebra">{{ valor }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="small text-body-secondary mb-0">Este evento nao possui metadados.</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

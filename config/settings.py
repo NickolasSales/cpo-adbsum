@@ -64,7 +64,24 @@ CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
 # ---------------------------------------------------------------------------
 
 SITE_URL = env("SITE_URL", "http://127.0.0.1:8000").rstrip("/")
-INSTITUTION_NAME = env("INSTITUTION_NAME", "CPO")
+
+# Identidade da aplicacao. Um lugar so, lido pelo context processor e
+# disponivel em todo template — em vez de "CPO Provas" escrito a mao em
+# quarenta arquivos, que e como a identidade anterior estava espalhada.
+#
+# Os tres sao parametrizaveis porque a mesma base pode servir outra
+# congregacao sem alterar codigo.
+APP_NAME = env("APP_NAME", "CPO AD Brás Sumaré")
+APP_SUBTITLE = env(
+    "APP_SUBTITLE",
+    "Sistema de avaliação para o Curso de Preparação de Obreiros",
+)
+
+# Nome que vai IMPRESSO nos certificados. Separado de APP_NAME de proposito:
+# um dia a interface pode se chamar de um jeito e o documento oficial de
+# outro. Certificados ja emitidos guardam a propria copia deste valor e nao
+# mudam quando ele muda.
+INSTITUTION_NAME = env("INSTITUTION_NAME", "CPO AD Brás Sumaré")
 DEFAULT_STUDENT_PASSWORD = env("DEFAULT_STUDENT_PASSWORD", "")
 
 # Quando True, o IP do cliente e lido de X-Forwarded-For. Deve permanecer

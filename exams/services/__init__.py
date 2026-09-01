@@ -55,6 +55,13 @@ from exams.services.question import (  # noqa: F401
     reorder_questions,
     update_question,
 )
+from exams.services.reset import (  # noqa: F401
+    TentativaJaAnulada,
+    janela_aberta,
+    pode_resetar,
+    reset_attempt,
+    validar_motivo,
+)
 from exams.services.validation import (  # noqa: F401
     erros_da_questao,
     erros_para_publicacao,
@@ -62,6 +69,11 @@ from exams.services.validation import (  # noqa: F401
 )
 
 __all__ = [
+    "TentativaJaAnulada",
+    "janela_aberta",
+    "pode_resetar",
+    "reset_attempt",
+    "validar_motivo",
     "ManuaisPendentes",
     "NotaForaDoIntervalo",
     "TentativaNaoCorrigivel",
