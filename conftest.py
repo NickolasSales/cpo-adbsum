@@ -141,12 +141,29 @@ def student_client_logado(client, student_user):
 # ---------------------------------------------------------------------------
 
 
+# Dados que a Etapa 8 passou a exigir para emitir certificado. Ficam nas
+# fixtures base porque um modulo que aplica prova e emite documento tem essas
+# informacoes na vida real; os testes da recusa por dado faltante montam o
+# modulo incompleto por conta propria.
+CERTIFICADO_DO_MODULO = {
+    "certificate_display_name": "Modulo I - Cooperadores e Diaconos",
+    "certificate_course_dates_text": "10 e 17 de outubro de 2026",
+    "certificate_location": "Igreja Sede",
+    "certificate_workload_hours": 8,
+    "certificate_year": 2026,
+}
+
+
 @pytest.fixture
 def modulo(db):
     from courses.models import Module
 
     return Module.objects.create(
-        name="Modulo 1", code="MOD1", description="Primeiro modulo", order=1
+        name="Modulo 1",
+        code="MOD1",
+        description="Primeiro modulo",
+        order=1,
+        **CERTIFICADO_DO_MODULO,
     )
 
 
@@ -154,7 +171,26 @@ def modulo(db):
 def outro_modulo(db):
     from courses.models import Module
 
-    return Module.objects.create(name="Modulo 2", code="MOD2", order=2)
+    return Module.objects.create(
+        name="Modulo 2",
+        code="MOD2",
+        order=2,
+        **{**CERTIFICADO_DO_MODULO,
+           "certificate_display_name": "Modulo II - Presbiteros"},
+    )
+
+
+@pytest.fixture
+def modulo_sem_dados_de_certificado(db):
+    """
+    Modulo como os criados antes da Etapa 8: sem data, local, carga nem ano.
+
+    E o estado real de qualquer modulo que ja existia quando os campos foram
+    adicionados — a migration nao inventou valores para eles.
+    """
+    from courses.models import Module
+
+    return Module.objects.create(name="Modulo Antigo", code="MOD8", order=8)
 
 
 @pytest.fixture

@@ -50,6 +50,18 @@ class CertificadoRevogado(DomainError):
     """Operacao invalida sobre um certificado ja revogado."""
 
 
+class DadosDoCertificadoIncompletos(DomainError):
+    """Faltam no modulo dados que precisam sair impressos no documento."""
+
+
+# Canais de compartilhamento reconhecidos. Lista fechada de proposito: o valor
+# vai para a trilha de auditoria, e um canal que o navegador pudesse inventar
+# encheria a metadata de texto arbitrario.
+CANAL_WHATSAPP = "whatsapp"
+CANAL_NATIVO = "native"
+CANAIS = (CANAL_WHATSAPP, CANAL_NATIVO)
+
+
 # ---------------------------------------------------------------------------
 # Consultas
 # ---------------------------------------------------------------------------
@@ -96,6 +108,24 @@ def _validar_emissivel(attempt):
         )
 
 
+def _validar_dados_do_modulo(modulo):
+    """
+    Recusa a emissao enquanto o modulo nao tiver o que sai impresso.
+
+    A alternativa seria gerar o documento com lacunas — "realizado em , em ,
+    com carga horaria de horas" — e essa versao quebrada nao seria notada
+    antes de o aluno baixar e imprimir. Melhor recusar aqui, dizendo
+    exatamente o que preencher.
+    """
+    faltando = modulo.dados_do_certificado_ausentes()
+    if not faltando:
+        return
+    raise DadosDoCertificadoIncompletos(
+        "Nao foi possivel emitir o certificado. Configure os dados do "
+        "certificado no modulo {}: {}.".format(modulo.code, ", ".join(faltando))
+    )
+
+
 # ---------------------------------------------------------------------------
 # Emissao
 # ---------------------------------------------------------------------------
@@ -131,6 +161,8 @@ def issue_certificate(attempt, *, actor=None, request=None):
         _validar_emissivel(travada)
 
         modulo = travada.exam.module
+        _validar_dados_do_modulo(modulo)
+
         certificado = Certificate.objects.create(
             attempt=travada,
             status=CertificateStatus.ACTIVE,
@@ -138,6 +170,16 @@ def issue_certificate(attempt, *, actor=None, request=None):
             module_name_snapshot=modulo.name,
             exam_title_snapshot=travada.exam.title,
             institution_name_snapshot=settings.INSTITUTION_NAME,
+            # Tudo que sai impresso vira copia agora. Corrigir a data do
+            # modulo no ano que vem nao pode reescrever um documento assinado.
+            course_name_snapshot=settings.CERTIFICATE_COURSE_NAME,
+            module_display_name_snapshot=modulo.nome_no_certificado,
+            course_dates_snapshot=modulo.certificate_course_dates_text.strip(),
+            course_location_snapshot=modulo.certificate_location.strip(),
+            workload_hours_snapshot=modulo.certificate_workload_hours,
+            certificate_year_snapshot=modulo.certificate_year,
+            signatory_name_snapshot=settings.CERTIFICATE_SIGNATORY_NAME,
+            signatory_title_snapshot=settings.CERTIFICATE_SIGNATORY_TITLE,
             template_version=VERSAO_ATUAL_DO_MODELO,
         )
 
@@ -238,3 +280,85 @@ def revoke_certificate(certificado, *, actor=None, request=None, motivo=""):
         )
 
     return travado, True
+
+
+# ---------------------------------------------------------------------------
+# Compartilhamento
+# ---------------------------------------------------------------------------
+
+
+def mensagem_de_compartilhamento(certificado):
+    """
+    Texto que acompanha o link, montado inteiramente no servidor.
+
+    O navegador nao envia nem uma palavra dele. Aceitar o texto do frontend
+    transformaria um endereco da instituicao num gerador de mensagens de
+    terceiros: qualquer pessoa poderia produzir um link de WhatsApp com
+    conteudo proprio saindo de um dominio confiavel.
+
+    O que entra: instituicao, curso, modulo e o endereco publico de validacao.
+    O que nunca entra: e-mail, nota, numero da tentativa, respostas, ids
+    internos. Nada aqui e mais do que o proprio certificado impresso ja mostra.
+    """
+    from certificates.pdf import url_de_validacao
+
+    curso = certificado.course_name_snapshot or certificado.exam_title_snapshot
+    return (
+        "{instituicao}\n\n"
+        "Concluí o {curso} — {modulo}.\n\n"
+        "Valide meu certificado:\n{url}"
+    ).format(
+        instituicao=certificado.institution_name_snapshot,
+        curso=curso,
+        modulo=certificado.modulo_impresso,
+        url=url_de_validacao(certificado),
+    )
+
+
+def url_do_whatsapp(certificado):
+    """
+    Deep link oficial do WhatsApp, com a mensagem codificada.
+
+    wa.me sem numero abre o seletor de contato do proprio aplicativo: o
+    sistema nao precisa saber, nem guardar, para quem o aluno vai mandar.
+    """
+    from urllib.parse import quote
+
+    return "https://wa.me/?text={}".format(
+        quote(mensagem_de_compartilhamento(certificado), safe="")
+    )
+
+
+def registrar_compartilhamento(certificado, *, canal, actor, request=None):
+    """
+    Registra que um compartilhamento FOI INICIADO. Nada alem disso.
+
+    Vale repetir, porque a diferenca importa em qualquer leitura futura da
+    trilha: este evento significa que alguem apertou o botao. Nao significa
+    mensagem enviada, entregue nem lida — depois do clique quem conduz e o
+    WhatsApp ou a folha de compartilhamento do celular, e nenhum dos dois
+    devolve confirmacao para ca.
+
+    Certificado revogado nao compartilha: divulgar o link de um documento sem
+    validade seria ajudar a apresentar como valido algo que nao e.
+    """
+    if canal not in CANAIS:
+        raise DomainError("Canal de compartilhamento desconhecido.")
+    if certificado.status == CertificateStatus.REVOKED:
+        raise CertificadoRevogado(
+            "Este certificado foi revogado e nao pode ser compartilhado."
+        )
+
+    record(
+        AuditEvent.CERTIFICATE_SHARE_INITIATED,
+        request=request,
+        actor=actor,
+        student=certificado.attempt.student,
+        entity_type="Certificate",
+        entity_id=certificado.pk,
+        # So o canal. A mensagem, a URL e o nome do aluno ja existem em outros
+        # lugares, e repeti-los aqui espalharia dado pessoal por uma tabela
+        # que so cresce.
+        metadata={"channel": canal},
+    )
+    return certificado

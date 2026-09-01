@@ -83,6 +83,73 @@
         {% endif %}
       </div>
 
+      {% comment %}
+      Dados do certificado.
+
+      Ficam no modulo porque variam por turma: o Modulo I aconteceu numa data,
+      na Sede, com oito horas; o Modulo II teve outras. O sistema nao tem como
+      deduzi-los, e a emissao recusa enquanto os quatro obrigatorios faltarem —
+      um certificado com "realizado em , em , com carga horaria de horas" so
+      seria descoberto depois de impresso.
+
+      Um <fieldset> com <legend>, e nao um <h2> solto: o leitor de tela anuncia
+      a legenda ao entrar em cada campo, e quem navega por Tab sabe em que
+      secao do formulario esta.
+      {% endcomment %}
+      <fieldset class="mb-4 pt-3 border-top">
+        <legend class="h6 mb-1">Dados do certificado</legend>
+        <p class="form-text mt-0 mb-3">
+          Saem impressos no documento. Sem eles o certificado deste modulo nao
+          pode ser emitido.
+        </p>
+
+        <div class="mb-3">
+          <label for="{{ form.certificate_display_name.id_for_label }}" class="form-label small fw-medium mb-1">Nome exibido no certificado</label>
+          {{ form.certificate_display_name }}
+          <div class="form-text">Por extenso, como deve sair impresso. Em branco, usa o nome do modulo.</div>
+          {% if form.certificate_display_name.errors %}
+            <div class="form-text text-danger">{{ form.certificate_display_name.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="mb-3">
+          <label for="{{ form.certificate_course_dates_text.id_for_label }}" class="form-label small fw-medium mb-1">Data(s) do curso</label>
+          {{ form.certificate_course_dates_text }}
+          <div class="form-text">Texto livre. Exemplo: 10 e 17 de outubro de 2026.</div>
+          {% if form.certificate_course_dates_text.errors %}
+            <div class="form-text text-danger">{{ form.certificate_course_dates_text.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="mb-3">
+          <label for="{{ form.certificate_location.id_for_label }}" class="form-label small fw-medium mb-1">Local</label>
+          {{ form.certificate_location }}
+          <div class="form-text">Sai depois de "em". Exemplo: Igreja Sede.</div>
+          {% if form.certificate_location.errors %}
+            <div class="form-text text-danger">{{ form.certificate_location.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="row g-3">
+          <div class="col-12 col-sm-6">
+            <label for="{{ form.certificate_workload_hours.id_for_label }}" class="form-label small fw-medium mb-1">Carga horaria</label>
+            {{ form.certificate_workload_hours }}
+            <div class="form-text">Em horas, maior que zero.</div>
+            {% if form.certificate_workload_hours.errors %}
+              <div class="form-text text-danger">{{ form.certificate_workload_hours.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-12 col-sm-6">
+            <label for="{{ form.certificate_year.id_for_label }}" class="form-label small fw-medium mb-1">Ano</label>
+            {{ form.certificate_year }}
+            <div class="form-text">Aparece em destaque na lateral do certificado.</div>
+            {% if form.certificate_year.errors %}
+              <div class="form-text text-danger">{{ form.certificate_year.errors.0 }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </fieldset>
+
       <div class="d-flex flex-wrap gap-2">
         <button type="submit" class="btn btn-primary">Salvar</button>
         {% if modulo %}

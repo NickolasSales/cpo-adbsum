@@ -1,10 +1,15 @@
 # ---------------------------------------------------------------
-# CPO Provas - .gitignore
+# .gitignore
 # ---------------------------------------------------------------
 
 # Segredos e configuracao local
 .env
 .env.local
+# Backup de .env feito antes de um deploy. O padrao .env sozinho nao o
+# alcanca, e o arquivo carrega SECRET_KEY e a senha do banco. O lugar dele
+# e fora do repositorio, em /var/backups; esta linha e a segunda barreira.
+.env.bak*
+.env.*.bak
 .secrets-local.txt
 *.pem
 *.key
@@ -46,6 +51,12 @@ db.sqlite3-journal
 *.dump.sha256
 *.bak
 backups/
+
+# Artefatos de inspecao visual do certificado. PDF e PNG gerados para
+# conferir o desenho sao descartaveis, e um deles carrega nome de aluno.
+*.pdf
+*.png
+!static/**/*.png
 
 # IDE / editores
 .vscode/

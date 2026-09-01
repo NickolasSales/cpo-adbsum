@@ -1,24 +1,31 @@
 # cpo-adbsum
 
-**CPO Provas** — sistema de aplicação de provas por módulos, com correção,
-cálculo de notas, aprovação/reprovação e emissão de certificados.
+**CPO AD Brás Sumaré** — sistema de avaliação para o Curso de Preparação de
+Obreiros: provas por módulo, correção, cálculo de notas,
+aprovação/reprovação e emissão de certificados.
 
 Aplicação Django monolítica e modular, com PostgreSQL, Django Templates e
-Bootstrap 5. Produção prevista em uma instância AWS EC2 com Nginx, Gunicorn e
-systemd — sem dependência de serviços proprietários da AWS na lógica de
-negócio.
+Bootstrap 5. Produção em uma instância AWS EC2 com Nginx, Gunicorn e systemd,
+atrás de Nginx Proxy Manager com HTTPS do Let's Encrypt — sem dependência de
+serviços proprietários da AWS na lógica de negócio.
 
-> **Estado atual: Etapa 4 — motor de realização da prova.**
-> Sobre a Etapa 1 (autenticação, papéis, auditoria, health check), a Etapa 2
-> (alunos, módulos, matrículas) e a Etapa 3 (montagem e publicação de provas),
-> o aluno agora **faz a prova**: instruções, início controlado por senha e
-> janela, ordem e tokens próprios por tentativa, cronômetro com o servidor
-> como fonte da verdade, autosave, retomada após F5 ou troca de aparelho,
-> envio único e expiração automática.
+> **Estado atual: Etapa 8 — acabamento do MVP.**
 >
-> **Ainda não há correção.** Nenhuma nota é calculada, nenhuma resposta é
-> comparada ao gabarito e a tela final não mostra resultado. Correção,
-> notas, aprovação e certificados vêm nas etapas seguintes.
+> O ciclo está fechado de ponta a ponta: autenticação e papéis (Etapa 1),
+> alunos, módulos e matrículas (Etapa 2), montagem e publicação de provas
+> (Etapa 3), realização com cronômetro e autosave (Etapa 4), correção, notas e
+> aprovação (Etapa 5), certificado com QR e validação pública sob domínio
+> próprio com HTTPS (Etapa 6), contas administrativas, anulação de tentativa e
+> trilha de auditoria consultável (Etapa 7).
+>
+> A Etapa 8 fecha o acabamento: **certificado no modelo oficial da AD Brás
+> Sumaré**, com os dados da turma vindos do módulo, e **compartilhamento** do
+> endereço público de validação por WhatsApp e pela folha nativa do celular.
+>
+> O nome anterior do projeto era "CPO Provas". Ele aparece no histórico do Git
+> e em trechos deste README que contam a história de uma decisão; na interface,
+> não existe mais em lugar nenhum — há teste varrendo os templates e o código
+> de aplicação atrás dele.
 
 ---
 
@@ -288,6 +295,16 @@ pytest
 A suíte roda contra PostgreSQL, nunca SQLite. O banco `test_cpo_provas` é
 criado e destruído automaticamente.
 
+### Um app novo precisa entrar no `pytest.ini`
+
+`testpaths` lista os diretórios varridos, um a um. É explícito de propósito — e
+por isso mesmo é uma armadilha: **`certificates` ficou de fora quando o app
+nasceu na Etapa 6, e os testes dele passaram duas etapas inteiras sem nunca
+serem executados por `pytest`.** Um deles já estava quebrado havia uma etapa e
+ninguém soube, porque a suíte continuava verde.
+
+Ao criar um app, acrescente-o ao `testpaths` na mesma alteração.
+
 Antes de considerar qualquer etapa concluída:
 
 ```powershell
@@ -348,6 +365,15 @@ cpo-adbsum/
 │   ├── management/commands/
 │   │   └── expirar_tentativas.py   encerra tentativas órfãs
 │   └── admin.py             Django Admin somente leitura
+├── certificates/        certificado, PDF, validação pública e compartilhamento
+│   ├── models.py            Certificate e os campos *_snapshot
+│   ├── services.py          emitir, revogar, montar mensagem, auditar partilha
+│   ├── pdf.py               desenho do documento e QR (ReportLab)
+│   ├── ornamentos.py        molduras, ondas e fitas em vetor
+│   ├── views_public.py      validação sem autenticação
+│   ├── views_student.py     lista, download, compartilhamento
+│   ├── views_admin.py       consulta e revogação
+│   └── admin.py             Django Admin somente leitura
 ├── templates/
 ├── static/
 │   ├── css/app.css
@@ -357,9 +383,6 @@ cpo-adbsum/
 ├── .env.example
 └── manage.py
 ```
-
-A app `certificates` será criada quando o domínio for implementado. O
-projeto não carrega apps vazias.
 
 ---
 
@@ -1757,6 +1780,201 @@ formatação".
 Paginação de 50, ordenação por `-timestamp`, `select_related` no ator e no aluno.
 Sem o `select_related`, uma página de 50 eventos faria até 100 consultas extras só
 para escrever nomes. Há teste com `django_assert_max_num_queries`.
+
+---
+
+## 9.13 O modelo oficial do certificado
+
+### O que a imagem de referência é, e o que ela não é
+
+A identidade visual chegou como uma imagem: um certificado já preenchido, com um
+módulo, uma data e um ano específicos.
+
+Usá-la como fundo e escrever por cima produziria dois módulos, duas datas e duas
+assinaturas no mesmo papel. E, no que sobrasse, um fundo rasterizado que imprime
+borrado e pesa alguns megabytes por documento — num certificado que existe
+justamente para ser impresso.
+
+Então o desenho foi **refeito em vetor**, em `certificates/ornamentos.py`: as
+ondas escuras nos cantos opostos, as fitas douradas com degradê, a trama de
+linhas finas em verde acinzentado, a moldura dupla. Curvas de Bézier e
+sombreamento nativo do PDF. Resultado: arquivo de ~19 KB, nítido em qualquer
+ampliação, e nenhum asset binário para versionar.
+
+Não é cópia pixel a pixel, e não tenta ser. A intenção é que o documento seja
+reconhecível como o mesmo modelo.
+
+### O logo
+
+Não existe arquivo oficial da AD Brás Sumaré no repositório, e **recortar um
+logo de baixa resolução da imagem de referência seria pior do que não ter**: um
+logo pixelado num documento oficial chama mais atenção do que a ausência dele.
+
+O lugar recebe uma composição tipográfica com as fontes padrão. Se um arquivo
+aparecer em `static/img/certificado-logo.png`, ele passa a ser usado sem
+alteração de código — o renderizador já procura por ele.
+
+### Fontes
+
+Helvetica, Times e Courier: as Type 1 embutidas no próprio formato PDF. Nenhum
+arquivo de fonte precisa existir no servidor, e há teste confirmando que o PDF
+não contém `/FontFile`. A rubrica da assinatura usa Times-BoldItalic — é uma
+aproximação tipográfica declarada, e não uma assinatura digitalizada; nenhum
+arquivo de assinatura foi inventado.
+
+### Duas versões de desenho, e por que as duas continuam existindo
+
+```
+versão 1   layout provisório da Etapa 6
+versão 2   modelo oficial (Etapa 8)
+```
+
+Cada certificado guarda a versão com que foi emitido e continua sendo desenhado
+por ela. Não é apego: **um certificado da versão 1 não tem os campos que a versão
+2 imprime.** Ele foi gravado antes de data do curso, local, carga horária e ano
+existirem. Redesenhá-lo com o modelo novo produziria um documento oficial com
+buracos no lugar da data — ou, pior, com valores inventados na hora da
+renderização.
+
+### O fluxo vertical é dinâmico
+
+Nome próprio de quatro sobrenomes é comum. Quando o nome ocupa duas linhas, a
+régua decorativa desce e o texto de conclusão desce junto.
+
+Isso não foi previsto: a **primeira amostra gerada mostrou a segunda linha do
+nome escrevendo por cima do divisor**. Posições fixas funcionavam para "Ana
+Silva" e quebravam para "Maria Aparecida dos Santos de Oliveira Montenegro".
+
+A quebra em duas linhas também é equilibrada — o corte procura o ponto que deixa
+as duas mais parecidas. A quebra gulosa enchia a primeira linha até o limite e
+jogava o resto na segunda, o que num nome em destaque parece erro.
+
+---
+
+## 9.14 Dados de certificado no módulo
+
+Cinco campos administrativos em `Module`:
+
+| Campo | Exemplo |
+|---|---|
+| `certificate_display_name` | Módulo I - Cooperadores e Diáconos |
+| `certificate_course_dates_text` | 10 e 17 de outubro de 2026 |
+| `certificate_location` | Igreja Sede |
+| `certificate_workload_hours` | 8 |
+| `certificate_year` | 2026 |
+
+Ficam no módulo, e não em `settings`, porque **variam por turma**: o Módulo I
+aconteceu numa data, na Sede, com oito horas; o Módulo II teve outras.
+
+O que é institucional e fixo fica em `settings`, e vai para o `.env`:
+`CERTIFICATE_COURSE_NAME`, `CERTIFICATE_SIGNATORY_NAME`,
+`CERTIFICATE_SIGNATORY_TITLE`. Trocar de presidente não reescreve documentos já
+assinados pelo anterior: cada certificado guarda a própria cópia dos três.
+
+### Emissão sem os dados: recusa, não documento quebrado
+
+Faltando data, local, carga horária ou ano, `issue_certificate` levanta
+`DadosDoCertificadoIncompletos` e **nomeia apenas o que falta**.
+
+A alternativa seria gerar "realizado em , em , com carga horária de horas" — e
+essa versão quebrada só seria descoberta depois de o aluno baixar e imprimir. A
+recusa acontece antes, e a tela do módulo mostra a mesma lista.
+
+`certificate_display_name` é o único dos cinco que não bloqueia: ele tem
+substituto natural no nome do módulo. Certificado com nome curto é melhor do que
+nenhum certificado; certificado sem data não é.
+
+### Validação em quatro camadas
+
+Carga horária `> 0` e ano entre 2000 e 2100 são verificados no formulário, no
+serviço, nos validators do modelo e em `CheckConstraint`. Não é desconfiança
+redundante: cada camada cobre um caminho de escrita diferente — formulário,
+serviço, `full_clean()`, `update()` em queryset ou SQL direto. E o valor errado
+só aparece **depois de o certificado estar impresso**, quando não há mais
+correção possível no papel entregue.
+
+Os atributos `min` e `max` no HTML ajudam quem digita. Há teste que envia POST
+direto com ano 3050 e carga horária 0 para provar que eles não são a defesa.
+
+---
+
+## 9.15 Compartilhamento do certificado
+
+### O que é compartilhado
+
+O **endereço público de validação**, nunca o PDF.
+
+O arquivo, uma vez enviado, não volta atrás: se o certificado for revogado
+amanhã, quem recebeu o PDF continua com um documento de aparência válida. O
+endereço continua respondendo a verdade — e por isso é ele que vai no link.
+
+### Dois canais, duas rotas
+
+```
+POST /aluno/certificados/<código>/compartilhar/whatsapp/  → 302 wa.me
+POST /aluno/certificados/<código>/compartilhar/nativo/    → 204
+```
+
+Um caminho por canal, e não um parâmetro que o navegador preencha. O valor vai
+para a trilha de auditoria: com rota fixa, o conjunto de canais possíveis é o
+conjunto de rotas que existem.
+
+`wa.me` sem número abre o seletor de contato do próprio aplicativo — o sistema
+não precisa saber, nem guardar, para quem o aluno vai mandar.
+
+### POST, e não link direto
+
+O botão do WhatsApp é um formulário com CSRF e `target="_blank"`. Um link direto
+para `wa.me` seria mais simples, mas o servidor precisa registrar o
+compartilhamento, e **escrita não acontece por GET**: um GET que grava enche a
+trilha toda vez que alguém passa o mouse sobre o link numa conversa ou que um
+antivírus corporativo resolve buscar a URL.
+
+### O gesto do usuário, e por que a mensagem já vem no HTML
+
+`navigator.share()` só é aceito dentro do gesto que o disparou. Se o JavaScript
+fosse buscar o texto no servidor primeiro, o Safari do iOS já teria considerado o
+gesto encerrado e recusaria a folha de compartilhamento.
+
+Então o servidor entrega o texto pronto num `data-` do botão, e o registro na
+trilha vai **depois**, por `fetch` com `keepalive` — sem segurar nada. O
+`keepalive` importa: a folha nativa tira a página de foco, e sem ele o navegador
+cancelaria o pedido.
+
+A regra não muda: **o texto é do servidor**. O navegador só repassa o que
+recebeu. Há teste enviando `text=`, `mensagem=` e `message=` forjados no POST e
+confirmando que nada disso aparece na mensagem.
+
+### O evento diz "iniciado", e é só isso que ele pode dizer
+
+`CERTIFICATE_SHARE_INITIATED`, metadata `{"channel": "whatsapp"}` ou
+`{"channel": "native"}`.
+
+Leia o nome com cuidado. O evento é gravado quando o aluno aperta o botão. A
+partir dali o sistema **perde a visão**: quem entrega é o WhatsApp ou a folha de
+compartilhamento do celular, nenhum dos dois devolve confirmação, e o aluno pode
+fechar tudo sem enviar para ninguém.
+
+Ou seja: **não** significa mensagem enviada, entregue nem lida. Significa que a
+intenção existiu. Interpretar como entrega — num relatório, numa conversa, numa
+cobrança — seria afirmar algo que este sistema não tem como saber. Há teste
+confirmando que a metadata não carrega nenhuma chave sugerindo entrega.
+
+Dois cliques produzem dois eventos, de propósito: compartilhar duas vezes com
+pessoas diferentes é comportamento normal, e agrupá-los esconderia o segundo.
+
+### As fronteiras
+
+| Situação | Resposta |
+|---|---|
+| certificado de outro aluno | **404**, nunca 403 — 403 confirmaria que o código existe |
+| anônimo | redirect para o login |
+| administrador | 403 (não é dono de certificado) |
+| GET | 405 |
+| POST sem CSRF | 403 |
+| certificado revogado | **409** |
+| `url=`, `next=`, `redirect=` no POST | ignorados; o destino é montado no servidor |
+| `verification_code` no POST | ignorado; o documento vem do caminho + dono da sessão |
 
 ---
 

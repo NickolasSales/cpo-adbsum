@@ -12,7 +12,25 @@ from accounts.models import UserRole
 from audit.models import AuditEvent
 from audit.services import record
 from common.exceptions import DomainError, campos_alterados
-from courses.models import Enrollment, EnrollmentStatus, Module, normalizar_codigo
+from courses.models import (
+    ANO_MAXIMO_DO_CERTIFICADO,
+    ANO_MINIMO_DO_CERTIFICADO,
+    Enrollment,
+    EnrollmentStatus,
+    Module,
+    normalizar_codigo,
+)
+
+# Os unicos nomes que create_module e update_module aceitam no dicionario de
+# dados do certificado. Lista branca: um dicionario que viesse com "is_active"
+# ou "code" dentro nao encontraria eco aqui.
+CAMPOS_DO_CERTIFICADO = (
+    "certificate_display_name",
+    "certificate_course_dates_text",
+    "certificate_location",
+    "certificate_workload_hours",
+    "certificate_year",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -40,9 +58,57 @@ def verificar_codigo_disponivel(code, *, ignorando=None):
     return code
 
 
+def normalizar_dados_do_certificado(dados):
+    """
+    Filtra e valida o dicionario de dados do certificado.
+
+    Aceita somente os nomes da lista branca; qualquer outra chave e ignorada
+    em silencio, porque nao existe caso legitimo em que ela apareceria.
+
+    A validacao de carga horaria e ano se repete aqui, no formulario, nos
+    validators do modelo e em CheckConstraint. Nao e redundancia por
+    desconfianca: cada camada cobre um caminho diferente de escrita, e o valor
+    errado so aparece depois de o certificado estar impresso.
+    """
+    dados = dados or {}
+    limpos = {}
+
+    for campo in CAMPOS_DO_CERTIFICADO:
+        if campo not in dados:
+            continue
+        valor = dados[campo]
+        if campo in ("certificate_workload_hours", "certificate_year"):
+            limpos[campo] = valor if valor not in ("", None) else None
+        else:
+            limpos[campo] = (valor or "").strip()
+
+    horas = limpos.get("certificate_workload_hours")
+    if horas is not None and int(horas) < 1:
+        raise DomainError("A carga horaria do certificado precisa ser maior que zero.")
+
+    ano = limpos.get("certificate_year")
+    if ano is not None and not (
+        ANO_MINIMO_DO_CERTIFICADO <= int(ano) <= ANO_MAXIMO_DO_CERTIFICADO
+    ):
+        raise DomainError(
+            "O ano do certificado precisa estar entre {} e {}.".format(
+                ANO_MINIMO_DO_CERTIFICADO, ANO_MAXIMO_DO_CERTIFICADO
+            )
+        )
+    return limpos
+
+
 @transaction.atomic
 def create_module(
-    *, name, code, description="", order=0, is_active=True, actor=None, request=None
+    *,
+    name,
+    code,
+    description="",
+    order=0,
+    is_active=True,
+    dados_do_certificado=None,
+    actor=None,
+    request=None,
 ):
     code = verificar_codigo_disponivel(code)
     name = (name or "").strip()
@@ -51,12 +117,15 @@ def create_module(
     if order is None or order < 0:
         raise DomainError("A ordem precisa ser um numero maior ou igual a zero.")
 
+    certificado = normalizar_dados_do_certificado(dados_do_certificado)
+
     modulo = Module.objects.create(
         name=name,
         code=code,
         description=description or "",
         order=order,
         is_active=is_active,
+        **certificado,
     )
 
     record(
@@ -72,7 +141,16 @@ def create_module(
 
 @transaction.atomic
 def update_module(
-    modulo, *, name, code, description="", order=0, is_active=True, actor=None, request=None
+    modulo,
+    *,
+    name,
+    code,
+    description="",
+    order=0,
+    is_active=True,
+    dados_do_certificado=None,
+    actor=None,
+    request=None,
 ):
     code = verificar_codigo_disponivel(code, ignorando=modulo)
     name = (name or "").strip()
@@ -81,12 +159,15 @@ def update_module(
     if order is None or order < 0:
         raise DomainError("A ordem precisa ser um numero maior ou igual a zero.")
 
+    certificado = normalizar_dados_do_certificado(dados_do_certificado)
+
     novos = {
         "name": name,
         "code": code,
         "description": description or "",
         "order": order,
         "is_active": is_active,
+        **certificado,
     }
     alterados = campos_alterados(modulo, novos)
 

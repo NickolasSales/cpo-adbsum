@@ -3,10 +3,26 @@
 from django import forms
 
 from accounts.models import User, UserRole
-from courses.models import Enrollment, Module
+from courses.models import (
+    ANO_MAXIMO_DO_CERTIFICADO,
+    ANO_MINIMO_DO_CERTIFICADO,
+    Enrollment,
+    Module,
+)
 
 CLASSE_CAMPO = "form-control"
 CLASSE_SELECT = "form-select"
+
+# Campos que so existem por causa do certificado. A lista e usada pelo
+# formulario, pela view e pelo servico, para que os tres nunca discordem sobre
+# o que compoe a secao "Dados do certificado".
+CAMPOS_DO_CERTIFICADO = (
+    "certificate_display_name",
+    "certificate_course_dates_text",
+    "certificate_location",
+    "certificate_workload_hours",
+    "certificate_year",
+)
 
 
 class ModuleForm(forms.ModelForm):
@@ -20,7 +36,14 @@ class ModuleForm(forms.ModelForm):
 
     class Meta:
         model = Module
-        fields = ["name", "code", "description", "order", "is_active"]
+        fields = [
+            "name",
+            "code",
+            "description",
+            "order",
+            "is_active",
+            *CAMPOS_DO_CERTIFICADO,
+        ]
         widgets = {
             "name": forms.TextInput(
                 attrs={"class": CLASSE_CAMPO, "placeholder": "Modulo 1", "autofocus": True}
@@ -31,6 +54,36 @@ class ModuleForm(forms.ModelForm):
             "description": forms.Textarea(attrs={"class": CLASSE_CAMPO, "rows": 3}),
             "order": forms.NumberInput(attrs={"class": CLASSE_CAMPO, "min": 0}),
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "certificate_display_name": forms.TextInput(
+                attrs={
+                    "class": CLASSE_CAMPO,
+                    "placeholder": "Modulo I - Cooperadores e Diaconos",
+                }
+            ),
+            "certificate_course_dates_text": forms.TextInput(
+                attrs={
+                    "class": CLASSE_CAMPO,
+                    "placeholder": "10 e 17 de outubro de 2026",
+                }
+            ),
+            "certificate_location": forms.TextInput(
+                attrs={"class": CLASSE_CAMPO, "placeholder": "Igreja Sede"}
+            ),
+            # Os atributos min e max ajudam quem digita, e o navegador os
+            # respeita. Eles nao sao a validacao: ela esta no clean abaixo, nos
+            # validators do modelo e numa CheckConstraint. Um POST direto nao
+            # ve nenhum atributo de HTML.
+            "certificate_workload_hours": forms.NumberInput(
+                attrs={"class": CLASSE_CAMPO, "min": 1, "placeholder": "8"}
+            ),
+            "certificate_year": forms.NumberInput(
+                attrs={
+                    "class": CLASSE_CAMPO,
+                    "min": ANO_MINIMO_DO_CERTIFICADO,
+                    "max": ANO_MAXIMO_DO_CERTIFICADO,
+                    "placeholder": "2026",
+                }
+            ),
         }
 
     def clean_code(self):
@@ -46,6 +99,28 @@ class ModuleForm(forms.ModelForm):
         if ordem < 0:
             raise forms.ValidationError("A ordem nao pode ser negativa.")
         return ordem
+
+    def clean_certificate_workload_hours(self):
+        horas = self.cleaned_data.get("certificate_workload_hours")
+        if horas is None:
+            return None
+        if horas < 1:
+            raise forms.ValidationError(
+                "A carga horaria precisa ser maior que zero."
+            )
+        return horas
+
+    def clean_certificate_year(self):
+        ano = self.cleaned_data.get("certificate_year")
+        if ano is None:
+            return None
+        if not ANO_MINIMO_DO_CERTIFICADO <= ano <= ANO_MAXIMO_DO_CERTIFICADO:
+            raise forms.ValidationError(
+                "Informe um ano entre {} e {}.".format(
+                    ANO_MINIMO_DO_CERTIFICADO, ANO_MAXIMO_DO_CERTIFICADO
+                )
+            )
+        return ano
 
 
 class EnrollmentForm(forms.Form):

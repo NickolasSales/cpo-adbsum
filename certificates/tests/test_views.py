@@ -13,7 +13,11 @@ import pytest
 from django.urls import reverse
 
 from audit.models import AuditEvent, AuditLog
-from certificates.models import Certificate, CertificateStatus
+from certificates.models import (
+    VERSAO_ATUAL_DO_MODELO,
+    Certificate,
+    CertificateStatus,
+)
 from certificates.services import revoke_certificate
 
 pytestmark = pytest.mark.django_db
@@ -38,7 +42,10 @@ def test_certificado_valido_responde_200_e_diz_que_vale(client, certificado):
     assert resposta.status_code == 200
     assert "Certificado valido" in corpo
     assert certificado.student_name_snapshot in corpo
-    assert certificado.module_name_snapshot in corpo
+    # A pagina mostra o nome do modulo COMO ELE SAI NO DOCUMENTO. A partir da
+    # Etapa 8 esse e o nome por extenso, e nao o nome interno curto: quem
+    # confere um papel precisa reconhecer o que esta lendo nele.
+    assert certificado.modulo_impresso in corpo
     assert str(certificado.verification_code) in corpo
 
 
@@ -77,7 +84,10 @@ def test_o_revogado_ainda_identifica_o_documento(client, certificado, admin_user
     corpo = client.get(url_publica(certificado)).content.decode("utf-8")
 
     assert certificado.student_name_snapshot in corpo
-    assert certificado.module_name_snapshot in corpo
+    # A pagina mostra o nome do modulo COMO ELE SAI NO DOCUMENTO. A partir da
+    # Etapa 8 esse e o nome por extenso, e nao o nome interno curto: quem
+    # confere um papel precisa reconhecer o que esta lendo nele.
+    assert certificado.modulo_impresso in corpo
     assert str(certificado.verification_code) in corpo
 
 
@@ -146,7 +156,10 @@ def test_o_aluno_ve_o_proprio_certificado(student_client_logado, certificado):
     corpo = resposta.content.decode("utf-8")
 
     assert resposta.status_code == 200
-    assert certificado.module_name_snapshot in corpo
+    # A pagina mostra o nome do modulo COMO ELE SAI NO DOCUMENTO. A partir da
+    # Etapa 8 esse e o nome por extenso, e nao o nome interno curto: quem
+    # confere um papel precisa reconhecer o que esta lendo nele.
+    assert certificado.modulo_impresso in corpo
 
 
 def test_a_lista_continua_acessivel_com_o_modulo_concluido(
@@ -291,7 +304,7 @@ def test_o_navegador_nao_escolhe_nada_do_certificado(
     assert certificado.status == CertificateStatus.ACTIVE
     assert certificado.verification_code != codigo_forjado
     assert certificado.student_name_snapshot == tentativa_aprovada.student.full_name
-    assert certificado.template_version == 1
+    assert certificado.template_version == VERSAO_ATUAL_DO_MODELO
 
 
 def test_emitir_reprovada_pela_tela_e_recusado(

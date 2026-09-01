@@ -44,18 +44,46 @@ objeto do certificado.
     </div>
   {% endif %}
 
+  {% comment %}
+  As linhas do modelo oficial so aparecem quando existem. Certificados
+  emitidos antes da Etapa 8 nao tem curso, datas, local, carga horaria nem
+  ano — e rotulo com valor em branco numa pagina de conferencia levanta a
+  duvida de o registro estar corrompido.
+  {% endcomment %}
   <dl class="row mb-0 small">
     <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Nome</dt>
     <dd class="col-7 col-sm-8 fw-semibold cpo-quebra">{{ nome }}</dd>
 
+    {% if curso %}
+      <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Curso</dt>
+      <dd class="col-7 col-sm-8 cpo-quebra">{{ curso }}</dd>
+    {% endif %}
+
     <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Modulo</dt>
     <dd class="col-7 col-sm-8 cpo-quebra">{{ modulo }}</dd>
 
-    <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Avaliacao</dt>
-    <dd class="col-7 col-sm-8 cpo-quebra">{{ prova }}</dd>
-
     <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Instituicao</dt>
     <dd class="col-7 col-sm-8 cpo-quebra">{{ instituicao }}</dd>
+
+    {% if datas %}
+      <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Realizado em</dt>
+      <dd class="col-7 col-sm-8 cpo-quebra">{{ datas }}</dd>
+    {% endif %}
+
+    {% if local %}
+      <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Local</dt>
+      <dd class="col-7 col-sm-8 cpo-quebra">{{ local }}</dd>
+    {% endif %}
+
+    {% if carga_horaria %}
+      <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Carga horaria</dt>
+      <dd class="col-7 col-sm-8">{{ carga_horaria }} h</dd>
+    {% endif %}
+
+    {% if ano %}
+      <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Ano</dt>
+      <dd class="col-7 col-sm-8">{{ ano }}</dd>
+    {% endif %}
 
     <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Emitido em</dt>
     <dd class="col-7 col-sm-8">{{ emitido_em|date:"d/m/Y" }}</dd>

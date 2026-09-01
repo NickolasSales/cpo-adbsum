@@ -631,6 +631,28 @@ pre {
   gap: .5rem;
 }
 
+/* Um formulario dentro da barra e so o invólucro do CSRF: ele participa do
+   arranjo como se fosse o proprio botao. Sem isso, o <form> viraria um item
+   de largura propria e o botao dentro dele ficaria menor que os vizinhos. */
+.cpo-barra-acoes form {
+  margin: 0;
+  display: flex;
+}
+
+.cpo-barra-acoes form > .btn {
+  width: 100%;
+}
+
+/* Grade quando ha quatro ou mais acoes no mesmo cartao. Com flex simples,
+   quatro botoes de larguras diferentes produzem uma segunda linha desalinhada;
+   a grade de largura minima os organiza em duas colunas no celular e numa
+   fila unica quando ha espaco. */
+.cpo-barra-acoes--grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+  align-items: stretch;
+}
+
 @media (max-width: 575.98px) {
   /* Alvo de toque confortavel. Um botao de 40px com texto espremido
      erra mais do que acerta no dedo. */
@@ -642,6 +664,44 @@ pre {
   .cpo-barra-acoes--empilha .btn {
     flex: 1 1 100%;
   }
+
+  /* Abaixo de 576px cada acao ocupa a linha inteira. Duas colunas de
+     "Compartilhar no WhatsApp" a 360px partiriam o rotulo no meio. */
+  .cpo-barra-acoes--grade {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Foco visivel
+   ---------------------------------------------------------------
+
+   :focus-visible, e nao :focus. A distincao importa: o navegador aplica
+   :focus-visible quando o foco chegou por teclado, e nao quando chegou por
+   clique. Estilizar :focus faria um anel aparecer a cada clique de mouse — o
+   que costuma levar alguem a remover o outline por completo, e ai quem navega
+   por Tab perde a unica pista de onde esta.
+
+   O anel e desenhado por box-shadow alem do outline porque o outline sozinho
+   desaparece contra fundos escuros, como o do botao primario. */
+:focus-visible {
+  outline: 2px solid #0d6efd;
+  outline-offset: 2px;
+}
+
+.btn:focus-visible,
+.form-control:focus-visible,
+.form-select:focus-visible,
+.form-check-input:focus-visible {
+  outline: 2px solid #0d6efd;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .25);
+}
+
+/* Fundo claro: o azul padrao nao se destaca. */
+.cpo-topo a:focus-visible,
+.cpo-lateral a:focus-visible {
+  outline-color: #ffc107;
 }
 
 /* ---------------------------------------------------------------

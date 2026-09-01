@@ -67,6 +67,53 @@
   </div>
 </div>
 
+{% comment %}
+O aviso vem ANTES do cartao, e nao dentro dele: quem chega aqui depois de uma
+emissao recusada precisa entender o motivo sem procurar. A lista de faltantes
+sai do proprio modelo, entao ela e exatamente a mesma que a emissao consulta.
+{% endcomment %}
+<div class="cpo-cartao p-4 mb-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h2 class="h6 mb-0">Dados do certificado</h2>
+    {% if modulo.pronto_para_certificar %}
+      <span class="cpo-badge cpo-badge--ok">Completo</span>
+    {% else %}
+      <span class="cpo-badge cpo-badge--alerta">Incompleto</span>
+    {% endif %}
+  </div>
+
+  {% if not modulo.pronto_para_certificar %}
+    <div class="alert alert-warning small" role="alert">
+      Nenhum certificado deste modulo pode ser emitido enquanto faltar:
+      {{ modulo.dados_do_certificado_ausentes|join:", " }}.
+      <a href="{% url 'admin_panel:module_update' modulo.pk %}">Preencher agora</a>.
+    </div>
+  {% endif %}
+
+  <div class="row g-3 small">
+    <div class="col-12 col-md-6">
+      <div class="text-body-secondary">Nome exibido</div>
+      <div class="fw-medium cpo-quebra">{{ modulo.nome_no_certificado }}</div>
+    </div>
+    <div class="col-12 col-md-6">
+      <div class="text-body-secondary">Data(s) do curso</div>
+      <div class="fw-medium cpo-quebra">{% firstof modulo.certificate_course_dates_text "—" %}</div>
+    </div>
+    <div class="col-12 col-md-6">
+      <div class="text-body-secondary">Local</div>
+      <div class="fw-medium cpo-quebra">{% firstof modulo.certificate_location "—" %}</div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="text-body-secondary">Carga horaria</div>
+      <div class="fw-medium">{% if modulo.certificate_workload_hours %}{{ modulo.certificate_workload_hours }} h{% else %}—{% endif %}</div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="text-body-secondary">Ano</div>
+      <div class="fw-medium">{% firstof modulo.certificate_year "—" %}</div>
+    </div>
+  </div>
+</div>
+
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
   <h2 class="h6 mb-0">Alunos matriculados</h2>
   <a class="btn btn-sm btn-primary"

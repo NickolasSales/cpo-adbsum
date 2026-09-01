@@ -96,6 +96,53 @@ def test_o_nome_nao_esta_fixo_no_codigo_da_aplicacao():
     assert not ofensores, "nome fixo no codigo: {}".format(ofensores)
 
 
+def test_a_identidade_antiga_sumiu_do_codigo_de_aplicacao():
+    """
+    "CPO Provas" era o nome anterior.
+
+    Ele sobrevivia em lugares que ninguem revisa: docstring de modulo,
+    comentario de configuracao, cabecalho do Django Admin. O ultimo era o pior
+    dos tres, porque e uma pagina que abre no navegador — tecnica, mas uma
+    pagina.
+
+    A varredura ignora testes (este arquivo cita o nome antigo de proposito)
+    e o README, que registra a historia do projeto e precisa poder falar do
+    nome que existia antes.
+    """
+    ofensores = []
+    for pasta in (
+        "accounts",
+        "audit",
+        "certificates",
+        "common",
+        "config",
+        "courses",
+        "exams",
+        "students",
+    ):
+        for caminho in (RAIZ / pasta).rglob("*.py"):
+            if "/tests/" in caminho.as_posix() or "\\tests\\" in str(caminho):
+                continue
+            if "CPO Provas" in io.open(caminho, encoding="utf-8").read():
+                ofensores.append(str(caminho.relative_to(RAIZ)))
+
+    assert not ofensores, "identidade antiga no codigo: {}".format(ofensores)
+
+
+def test_o_django_admin_usa_a_identidade_atual(settings):
+    """
+    O Django Admin e ferramenta tecnica, mas ainda e uma pagina que abre.
+
+    O cabecalho e o titulo vinham escritos a mao com o nome anterior — o unico
+    lugar onde ninguem procuraria.
+    """
+    from django.contrib import admin
+
+    assert settings.APP_NAME in admin.site.site_header
+    assert admin.site.site_title == settings.APP_NAME
+    assert "CPO Provas" not in admin.site.site_header
+
+
 # ---------------------------------------------------------------------------
 # Onde a identidade aparece
 # ---------------------------------------------------------------------------
@@ -152,6 +199,9 @@ TELAS = [
     ("admin_panel:certificate_list", "admin"),
     ("admin_panel:audit_log_list", "admin"),
     ("student:dashboard", "aluno"),
+    # A tela citada no §4 da Etapa 8 como exemplo de onde a identidade antiga
+    # ainda aparecia.
+    ("student:certificate_list", "aluno"),
 ]
 
 

@@ -9,6 +9,11 @@ te-lo concluido.
 
 Cartoes em vez de tabela em qualquer largura. Sao poucos registros por aluno,
 e a acao principal e uma so.
+
+O codigo aparece resumido. Inteiro, ele e o elemento mais longo do cartao no
+celular — mais longo que o nome do modulo — e nao serve para nada de quem so
+quer baixar o PDF. O completo continua na pagina de validacao, no documento e
+no botao de copiar.
 {% endcomment %}
 
 {% block title %}Meus certificados - {{ APP_NAME }}{% endblock %}
@@ -19,15 +24,20 @@ e a acao principal e uma so.
   Documentos emitidos a partir dos modulos que voce concluiu.
 </p>
 
-{% for certificado in certificados %}
+{% for item in certificados %}
+  {% with certificado=item.certificado %}
   <div class="cpo-cartao p-3 p-md-4 mb-3">
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
       <div class="flex-grow-1" style="min-width: 0;">
-        <p class="h6 mb-1 cpo-quebra">{{ certificado.module_name_snapshot }}</p>
+        <p class="h6 mb-1 cpo-quebra">{{ certificado.modulo_impresso }}</p>
         <p class="small text-body-secondary mb-0 cpo-quebra">
-          {{ certificado.exam_title_snapshot }}
+          {% firstof certificado.course_name_snapshot certificado.exam_title_snapshot %}
         </p>
       </div>
+      {% comment %}
+      O rotulo e texto, e nao so cor. Quem enxerga em tons de cinza, quem usa
+      leitor de tela e quem imprime a pagina precisa da mesma resposta.
+      {% endcomment %}
       {% if certificado.esta_valido %}
         <span class="cpo-badge cpo-badge--ok">Valido</span>
       {% else %}
@@ -35,13 +45,20 @@ e a acao principal e uma so.
       {% endif %}
     </div>
 
-    <p class="small text-body-secondary mb-3">
+    <p class="small text-body-secondary mb-1">
       Emitido em {{ certificado.issued_at|date:"d/m/Y" }}
-      &middot; codigo <code class="cpo-quebra">{{ certificado.verification_code }}</code>
+    </p>
+    <p class="small text-body-secondary mb-3 d-flex flex-wrap align-items-center gap-2">
+      <span>Codigo: <code class="cpo-quebra">{{ certificado.codigo_resumido }}</code></span>
+      <button type="button"
+              class="btn btn-link btn-sm p-0 align-baseline text-decoration-none cpo-copiar"
+              data-codigo="{{ certificado.verification_code }}">
+        Copiar codigo completo
+      </button>
     </p>
 
-    <div class="cpo-barra-acoes">
-      {% if certificado.esta_valido %}
+    {% if certificado.esta_valido %}
+      <div class="cpo-barra-acoes cpo-barra-acoes--grade">
         <a class="btn btn-sm btn-primary"
            href="{% url 'student:certificate_download' certificado.verification_code %}">
           Baixar PDF
@@ -50,13 +67,46 @@ e a acao principal e uma so.
            href="{% url 'certificates:validate' certificado.verification_code %}">
           Pagina de validacao
         </a>
-      {% else %}
-        <span class="small text-body-secondary">
-          Certificado revogado pela administracao. Procure a secretaria.
-        </span>
-      {% endif %}
-    </div>
+
+        {% comment %}
+        WhatsApp por POST, e nao por link direto para wa.me: o servidor precisa
+        registrar que o compartilhamento foi iniciado, e escrita nao acontece
+        por GET. target="_blank" mantem o aluno na aplicacao.
+
+        O que segue no link e o endereco publico de validacao, nunca o PDF. O
+        arquivo, uma vez enviado, nao volta atras: se o certificado for
+        revogado amanha, quem recebeu o PDF continua com um documento de
+        aparencia valida. O endereco continua respondendo a verdade.
+        {% endcomment %}
+        <form method="post" target="_blank"
+              action="{% url 'student:certificate_share_whatsapp' certificado.verification_code %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-outline-success">
+            Compartilhar no WhatsApp
+          </button>
+        </form>
+
+        {% comment %}
+        Aparece somente onde navigator.share existe; o script abaixo o revela.
+        Nasce escondido para que quem nao tem suporte nunca veja um botao que
+        nao faria nada.
+        {% endcomment %}
+        <button type="button" hidden
+                class="btn btn-sm btn-outline-secondary cpo-compartilhar-nativo"
+                data-url="{% url 'certificates:validate' certificado.verification_code %}"
+                data-registro="{% url 'student:certificate_share_native' certificado.verification_code %}"
+                data-titulo="{{ APP_NAME }}"
+                data-texto="{{ item.mensagem }}">
+          Compartilhar
+        </button>
+      </div>
+    {% else %}
+      <p class="small text-body-secondary mb-0">
+        Certificado revogado pela administracao. Procure a secretaria.
+      </p>
+    {% endif %}
   </div>
+  {% endwith %}
 {% empty %}
   <div class="cpo-cartao p-4 text-center text-body-secondary">
     <p class="mb-0">
@@ -65,4 +115,85 @@ e a acao principal e uma so.
     </p>
   </div>
 {% endfor %}
+
+<div class="visually-hidden" role="status" aria-live="polite" id="cpo-aviso"></div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  "use strict";
+
+  var aviso = document.getElementById("cpo-aviso");
+  function anunciar(texto) {
+    if (aviso) { aviso.textContent = texto; }
+  }
+
+  // --- copiar o codigo completo -------------------------------------------
+  document.querySelectorAll(".cpo-copiar").forEach(function (botao) {
+    botao.addEventListener("click", function () {
+      var codigo = botao.dataset.codigo || "";
+      var rotulo = botao.textContent;
+      function confirmou() {
+        botao.textContent = "Codigo copiado";
+        anunciar("Codigo copiado.");
+        setTimeout(function () { botao.textContent = rotulo; }, 2000);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(codigo).then(confirmou, function () {});
+        return;
+      }
+      // Navegador sem Clipboard API, ou pagina servida sem HTTPS: seleciona o
+      // texto num campo temporario e deixa o comando antigo copiar.
+      var campo = document.createElement("textarea");
+      campo.value = codigo;
+      campo.setAttribute("readonly", "");
+      campo.style.position = "absolute";
+      campo.style.left = "-9999px";
+      document.body.appendChild(campo);
+      campo.select();
+      try { document.execCommand("copy"); confirmou(); } catch (e) {}
+      document.body.removeChild(campo);
+    });
+  });
+
+  // --- compartilhamento nativo --------------------------------------------
+  //
+  // navigator.share() so e aceito dentro do gesto do usuario. Se a chamada
+  // esperasse uma ida ao servidor, o Safari do iOS ja teria considerado o
+  // gesto encerrado e recusaria a folha de compartilhamento. Por isso o texto
+  // ja vem pronto no HTML, montado pelo servidor, e o registro na trilha de
+  // auditoria vai DEPOIS, sem segurar nada.
+  if (!navigator.share) { return; }
+
+  function csrf() {
+    var campo = document.querySelector("input[name=csrfmiddlewaretoken]");
+    return campo ? campo.value : "";
+  }
+
+  document.querySelectorAll(".cpo-compartilhar-nativo").forEach(function (botao) {
+    botao.hidden = false;
+    botao.addEventListener("click", function () {
+      var destino = new URL(botao.dataset.url, window.location.origin).href;
+      navigator.share({
+        title: botao.dataset.titulo,
+        text: botao.dataset.texto,
+        url: destino
+      }).then(function () {
+        // keepalive: a folha nativa pode tirar a pagina de foco antes de o
+        // pedido terminar, e sem isso o navegador o cancelaria.
+        fetch(botao.dataset.registro, {
+          method: "POST",
+          headers: { "X-CSRFToken": csrf() },
+          credentials: "same-origin",
+          keepalive: true
+        });
+      }, function () {
+        // O usuario fechou a folha sem escolher ninguem. Nao ha o que
+        // registrar: nem compartilhamento iniciado de fato houve.
+      });
+    });
+  });
+})();
+</script>
 {% endblock %}

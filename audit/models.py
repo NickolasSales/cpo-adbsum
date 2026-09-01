@@ -101,6 +101,29 @@ class AuditEvent(models.TextChoices):
     CERTIFICATE_ISSUED = "CERTIFICATE_ISSUED", "Certificado emitido"
     CERTIFICATE_REVOKED = "CERTIFICATE_REVOKED", "Certificado revogado"
 
+    # Compartilhamento (Etapa 8)
+    #
+    # LEIA O NOME COM CUIDADO: "iniciado", e nada mais forte.
+    #
+    # O evento e gravado quando o aluno aperta o botao. A partir dali o
+    # sistema perde a visao: quem entrega e o WhatsApp ou a folha de
+    # compartilhamento do celular, nenhum dos dois devolve confirmacao, e o
+    # aluno pode fechar tudo sem enviar para ninguem.
+    #
+    # Ou seja, este evento NAO significa mensagem enviada, entregue nem lida.
+    # Significa que a intencao existiu. Interpretar como entrega — num
+    # relatorio, numa conversa, numa cobranca — seria afirmar algo que este
+    # sistema nao tem como saber.
+    #
+    # A metadata guarda so o canal. Nem a mensagem, nem a URL, nem o nome do
+    # aluno: os tres ja estao em outros campos ou em outras tabelas, e
+    # repeti-los aqui seria espalhar dado pessoal por uma tabela que so
+    # cresce.
+    CERTIFICATE_SHARE_INITIATED = (
+        "CERTIFICATE_SHARE_INITIATED",
+        "Compartilhamento de certificado iniciado",
+    )
+
     # Contas administrativas (Etapa 7)
     #
     # Quem cria, edita, bloqueia ou redefine a senha de um administrador esta

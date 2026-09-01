@@ -62,9 +62,19 @@ class CertificateValidateView(TemplateView):
         contexto["valido"] = certificado.esta_valido
         contexto["codigo"] = str(certificado.verification_code)
         contexto["nome"] = certificado.student_name_snapshot
-        contexto["modulo"] = certificado.module_name_snapshot
+        contexto["modulo"] = certificado.modulo_impresso
         contexto["prova"] = certificado.exam_title_snapshot
         contexto["instituicao"] = certificado.institution_name_snapshot
         contexto["emitido_em"] = certificado.issued_at
         contexto["revogado_em"] = certificado.revoked_at
+
+        # Campos do modelo oficial. Vazios nos certificados da versao 1, que
+        # nunca os tiveram; o template omite a linha em vez de mostrar rotulo
+        # sem valor. Todos ja aparecem impressos no proprio documento, entao
+        # nao ha nada aqui que quem tem o codigo ja nao veja no papel.
+        contexto["curso"] = certificado.course_name_snapshot
+        contexto["datas"] = certificado.course_dates_snapshot
+        contexto["local"] = certificado.course_location_snapshot
+        contexto["carga_horaria"] = certificado.workload_hours_snapshot
+        contexto["ano"] = certificado.certificate_year_snapshot
         return contexto

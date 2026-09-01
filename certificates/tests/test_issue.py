@@ -83,8 +83,15 @@ def test_aguardando_avaliador_nao_emite(tentativa, admin_user):
 
 
 def test_anulada_nao_emite(tentativa_aprovada, admin_user):
+    # status e reset_at andam juntos: a constraint tentativa_anulacao_coerente
+    # recusa RESET sem data de anulacao. Gravar so o status produzia uma
+    # tentativa que se diz anulada sem dizer quando — e a constraint da Etapa 7
+    # passou a barrar isso no banco.
+    from django.utils import timezone
+
     tentativa_aprovada.status = AttemptStatus.RESET
-    tentativa_aprovada.save(update_fields=["status"])
+    tentativa_aprovada.reset_at = timezone.now()
+    tentativa_aprovada.save(update_fields=["status", "reset_at"])
 
     assert pode_emitir(tentativa_aprovada) is False
     with pytest.raises(TentativaNaoAprovada):

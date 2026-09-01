@@ -16,7 +16,7 @@ from common.exceptions import DomainError
 from common.mixins import StudentRequiredMixin, admin_required
 from common.views import PainelAdminMixin
 from courses import services
-from courses.forms import EnrollmentForm, ModuleForm
+from courses.forms import CAMPOS_DO_CERTIFICADO, EnrollmentForm, ModuleForm
 from courses.models import Enrollment, EnrollmentStatus, Module
 from exams import selectors as exams_selectors
 
@@ -24,6 +24,21 @@ from exams import selectors as exams_selectors
 # ---------------------------------------------------------------------------
 # Modulos
 # ---------------------------------------------------------------------------
+
+
+def _dados_do_certificado(form):
+    """
+    Recolhe os campos do certificado ja validados pelo formulario.
+
+    A leitura e por nome, a partir da lista branca — e nao um varrer de
+    cleaned_data. Formulario e servico enxergam a mesma tupla, entao um campo
+    novo precisa ser declarado nos dois lugares para chegar ao banco.
+    """
+    return {
+        campo: form.cleaned_data.get(campo)
+        for campo in CAMPOS_DO_CERTIFICADO
+        if campo in form.cleaned_data
+    }
 
 
 class ModuleListView(PainelAdminMixin, ListView):
@@ -99,6 +114,7 @@ class ModuleCreateView(PainelAdminMixin, FormView):
                 description=form.cleaned_data.get("description", ""),
                 order=form.cleaned_data.get("order") or 0,
                 is_active=form.cleaned_data.get("is_active", True),
+                dados_do_certificado=_dados_do_certificado(form),
                 actor=self.request.user,
                 request=self.request,
             )
@@ -139,6 +155,7 @@ class ModuleUpdateView(PainelAdminMixin, FormView):
                 description=form.cleaned_data.get("description", ""),
                 order=form.cleaned_data.get("order") or 0,
                 is_active=form.cleaned_data.get("is_active", True),
+                dados_do_certificado=_dados_do_certificado(form),
                 actor=self.request.user,
                 request=self.request,
             )

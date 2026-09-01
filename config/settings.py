@@ -1,5 +1,5 @@
 """
-Configuracao do projeto CPO Provas.
+Configuracao do projeto.
 
 Estrategia: um unico modulo de settings, integralmente parametrizado por
 variaveis de ambiente. Ver README para a justificativa da escolha.
@@ -66,8 +66,8 @@ CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
 SITE_URL = env("SITE_URL", "http://127.0.0.1:8000").rstrip("/")
 
 # Identidade da aplicacao. Um lugar so, lido pelo context processor e
-# disponivel em todo template — em vez de "CPO Provas" escrito a mao em
-# quarenta arquivos, que e como a identidade anterior estava espalhada.
+# disponivel em todo template — em vez do nome escrito a mao em quarenta
+# arquivos, que e como a identidade anterior estava espalhada.
 #
 # Os tres sao parametrizaveis porque a mesma base pode servir outra
 # congregacao sem alterar codigo.
@@ -82,6 +82,24 @@ APP_SUBTITLE = env(
 # outro. Certificados ja emitidos guardam a propria copia deste valor e nao
 # mudam quando ele muda.
 INSTITUTION_NAME = env("INSTITUTION_NAME", "CPO AD Brás Sumaré")
+
+# Textos fixos do certificado. Ficam aqui, e nao dentro do renderizador, pelo
+# mesmo motivo que o nome da instituicao: sao dados institucionais, mudam sem
+# aviso e nao deveriam exigir alteracao de codigo.
+#
+# O que varia por turma — modulo, datas, local, carga horaria, ano — nao entra
+# aqui: aquilo pertence ao Module, porque cada modulo tem o seu.
+#
+# Todo certificado emitido guarda a propria copia destes tres valores. Trocar
+# de presidente nao reescreve os documentos ja assinados pelo anterior.
+CERTIFICATE_COURSE_NAME = env(
+    "CERTIFICATE_COURSE_NAME", "CPO - Curso de Preparação de Obreiros"
+)
+CERTIFICATE_SIGNATORY_NAME = env("CERTIFICATE_SIGNATORY_NAME", "Rodrigo Montenegro")
+CERTIFICATE_SIGNATORY_TITLE = env(
+    "CERTIFICATE_SIGNATORY_TITLE", "Pastor Presidente ADBrás Sumaré"
+)
+
 DEFAULT_STUDENT_PASSWORD = env("DEFAULT_STUDENT_PASSWORD", "")
 
 # Quando True, o IP do cliente e lido de X-Forwarded-For. Deve permanecer

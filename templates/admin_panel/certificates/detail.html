@@ -42,13 +42,53 @@ desaparece, o codigo continua consultavel, e a matricula NAO volta sozinha.
         <dd class="col-7 col-sm-8 cpo-quebra">{{ certificado.student_name_snapshot }}</dd>
 
         <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Modulo</dt>
-        <dd class="col-7 col-sm-8 cpo-quebra">{{ certificado.module_name_snapshot }}</dd>
+        <dd class="col-7 col-sm-8 cpo-quebra">{{ certificado.modulo_impresso }}</dd>
 
         <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Avaliacao</dt>
         <dd class="col-7 col-sm-8 cpo-quebra">{{ certificado.exam_title_snapshot }}</dd>
 
         <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Instituicao</dt>
         <dd class="col-7 col-sm-8 cpo-quebra">{{ certificado.institution_name_snapshot }}</dd>
+
+        {% comment %}
+        Os campos do modelo oficial. Ficam em branco nos certificados da versao
+        1, que nunca os tiveram — e a linha "Modelo" logo abaixo explica por
+        que, para quem estiver investigando um documento antigo.
+        {% endcomment %}
+        {% if certificado.course_name_snapshot %}
+          <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Curso</dt>
+          <dd class="col-7 col-sm-8 cpo-quebra">{{ certificado.course_name_snapshot }}</dd>
+        {% endif %}
+
+        {% if certificado.course_dates_snapshot %}
+          <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Realizado em</dt>
+          <dd class="col-7 col-sm-8 cpo-quebra">{{ certificado.course_dates_snapshot }}</dd>
+        {% endif %}
+
+        {% if certificado.course_location_snapshot %}
+          <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Local</dt>
+          <dd class="col-7 col-sm-8 cpo-quebra">{{ certificado.course_location_snapshot }}</dd>
+        {% endif %}
+
+        {% if certificado.workload_hours_snapshot %}
+          <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Carga horaria</dt>
+          <dd class="col-7 col-sm-8">{{ certificado.workload_hours_snapshot }} h</dd>
+        {% endif %}
+
+        {% if certificado.certificate_year_snapshot %}
+          <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Ano</dt>
+          <dd class="col-7 col-sm-8">{{ certificado.certificate_year_snapshot }}</dd>
+        {% endif %}
+
+        {% if certificado.signatory_name_snapshot %}
+          <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Assinatura</dt>
+          <dd class="col-7 col-sm-8 cpo-quebra">
+            {{ certificado.signatory_name_snapshot }}
+            {% if certificado.signatory_title_snapshot %}
+              <span class="text-body-secondary">&middot; {{ certificado.signatory_title_snapshot }}</span>
+            {% endif %}
+          </dd>
+        {% endif %}
 
         <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Emitido em</dt>
         <dd class="col-7 col-sm-8">{{ certificado.issued_at|date:"d/m/Y H:i" }}</dd>

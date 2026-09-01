@@ -37,7 +37,16 @@ class CertificateStatus(models.TextChoices):
 # emitidos continuam apontando para a versao com que foram gerados, e o
 # renderizador escolhe o desenho pelo numero — em vez de reimprimir um
 # documento antigo com a cara nova.
-VERSAO_ATUAL_DO_MODELO = 1
+#
+#   1  layout provisorio da Etapa 6. Moldura simples, sem os dados de turma.
+#   2  modelo oficial da AD Bras Sumare (Etapa 8). Exige data, local, carga
+#      horaria e ano, que a versao 1 nao gravava.
+#
+# A escolha pelo numero nao e capricho de versionamento: um certificado da
+# versao 1 nao TEM os campos que a versao 2 imprime. Renderizar todos com o
+# desenho novo produziria um documento oficial com lacunas no lugar da data e
+# da carga horaria.
+VERSAO_ATUAL_DO_MODELO = 2
 
 
 class CertificateQuerySet(models.QuerySet):
@@ -80,6 +89,39 @@ class Certificate(models.Model):
     module_name_snapshot = models.CharField("nome do modulo", max_length=150)
     exam_title_snapshot = models.CharField("titulo da prova", max_length=200)
     institution_name_snapshot = models.CharField("instituicao", max_length=150)
+
+    # --- o modelo oficial (Etapa 8) --------------------------------------
+    #
+    # Todos aceitam vazio/nulo porque os certificados da versao 1 nao os tem e
+    # nao ha de onde tira-los: inventar "carga horaria: 8" para um documento
+    # emitido antes da existencia do campo seria assinar um dado que ninguem
+    # informou. Quem decide o que fazer com a ausencia e o renderizador, pela
+    # template_version.
+    #
+    # Para certificados novos o servico de emissao exige os quatro do meio, e
+    # recusa emitir sem eles.
+    course_name_snapshot = models.CharField(
+        "nome do curso", max_length=200, blank=True
+    )
+    module_display_name_snapshot = models.CharField(
+        "modulo no certificado", max_length=150, blank=True
+    )
+    course_dates_snapshot = models.CharField(
+        "data(s) do curso", max_length=120, blank=True
+    )
+    course_location_snapshot = models.CharField("local", max_length=120, blank=True)
+    workload_hours_snapshot = models.PositiveSmallIntegerField(
+        "carga horaria", null=True, blank=True
+    )
+    certificate_year_snapshot = models.PositiveSmallIntegerField(
+        "ano", null=True, blank=True
+    )
+    signatory_name_snapshot = models.CharField(
+        "signatario", max_length=150, blank=True
+    )
+    signatory_title_snapshot = models.CharField(
+        "cargo do signatario", max_length=150, blank=True
+    )
 
     # issued_at e o ato academico; created_at e a linha da tabela. Coincidem
     # hoje e vao continuar coincidindo, mas sao perguntas diferentes e uma
@@ -152,6 +194,32 @@ class Certificate(models.Model):
     @property
     def esta_valido(self):
         return self.status == CertificateStatus.ACTIVE
+
+    @property
+    def modulo_impresso(self):
+        """
+        Nome do modulo como sai no documento.
+
+        Cai no snapshot antigo quando o novo nao existe: um certificado da
+        versao 1 nunca teve module_display_name_snapshot, e module_name era o
+        unico nome que ele carregava.
+        """
+        return (
+            self.module_display_name_snapshot or ""
+        ).strip() or self.module_name_snapshot
+
+    @property
+    def codigo_resumido(self):
+        """
+        Codigo abreviado para o cartao da lista.
+
+        UUID tem 36 caracteres e, exibido inteiro, e o elemento mais longo do
+        cartao no celular — mais longo que o nome do modulo, e sem nenhum
+        valor para quem so quer baixar o PDF. O codigo completo continua na
+        pagina de validacao, no PDF e no botao de copiar.
+        """
+        texto = str(self.verification_code)
+        return "{}…{}".format(texto[:8], texto[-5:])
 
     @property
     def nome_do_arquivo(self):

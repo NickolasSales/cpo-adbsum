@@ -32,4 +32,17 @@ urlpatterns = [
         views.certificate_download,
         name="certificate_download",
     ),
+    # Um caminho por canal, em vez de um parametro que o navegador preencha. O
+    # valor vai para a trilha de auditoria: com rota fixa, o conjunto de
+    # canais possiveis e o conjunto de rotas que existem.
+    path(
+        "certificados/<uuid:verification_code>/compartilhar/whatsapp/",
+        views.certificate_share_whatsapp,
+        name="certificate_share_whatsapp",
+    ),
+    path(
+        "certificados/<uuid:verification_code>/compartilhar/nativo/",
+        views.certificate_share_native,
+        name="certificate_share_native",
+    ),
 ]

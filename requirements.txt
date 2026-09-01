@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# CPO Provas - dependencias diretas
+# Dependencias diretas
 #
 # Somente o que a aplicacao importa de fato. As transitivas sao resolvidas
 # pelo pip e ficam propositalmente fora deste arquivo, para que ele continue
