@@ -1144,6 +1144,339 @@ O backend já estava correto e continua sendo a fonte da verdade: os dois textos
 são criados pelo serviço, e qualquer alternativa que venha no POST é ignorada
 quando o tipo é `TRUE_FALSE`.
 
+## 9.7 Certificados
+
+**Um certificado é um documento, não uma consulta.** Essa frase decide quase
+tudo neste app.
+
+### Snapshots: por que o texto é copiado
+
+`Certificate` guarda `student_name_snapshot`, `module_name_snapshot`,
+`exam_title_snapshot` e `institution_name_snapshot`. São cópias, feitas no
+momento da emissão.
+
+O motivo: se o módulo "Módulo 1" for renomeado para "Formação Básica" no ano que
+vem, um certificado emitido hoje **não pode mudar de texto**. Renderizar a
+partir dos dados vivos faria o documento se reescrever sozinho depois de
+assinado, que é exatamente o que um certificado não pode fazer. Existe teste
+que renomeia o módulo e confirma que o certificado antigo continua igual.
+
+`institution_name_snapshot` segue a mesma regra: certificados emitidos antes de
+uma mudança de nome institucional preservam o nome que constava neles.
+
+### Quem pode receber
+
+Somente `grading_status=GRADED` **e** `result=APPROVED`. Tentativa pendente,
+aguardando avaliador, reprovada ou anulada não gera certificado, e a validação
+está em `issue_certificate` — não no template. O botão escondido é cortesia; o
+controle é o serviço.
+
+### Emissão é POST
+
+Emitir muda estado acadêmico: conclui a matrícula e encerra o acesso ao módulo.
+Isso não pode acontecer porque um pré-visualizador de link do WhatsApp, um
+antivírus corporativo ou o próprio navegador resolveu buscar uma URL. `GET` na
+rota de emissão responde **405**.
+
+### Idempotência e concorrência
+
+Dois cliques, dois toques no celular ou duas abas não podem produzir dois
+documentos. Cada código extra seria um certificado autêntico e verificável a
+mais circulando por engano.
+
+A garantia vem em duas camadas:
+
+| Camada | O que ela impede |
+|---|---|
+| `OneToOneField` | o banco recusa a segunda linha |
+| `select_for_update()` | a segunda requisição espera, encontra o documento pronto e o devolve |
+
+Sem o lock, duas requisições simultâneas leriam "não existe" ao mesmo tempo e a
+segunda morreria com `IntegrityError` na cara do aluno. Há teste com duas
+threads reais contra PostgreSQL confirmando: 1 certificado, 1 código, 1 evento
+de auditoria.
+
+O serviço devolve `(certificado, emitido_agora)`. O segundo valor é `False`
+quando o documento já existia — quem chama escolhe a mensagem sem comparar
+datas.
+
+### Efeito na matrícula
+
+Na mesma transação da emissão:
+
+```
+Enrollment.status        = COMPLETED
+Enrollment.access_enabled = False
+```
+
+`complete_enrollment` ganhou o parâmetro `encerrar_acesso`, com padrão `False`
+para não mudar o comportamento de quem já a chamava. A emissão passa `True`.
+
+Consequências, todas com teste:
+
+- o módulo concluído sai de `Enrollment.objects.liberadas()` e deixa de dar acesso
+- **outro módulo ativo continua funcionando** — concluir um não encerra o curso
+- o `User` **não** é desativado: o aluno precisa continuar entrando para baixar
+  o certificado de novo, consultar resultados e cursar outros módulos
+- a lista de certificados não depende da matrícula — perder o acesso ao módulo
+  não pode significar perder o documento que comprova tê-lo concluído
+
+### Código de verificação
+
+`UUIDField(default=uuid.uuid4, unique=True, editable=False)`.
+
+UUID4 porque o código entra em QR Code impresso e em URL pública sem
+autenticação. Um id sequencial, ou qualquer valor derivado do aluno, deixaria a
+coleção inteira enumerável para quem tivesse um único certificado. Há teste
+verificando versão 4, variante RFC 4122 e distância astronômica entre dois
+códigos — um contador disfarçado de UUID daria distância 1.
+
+### PDF
+
+`A4 landscape`, uma página, gerado sob demanda. **Nada é guardado em disco nem
+no banco.** O documento é determinístico e os dados de origem são imutáveis;
+guardar milhares de PDFs custaria espaço sem acrescentar nada.
+
+**ReportLab, e não WeasyPrint.** WeasyPrint produz um resultado bonito a partir
+de CSS, mas exige Pango, Cairo e GDK-Pixbuf — bibliotecas de sistema, não
+wheels. Numa t3.small que não tem nada disso e num ambiente de desenvolvimento
+Windows, seriam dois caminhos de instalação diferentes e frágeis para um
+documento de uma página com dez linhas de texto.
+
+As fontes são as Type 1 padrão embutidas no próprio formato PDF (Helvetica,
+Times, Courier). **Nenhum arquivo de fonte precisa existir no servidor**, e há
+teste confirmando que o PDF não carrega `/FontFile`.
+
+**A nota não aparece no certificado.** O documento atesta conclusão; a nota
+pertence ao resultado acadêmico.
+
+Nome longo não quebra o layout: a fonte é reduzida até caber, com piso. Um
+certificado com o nome cortado não serve.
+
+### Nome do arquivo
+
+Montado por **lista branca** (`[A-Za-z0-9]`), não por filtro de proibidos.
+
+`Content-Disposition` é delimitado por CRLF: um nome de aluno contendo quebra de
+linha permitiria injetar cabeçalhos na resposta. Filtrar caracteres proibidos é
+uma corrida que se perde; aqui só passa o que está explicitamente permitido. Há
+teste com `Joao"\r\nSet-Cookie: admin=1`.
+
+### QR Code
+
+Aponta para `SITE_URL + reverse("certificates:validate", ...)`. Nunca uma string
+escrita à mão, nunca IP, nunca `localhost`, nunca `http`.
+
+Este é o único erro desta etapa **sem conserto**: um certificado impresso com QR
+apontando para `127.0.0.1` nasce inútil, e refazer significa reimprimir e
+redistribuir todos os documentos já entregues. Há teste dedicado.
+
+### Validação pública
+
+`/certificados/validar/<uuid>/` — sem autenticação, somente leitura.
+
+| Situação | Resposta |
+|---|---|
+| existe e ativo | 200, "Certificado válido" + dados |
+| existe e revogado | 200, "Certificado revogado" + os mesmos dados |
+| não existe | 404 |
+
+Revogado continua mostrando nome, módulo e data de propósito: quem está com o
+papel na mão precisa saber que **aquele** documento caiu. Uma página genérica de
+"inválido" deixaria a dúvida de ter digitado errado.
+
+**O que a página nunca mostra**, com teste item a item: e-mail, nota, respostas,
+gabarito, número da tentativa, IP, user-agent, id interno, e **o motivo da
+revogação** — que é nota administrativa e viraria acusação exposta a qualquer
+pessoa com o código.
+
+A view monta o contexto com campos escalares, um a um. Passar o objeto inteiro
+daria ao template acesso a `certificado.attempt` e, por ali, ao aluno, às
+respostas e à nota — numa página sem autenticação.
+
+### Revogação
+
+`POST` com CSRF, motivo obrigatório, somente ADMIN.
+
+**Nunca apaga.** O código antigo continua consultável e passa a responder
+"revogado" — quem recebeu o documento em papel precisa conseguir descobrir que
+ele deixou de valer, e isso é impossível se o código simplesmente desaparecer.
+
+**Revogar não reativa a matrícula.** Uma revogação pode vir de erro
+administrativo, fraude ou correção documental, e cada uma pede um encaminhamento
+acadêmico diferente.
+
+Certificado revogado **não gera PDF**, nem para o aluno (409) nem para o
+administrador. Entregar o arquivo de um documento sem validade seria entregar
+algo que parece válido: a pessoa imprime e apresenta sem nunca conferir o QR. Os
+dados históricos continuam na tela de detalhe administrativa.
+
+### Auditoria
+
+`CERTIFICATE_ISSUED` e `CERTIFICATE_REVOKED` são obrigatórios: os dois mudam o
+que a instituição afirma sobre uma pessoa.
+
+**Download não gera evento**, de propósito. Um certificado carrega QR Code e
+pode ser aberto por leitor, robô ou pré-visualizador de link; auditar cada
+acesso encheria a trilha de ruído e esconderia os eventos que importam.
+
+A metadata guarda `module_id`, `module_code`, `attempt_number` e
+`certificate_status`. Nunca o PDF, a imagem do QR, respostas, gabarito, e-mail
+ou o próprio código de verificação.
+
+### Django Admin
+
+`Certificate` é somente leitura ali: sem adicionar, sem alterar, sem excluir,
+todos os campos em `readonly`.
+
+Um certificado criado pelo Django Admin nasceria sem passar por
+`issue_certificate` — sem validar aprovação, sem concluir a matrícula, sem
+registro na auditoria. E um status alterado à mão produziria o estado que a
+página pública lê como verdade, sem que ninguém tenha decidido isso. A interface
+oficial é `/admin-panel/certificados/`.
+
+### Rotas
+
+| Rota | Quem | Método |
+|---|---|---|
+| `/certificados/validar/<uuid>/` | qualquer pessoa | GET |
+| `/aluno/certificados/` | dono | GET |
+| `/aluno/certificados/emitir/<public_id>/` | dono | POST |
+| `/aluno/certificados/<uuid>/baixar/` | dono | GET |
+| `/admin-panel/certificados/` | ADMIN | GET |
+| `/admin-panel/certificados/<id>/` | ADMIN | GET |
+| `/admin-panel/certificados/<id>/baixar/` | ADMIN | GET |
+| `/admin-panel/certificados/<id>/revogar/` | ADMIN | POST |
+
+Certificado ou tentativa de outro aluno responde **404**, não 403: 403
+confirmaria que aquele código existe.
+
+### `template_version`
+
+Nasce em `1`. Quando o desenho mudar, os certificados já emitidos continuam
+apontando para a versão com que foram gerados — em vez de reimprimir um
+documento antigo com a cara nova.
+
+---
+
+## 9.8 Domínio, HTTPS e a camada de borda
+
+**Domínio oficial:** <https://cpoadsum.nexeeo.com>
+
+### Arquitetura
+
+```
+Internet :443 (TLS)
+      ↓
+Nginx Proxy Manager        container Docker, versão fixada
+      ↓ HTTP, rede cpo-edge (172.30.0.0/24)
+Nginx nativo :8080         ACL: só 127.0.0.1 e 172.30.0.0/24
+      ↓
+Gunicorn                   unix socket
+      ↓
+PostgreSQL                 127.0.0.1:5432
+```
+
+**Docker existe só para o NPM.** Django, Gunicorn, PostgreSQL e o Nginx nativo
+continuam nativos no host. Não há Dockerfile da aplicação, e não deve haver: a
+arquitetura que já estava estável não foi reescrita para ganhar HTTPS.
+
+A versão do NPM é **fixada** no Compose, não `latest`. Com `latest`, um
+`docker compose pull` de rotina viraria uma atualização não planejada da borda
+inteira.
+
+### O laço de redirecionamento, e por que ele não acontece
+
+Este é o detalhe que quebra instalações de dois proxies.
+
+O `/etc/nginx/proxy_params` da distribuição faz:
+
+```nginx
+proxy_set_header X-Forwarded-Proto $scheme;
+```
+
+Entre o NPM e o nginx nativo o esquema real é `http`. Repassar `$scheme`
+**apagaria** o `https` que o NPM enviou. Com `SECURE_SSL_REDIRECT=True`, o
+Django responderia 301 para HTTPS em toda requisição, e o NPM entregaria de
+volta como HTTP: laço infinito.
+
+A correção não foi editar o `proxy_params` compartilhado. O site da aplicação
+**deixou de incluí-lo** e escreve os quatro cabeçalhos à mão, com um `map`:
+
+```nginx
+map $http_x_forwarded_proto $cpo_forwarded_proto {
+    default  $scheme;    # não veio, ou veio lixo: use a conexão real
+    "https"  "https";    # veio do proxy da frente: preserve
+    "http"   "http";
+}
+```
+
+Repetir `proxy_set_header` com o mesmo nome no mesmo nível **não substitui** — o
+nginx enviaria o cabeçalho duas vezes.
+
+Confiar no cabeçalho só é seguro porque a porta 8080 não aceita cliente fora do
+loopback e da rede `cpo-edge`.
+
+### Por que o backend escuta em `:8080` e não em `172.30.0.1:8080`
+
+Amarrar o `listen` ao IP do gateway parece mais seguro, mas aquele endereço só
+passa a existir depois que o Docker cria a rede. No boot, o nginx pode subir
+antes do Docker: o bind falharia e o serviço inteiro não iniciaria.
+
+A restrição fica na ACL do próprio nginx:
+
+```nginx
+allow 127.0.0.1;
+allow 172.30.0.0/24;
+deny  all;
+```
+
+O Security Group não expõe 8080, mas confiar só nele deixaria o backend aberto
+para qualquer outro processo ou container desta máquina. Origem fora da faixa
+recebe **403** — verificado.
+
+### HSTS
+
+`SECURE_HSTS_INCLUDE_SUBDOMAINS` e `SECURE_HSTS_PRELOAD` passaram a ser
+parametrizáveis com padrão **False**.
+
+`includeSubDomains` a partir de `cpoadsum.nexeeo.com` alcançaria qualquer
+subdomínio abaixo dele, e `preload` é porta de sentido único: uma vez na lista
+embutida dos navegadores, sair leva meses e depende de terceiro. O domínio
+pertence a uma zona que não é inteiramente nossa.
+
+O HSTS fica sob controle do Django, e **não** do NPM. Duas camadas emitindo o
+mesmo cabeçalho com valores diferentes é uma divergência que ninguém percebe até
+o dia em que percebe.
+
+### Painel do NPM
+
+Publicado em `127.0.0.1:81`, nunca em `0.0.0.0:81`. O acesso é por túnel SSH:
+
+```powershell
+ssh -L 8181:127.0.0.1:81 cpo-aws
+```
+
+O painel controla os certificados de toda a borda; expô-lo à Internet seria pôr
+a chave junto da fechadura.
+
+### Renovação
+
+Quem renova é o próprio NPM, por timer interno. **Não instalar Certbot no host:**
+dois clientes ACME disputando o mesmo domínio levam a rate limit da Let's
+Encrypt.
+
+### Rollback
+
+`/usr/local/sbin/cpo-rollback-borda` para o NPM, devolve o nginx nativo para a
+porta 80, testa a configuração e recarrega. A aplicação volta em HTTP direto.
+Nada do NPM é apagado.
+
+O detalhe operacional completo — comandos, backup do NPM, conferência do
+certificado — está em `/etc/cpo-provas/OPERACAO.md` no servidor.
+
+---
+
 ## 10. Decisões de arquitetura desta etapa
 
 **Um único `config/settings.py`, parametrizado por ambiente.**

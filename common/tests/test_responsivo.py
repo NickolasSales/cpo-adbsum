@@ -174,6 +174,7 @@ TELAS_ADMIN = [
     "admin_panel:exam_list",
     "admin_panel:correction_list",
     "admin_panel:grade_list",
+    "admin_panel:certificate_list",
 ]
 
 
@@ -212,7 +213,16 @@ def test_o_menu_de_celular_tem_os_mesmos_itens_do_desktop(admin_client_logado):
         reverse("admin_panel:dashboard")
     ).content.decode("utf-8")
 
-    for item in ("Alunos", "Modulos", "Matriculas", "Provas", "Correcoes", "Notas"):
+    itens = (
+        "Alunos",
+        "Modulos",
+        "Matriculas",
+        "Provas",
+        "Correcoes",
+        "Notas",
+        "Certificados",
+    )
+    for item in itens:
         # Uma vez na lateral, outra no offcanvas.
         assert corpo.count(">{}</a>".format(item)) == 2
 

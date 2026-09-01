@@ -89,6 +89,18 @@ class AuditEvent(models.TextChoices):
     MANUAL_GRADE_SAVED = "MANUAL_GRADE_SAVED", "Nota manual registrada"
     GRADING_COMPLETED = "GRADING_COMPLETED", "Correcao finalizada"
 
+    # Certificados (Etapa 6)
+    #
+    # Emissao e revogacao sao atos academicos: mudam o que a instituicao
+    # afirma sobre uma pessoa. Os dois sao obrigatorios na trilha.
+    #
+    # Download nao gera evento de proposito. Um certificado carrega QR Code e
+    # pode ser aberto por qualquer leitor, robo ou pre-visualizador de link;
+    # auditar cada acesso encheria a trilha de ruido e tornaria mais dificil
+    # encontrar os eventos que importam.
+    CERTIFICATE_ISSUED = "CERTIFICATE_ISSUED", "Certificado emitido"
+    CERTIFICATE_REVOKED = "CERTIFICATE_REVOKED", "Certificado revogado"
+
 
 class AuditLog(models.Model):
     """

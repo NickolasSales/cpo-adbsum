@@ -91,8 +91,9 @@ class AdminDashboardView(PainelAdminMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         from accounts.models import User, UserRole
+        from certificates.models import Certificate, CertificateStatus
         from courses.models import Module
-        from exams.models import Exam, ExamStatus
+        from exams.models import Exam, ExamAttempt, ExamStatus, GradingStatus
 
         contexto = super().get_context_data(**kwargs)
 
@@ -107,6 +108,16 @@ class AdminDashboardView(PainelAdminMixin, TemplateView):
         provas = Exam.objects.all()
         total_provas = provas.count()
         provas_publicadas = provas.filter(status=ExamStatus.PUBLISHED).count()
+
+        aguardando = ExamAttempt.objects.filter(
+            grading_status=GradingStatus.AWAITING_REVIEW
+        ).count()
+
+        certificados = Certificate.objects.all()
+        total_certificados = certificados.count()
+        certificados_validos = certificados.filter(
+            status=CertificateStatus.ACTIVE
+        ).count()
 
         # Cards com valor real ganham link. Os dominios ainda inexistentes
         # continuam sem numero e sem destino, para nao prometer tela que nao
@@ -130,8 +141,18 @@ class AdminDashboardView(PainelAdminMixin, TemplateView):
                 "nota": "{} publicada(s)".format(provas_publicadas),
                 "url": "admin_panel:exam_list",
             },
-            {"titulo": "Aguardando correcao", "etapa": "Etapa 5"},
-            {"titulo": "Certificados", "etapa": "Etapa 6"},
+            {
+                "titulo": "Aguardando correcao",
+                "valor": aguardando,
+                "nota": "tentativa(s) na fila",
+                "url": "admin_panel:correction_list",
+            },
+            {
+                "titulo": "Certificados",
+                "valor": total_certificados,
+                "nota": "{} valido(s)".format(certificados_validos),
+                "url": "admin_panel:certificate_list",
+            },
         ]
         return contexto
 

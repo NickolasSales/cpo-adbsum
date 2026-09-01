@@ -93,6 +93,7 @@ LOCAL_APPS = [
     "students",
     "courses",
     "exams",
+    "certificates",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + LOCAL_APPS
@@ -258,8 +259,20 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", default=True)
     SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", default=True)
     SECURE_HSTS_SECONDS = int(env("SECURE_HSTS_SECONDS", "31536000"))
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
+    # Escopo do HSTS: somente este host, por padrao.
+    #
+    # includeSubDomains a partir do host publicado alcancaria qualquer
+    # subdominio abaixo dele, e preload e uma porta de sentido unico: uma vez
+    # na lista embutida dos navegadores, sair leva meses e depende de terceiro.
+    # O dominio pertence a uma zona que nao e inteiramente nossa, entao ligar
+    # os dois por conta propria comprometeria hosts que nao administramos.
+    #
+    # Continuam parametrizaveis para o dia em que a zona for controlada de
+    # ponta a ponta e a decisao for tomada de proposito.
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool(
+        "SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False
+    )
+    SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", default=False)
     # O TLS termina no Nginx; o Django precisa deste cabecalho para saber
     # que a requisicao original chegou por HTTPS.
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

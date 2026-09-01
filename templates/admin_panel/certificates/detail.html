@@ -1,0 +1,160 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Detalhe administrativo do certificado.
+
+A revogacao vive num modal com motivo obrigatorio. Sem o motivo o formulario
+nao envia, e o servidor recusa de novo — o campo required do HTML e
+conveniencia, nao controle.
+
+O texto do modal descreve o efeito real antes do clique: o certificado nao
+desaparece, o codigo continua consultavel, e a matricula NAO volta sozinha.
+{% endcomment %}
+
+{% block title %}Certificado de {{ certificado.student_name_snapshot }} - {{ INSTITUTION_NAME }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div style="min-width: 0;">
+    <p class="small text-body-secondary mb-1">
+      <a href="{% url 'admin_panel:certificate_list' %}">Certificados</a>
+    </p>
+    <h1 class="h4 mb-1 cpo-quebra">{{ certificado.student_name_snapshot }}</h1>
+    <p class="text-body-secondary small mb-0 cpo-quebra">
+      {{ certificado.module_name_snapshot }}
+    </p>
+  </div>
+  <div>
+    {% if revogado %}
+      <span class="cpo-badge cpo-badge--erro">Revogado</span>
+    {% else %}
+      <span class="cpo-badge cpo-badge--ok">Valido</span>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-7">
+    <div class="cpo-cartao p-3 p-md-4">
+      <h2 class="h6 mb-3">O documento</h2>
+      <dl class="row mb-0 small">
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Aluno</dt>
+        <dd class="col-7 col-sm-8 cpo-quebra">{{ certificado.student_name_snapshot }}</dd>
+
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Modulo</dt>
+        <dd class="col-7 col-sm-8 cpo-quebra">{{ certificado.module_name_snapshot }}</dd>
+
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Avaliacao</dt>
+        <dd class="col-7 col-sm-8 cpo-quebra">{{ certificado.exam_title_snapshot }}</dd>
+
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Instituicao</dt>
+        <dd class="col-7 col-sm-8 cpo-quebra">{{ certificado.institution_name_snapshot }}</dd>
+
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Emitido em</dt>
+        <dd class="col-7 col-sm-8">{{ certificado.issued_at|date:"d/m/Y H:i" }}</dd>
+
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Codigo</dt>
+        <dd class="col-7 col-sm-8"><code class="cpo-quebra">{{ certificado.verification_code }}</code></dd>
+
+        <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Modelo</dt>
+        <dd class="col-7 col-sm-8">versao {{ certificado.template_version }}</dd>
+      </dl>
+
+      <p class="small text-body-secondary mt-3 mb-1">Pagina publica de validacao</p>
+      <p class="small mb-0"><code class="cpo-quebra">{{ url_publica }}</code></p>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-5">
+    <div class="cpo-cartao p-3 p-md-4 mb-3">
+      <h2 class="h6 mb-3">Origem</h2>
+      <dl class="row mb-0 small">
+        <dt class="col-5 text-body-secondary fw-normal">E-mail</dt>
+        <dd class="col-7 cpo-quebra">{{ tentativa.student.email }}</dd>
+
+        <dt class="col-5 text-body-secondary fw-normal">Tentativa</dt>
+        <dd class="col-7">
+          <a href="{% url 'admin_panel:grade_detail' tentativa.public_id %}">
+            n. {{ tentativa.attempt_number }}
+          </a>
+        </dd>
+
+        <dt class="col-5 text-body-secondary fw-normal">Situacao</dt>
+        <dd class="col-7">{{ tentativa.get_status_display }}</dd>
+      </dl>
+    </div>
+
+    {% if revogado %}
+      <div class="cpo-cartao p-3 p-md-4">
+        <h2 class="h6 mb-3">Revogacao</h2>
+        <dl class="row mb-0 small">
+          <dt class="col-5 text-body-secondary fw-normal">Data</dt>
+          <dd class="col-7">{{ certificado.revoked_at|date:"d/m/Y H:i" }}</dd>
+
+          <dt class="col-5 text-body-secondary fw-normal">Por</dt>
+          <dd class="col-7 cpo-quebra">
+            {{ certificado.revoked_by.full_name|default:"conta removida" }}
+          </dd>
+
+          <dt class="col-5 text-body-secondary fw-normal">Motivo</dt>
+          <dd class="col-7 cpo-quebra">{{ certificado.revocation_reason }}</dd>
+        </dl>
+      </div>
+    {% else %}
+      <div class="cpo-cartao p-3 p-md-4">
+        <h2 class="h6 mb-3">Acoes</h2>
+        <div class="cpo-barra-acoes">
+          <a class="btn btn-sm btn-primary"
+             href="{% url 'admin_panel:certificate_download_admin' certificado.pk %}">
+            Baixar PDF
+          </a>
+          <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
+             href="{% url 'certificates:validate' certificado.verification_code %}">
+            Abrir validacao publica
+          </a>
+          <button type="button" class="btn btn-sm btn-outline-danger"
+                  data-bs-toggle="modal" data-bs-target="#modalRevogar">
+            Revogar
+          </button>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block fora_shell %}
+{{ block.super }}
+{% if not revogado %}
+  <div class="modal fade" id="modalRevogar" tabindex="-1" aria-labelledby="tituloRevogar" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <form method="post" action="{% url 'admin_panel:certificate_revoke' certificado.pk %}"
+            class="modal-content">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h2 class="modal-title h6" id="tituloRevogar">Revogar certificado</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small mb-3">
+            O certificado nao sera apagado. O codigo continua consultavel e a
+            pagina publica passara a informar que o documento foi revogado.
+          </p>
+          <p class="small text-body-secondary mb-3">
+            A matricula do aluno <strong>nao</strong> e reativada por esta acao.
+          </p>
+          <label for="motivo" class="form-label small fw-medium">Motivo da revogacao</label>
+          <textarea id="motivo" name="motivo" rows="3" maxlength="1000" required
+                    class="form-control" placeholder="Descreva o motivo."></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn-sm btn-danger">Revogar certificado</button>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

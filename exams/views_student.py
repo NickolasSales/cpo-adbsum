@@ -373,4 +373,14 @@ class AttemptResultView(StudentRequiredMixin, TemplateView):
         contexto["mensagem_reprovacao"] = (
             prova.failure_message if contexto["reprovado"] else ""
         )
+
+        # Certificado (Etapa 6). So consultado quando ha aprovacao: nao existe
+        # certificado de reprovado, e a consulta seria desperdicio em toda
+        # tela de resultado. Import local para nao criar dependencia de
+        # importacao entre exams e certificates.
+        contexto["certificado"] = None
+        if aprovado:
+            from certificates.services import certificado_da_tentativa
+
+            contexto["certificado"] = certificado_da_tentativa(tentativa)
         return contexto

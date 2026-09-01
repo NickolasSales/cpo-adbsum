@@ -8,6 +8,7 @@ Uma etapa nova acrescenta um import aqui e nada mais.
 
 from django.urls import path
 
+from certificates import urls_admin as certificates_admin
 from common import views
 from courses import urls_admin as courses_admin
 from exams import urls_admin as exams_admin
@@ -20,4 +21,5 @@ urlpatterns = [
     *students_admin.urlpatterns,
     *courses_admin.urlpatterns,
     *exams_admin.urlpatterns,
+    *certificates_admin.urlpatterns,
 ]

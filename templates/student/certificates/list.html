@@ -1,0 +1,68 @@
+{% extends "student/base_student.html" %}
+
+{% comment %}
+Certificados do aluno.
+
+Continua acessivel depois que o modulo e concluido e o acesso a ele encerrado:
+perder o acesso ao modulo nao pode significar perder o documento que comprova
+te-lo concluido.
+
+Cartoes em vez de tabela em qualquer largura. Sao poucos registros por aluno,
+e a acao principal e uma so.
+{% endcomment %}
+
+{% block title %}Meus certificados - {{ INSTITUTION_NAME }}{% endblock %}
+
+{% block content %}
+<h1 class="h4 mb-1">Meus certificados</h1>
+<p class="text-body-secondary small mb-4">
+  Documentos emitidos a partir dos modulos que voce concluiu.
+</p>
+
+{% for certificado in certificados %}
+  <div class="cpo-cartao p-3 p-md-4 mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+      <div class="flex-grow-1" style="min-width: 0;">
+        <p class="h6 mb-1 cpo-quebra">{{ certificado.module_name_snapshot }}</p>
+        <p class="small text-body-secondary mb-0 cpo-quebra">
+          {{ certificado.exam_title_snapshot }}
+        </p>
+      </div>
+      {% if certificado.esta_valido %}
+        <span class="cpo-badge cpo-badge--ok">Valido</span>
+      {% else %}
+        <span class="cpo-badge cpo-badge--erro">Revogado</span>
+      {% endif %}
+    </div>
+
+    <p class="small text-body-secondary mb-3">
+      Emitido em {{ certificado.issued_at|date:"d/m/Y" }}
+      &middot; codigo <code class="cpo-quebra">{{ certificado.verification_code }}</code>
+    </p>
+
+    <div class="cpo-barra-acoes">
+      {% if certificado.esta_valido %}
+        <a class="btn btn-sm btn-primary"
+           href="{% url 'student:certificate_download' certificado.verification_code %}">
+          Baixar PDF
+        </a>
+        <a class="btn btn-sm btn-outline-secondary"
+           href="{% url 'certificates:validate' certificado.verification_code %}">
+          Pagina de validacao
+        </a>
+      {% else %}
+        <span class="small text-body-secondary">
+          Certificado revogado pela administracao. Procure a secretaria.
+        </span>
+      {% endif %}
+    </div>
+  </div>
+{% empty %}
+  <div class="cpo-cartao p-4 text-center text-body-secondary">
+    <p class="mb-0">
+      Voce ainda nao possui certificados. Eles aparecem aqui depois que uma
+      prova aprovada for corrigida e o certificado for emitido.
+    </p>
+  </div>
+{% endfor %}
+{% endblock %}

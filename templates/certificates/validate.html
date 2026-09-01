@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% comment %}
+Validacao publica de certificado.
+
+Quem chega aqui normalmente veio pelo QR Code, no celular, e nao tem conta no
+sistema. A tela responde uma pergunta so, e responde no topo: este documento
+vale?
+
+O veredito nao depende de cor. "Certificado valido" e "Certificado revogado"
+estao escritos, e o icone e texto — quem enxerga em tons de cinza, quem usa
+leitor de tela e quem imprime a pagina recebem a mesma resposta.
+
+Nenhum dado alem do que o proprio documento impresso ja mostra: sem e-mail,
+sem nota, sem numero da tentativa, sem id interno. Tudo aqui e publico para
+quem tiver o codigo, e essa e a razao de a view passar campos soltos em vez do
+objeto do certificado.
+{% endcomment %}
+
+{% block title %}Validacao de certificado - {{ INSTITUTION_NAME }}{% endblock %}
+
+{% block main_class %}container py-4 py-md-5 cpo-form-estreito{% endblock %}
+
+{% block content %}
+<div class="text-center mb-4">
+  <p class="text-body-secondary small text-uppercase mb-1">{{ instituicao }}</p>
+  <h1 class="h5 mb-0">Validacao de certificado</h1>
+</div>
+
+<div class="cpo-cartao p-4">
+  {% if valido %}
+    <div class="cpo-resultado cpo-resultado--aprovado text-center mb-4">
+      <p class="h5 mb-1">Certificado valido</p>
+      <p class="small mb-0">Este documento consta como emitido e em vigor.</p>
+    </div>
+  {% else %}
+    <div class="cpo-resultado cpo-resultado--reprovado text-center mb-4">
+      <p class="h5 mb-1">Certificado revogado</p>
+      <p class="small mb-0">
+        Este documento perdeu a validade
+        {% if revogado_em %}em {{ revogado_em|date:"d/m/Y" }}{% endif %}
+        e nao deve ser aceito como comprovacao.
+      </p>
+    </div>
+  {% endif %}
+
+  <dl class="row mb-0 small">
+    <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Nome</dt>
+    <dd class="col-7 col-sm-8 fw-semibold cpo-quebra">{{ nome }}</dd>
+
+    <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Modulo</dt>
+    <dd class="col-7 col-sm-8 cpo-quebra">{{ modulo }}</dd>
+
+    <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Avaliacao</dt>
+    <dd class="col-7 col-sm-8 cpo-quebra">{{ prova }}</dd>
+
+    <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Instituicao</dt>
+    <dd class="col-7 col-sm-8 cpo-quebra">{{ instituicao }}</dd>
+
+    <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Emitido em</dt>
+    <dd class="col-7 col-sm-8">{{ emitido_em|date:"d/m/Y" }}</dd>
+
+    <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Codigo</dt>
+    <dd class="col-7 col-sm-8"><code class="cpo-quebra">{{ codigo }}</code></dd>
+  </dl>
+</div>
+
+<p class="text-center text-body-secondary small mt-3 mb-0">
+  Consulta publica. Em caso de duvida, procure a secretaria da instituicao.
+</p>
+{% endblock %}

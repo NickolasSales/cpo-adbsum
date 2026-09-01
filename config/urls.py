@@ -8,6 +8,7 @@ Organizacao dos prefixos:
     /login/ ...      autenticacao
     /admin-panel/    interface administrativa propria
     /aluno/          painel do aluno
+    /certificados/   validacao publica, sem autenticacao
 """
 
 from django.contrib import admin
@@ -18,6 +19,7 @@ urlpatterns = [
     path("", include("accounts.urls")),
     path("admin-panel/", include("common.urls_admin_panel")),
     path("aluno/", include("common.urls_student")),
+    path("", include("certificates.urls_public")),
     path("", include("common.urls")),
 ]
 

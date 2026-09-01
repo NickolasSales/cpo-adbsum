@@ -36,3 +36,20 @@ gunicorn==26.2.0 ; sys_platform != "win32"
 # Testes
 pytest==8.4.2
 pytest-django==4.14.0
+
+# Certificados em PDF (Etapa 6).
+#
+# ReportLab no lugar de WeasyPrint de proposito: WeasyPrint exige Pango, Cairo
+# e GDK-Pixbuf, que sao bibliotecas de sistema e nao wheels — dois caminhos de
+# instalacao diferentes e frageis, no Windows do desenvolvimento e na EC2
+# pequena de producao, para um documento de uma pagina. ReportLab desenha
+# direto no PDF, instala por wheel nos dois sistemas, e usa as fontes Type 1
+# embutidas no proprio formato: nenhum arquivo de fonte precisa existir no
+# servidor.
+reportlab==5.0.1
+
+# QR Code do certificado. Gera a imagem que o ReportLab desenha na pagina.
+qrcode==8.2
+
+# Necessaria pelo qrcode para produzir PNG. Nao e usada em mais nada.
+pillow==12.3.0

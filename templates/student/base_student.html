@@ -35,6 +35,12 @@ navegacao precisa caber no topo.
         {% endcomment %}
         <ul class="dropdown-menu dropdown-menu-end">
           <li>
+            <a class="dropdown-item" href="{% url 'student:certificate_list' %}">
+              Meus certificados
+            </a>
+          </li>
+          <li><hr class="dropdown-divider"></li>
+          <li>
             <form method="post" action="{% url 'accounts:logout' %}">
               {% csrf_token %}
               <button type="submit" class="dropdown-item">Sair</button>

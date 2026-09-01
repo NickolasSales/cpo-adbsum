@@ -7,6 +7,7 @@ cada app de dominio exportando as suas rotas.
 
 from django.urls import path
 
+from certificates import urls_student as certificates_student
 from common import views
 from courses import urls_student as courses_student
 from exams import urls_student as exams_student
@@ -17,4 +18,5 @@ urlpatterns = [
     path("", views.StudentDashboardView.as_view(), name="dashboard"),
     *courses_student.urlpatterns,
     *exams_student.urlpatterns,
+    *certificates_student.urlpatterns,
 ]

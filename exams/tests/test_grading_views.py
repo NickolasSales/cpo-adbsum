@@ -519,13 +519,61 @@ def test_aprovado_nao_ve_mensagem_de_reprovacao(aluno_logado, corrigida):
     assert "Procure a coordenacao" not in corpo
 
 
-def test_aprovado_ve_aviso_de_certificado_sem_link(aluno_logado, corrigida):
-    """Etapa 6 gera o certificado. Aqui so o aviso, sem botao que nao existe."""
+def test_aprovado_ve_o_botao_de_emitir_certificado(aluno_logado, corrigida):
+    """
+    A Etapa 6 substituiu o aviso "disponibilizado em breve" pela emissao real.
+
+    O botao vive dentro de um <form method="post">, e nao num link: emitir
+    conclui a matricula e encerra o acesso ao modulo, e mudanca de estado
+    academico nao pode acontecer porque alguem — ou algum robo — seguiu uma
+    URL.
+    """
     corpo = aluno_logado.get(url_resultado(corrigida)).content.decode("utf-8")
 
     assert "Certificado" in corpo
-    assert "disponibilizado em breve" in corpo
-    assert ".pdf" not in corpo.lower()
+    assert "Emitir certificado" in corpo
+    assert 'method="post"' in corpo
+    assert "csrfmiddlewaretoken" in corpo
+    # O aviso antigo saiu de cena.
+    assert "disponibilizado em breve" not in corpo
+
+
+def test_o_aviso_de_certificado_explica_o_efeito_antes_do_clique(
+    aluno_logado, corrigida
+):
+    """
+    Emitir encerra o acesso ao modulo. O aluno precisa saber disso ANTES.
+
+    Descobrir depois que o modulo sumiu, sem aviso, seria o tipo de surpresa
+    que gera chamado na secretaria.
+    """
+    corpo = aluno_logado.get(url_resultado(corrigida)).content.decode("utf-8")
+
+    assert "acesso a ele" in corpo
+    assert "concluido" in corpo
+
+
+def test_reprovado_nao_ve_botao_de_certificado(aluno_logado, aguardando, admin_user):
+    """Sem aprovacao nao ha documento, e o botao nem chega a aparecer."""
+    from exams.models import AttemptQuestion, QuestionGradingStatus
+    from exams.services import finalize_grading, save_manual_grade
+
+    for linha in aguardando.questions.select_related("question").all():
+        if linha.question.type in {"SHORT_TEXT", "ESSAY"}:
+            # question_id aqui e a PK da AttemptQuestion, nao da Question.
+            save_manual_grade(
+                aguardando, question_id=linha.pk, points="0", actor=admin_user
+            )
+    AttemptQuestion.objects.filter(attempt=aguardando).update(
+        awarded_points=Decimal("0.00"),
+        grading_status=QuestionGradingStatus.MANUALLY_GRADED,
+    )
+    finalize_grading(aguardando, actor=admin_user)
+
+    corpo = aluno_logado.get(url_resultado(aguardando)).content.decode("utf-8")
+
+    assert "Reprovado" in corpo
+    assert "Emitir certificado" not in corpo
 
 
 def test_o_resultado_nunca_mostra_gabarito(aluno_logado, corrigida):

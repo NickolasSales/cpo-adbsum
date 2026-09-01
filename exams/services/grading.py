@@ -298,6 +298,12 @@ def save_manual_grade(
 
     O que o navegador pode influenciar: qual questao, quantos pontos, qual
     comentario. Nada mais. Somatorios, nota e resultado sao calculados aqui.
+
+    ATENCAO ao nome do parametro: `question_id` e a PK da AttemptQuestion — a
+    linha DAQUELA tentativa —, e nao a PK da Question. A busca abaixo filtra
+    por attempt E pk justamente para que uma linha de outra tentativa nao seja
+    encontrada. Numa base pequena os dois numeros costumam coincidir, entao o
+    engano passa em teste isolado e so aparece quando a suite inteira roda.
     """
     travada = ExamAttempt.objects.select_for_update().get(pk=attempt.pk)
 

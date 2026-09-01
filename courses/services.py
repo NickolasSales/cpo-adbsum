@@ -311,20 +311,51 @@ def unblock_enrollment_access(matricula, *, actor=None, request=None):
     return matricula
 
 
-def complete_enrollment(matricula, *, actor=None, request=None):
+def complete_enrollment(
+    matricula, *, encerrar_acesso=False, actor=None, request=None
+):
     """
     Marca a matricula como concluida.
 
-    Acao manual do administrador. A conclusao automatica apos aprovacao vira
-    quando existirem provas e notas.
+    Dois chamadores, com necessidades diferentes:
+
+        administrador marcando "concluida" na ficha
+            encerrar_acesso=False — muda so a situacao academica, e o
+            bloqueio operacional continua sendo decisao separada
+
+        emissao de certificado (Etapa 6)
+            encerrar_acesso=True — concluir o modulo e receber o documento
+            encerra tambem o acesso academico aquele modulo
+
+    O padrao preserva o comportamento anterior de proposito: quem ja chamava
+    esta funcao nao passa a cortar acesso sem ter pedido.
+
+    Idempotente, e a idempotencia olha os dois campos. Uma matricula ja
+    COMPLETED mas com acesso liberado ainda precisa ser fechada quando o
+    chamador pede o encerramento.
     """
-    if matricula.status == EnrollmentStatus.COMPLETED:
+    concluida = matricula.status == EnrollmentStatus.COMPLETED
+    acesso_ja_encerrado = not matricula.access_enabled
+
+    if concluida and (not encerrar_acesso or acesso_ja_encerrado):
         return matricula
 
-    matricula.status = EnrollmentStatus.COMPLETED
-    matricula.save(update_fields=["status", "updated_at"])
+    campos = ["updated_at"]
+    if not concluida:
+        matricula.status = EnrollmentStatus.COMPLETED
+        campos.append("status")
+    if encerrar_acesso and not acesso_ja_encerrado:
+        matricula.access_enabled = False
+        campos.append("access_enabled")
 
-    _registrar(matricula, AuditEvent.ENROLLMENT_COMPLETED, actor=actor, request=request)
+    matricula.save(update_fields=campos)
+
+    # O evento marca a conclusao academica. Fechar o acesso de uma matricula
+    # que ja estava concluida nao e uma segunda conclusao.
+    if not concluida:
+        _registrar(
+            matricula, AuditEvent.ENROLLMENT_COMPLETED, actor=actor, request=request
+        )
     return matricula
 
 
