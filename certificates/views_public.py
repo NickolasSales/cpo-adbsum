@@ -28,6 +28,7 @@ from django.http import Http404
 from django.views.generic import TemplateView
 
 from certificates.models import Certificate
+from common.datas import data_por_extenso
 
 
 class CertificateValidateView(TemplateView):
@@ -67,6 +68,18 @@ class CertificateValidateView(TemplateView):
         contexto["instituicao"] = certificado.institution_name_snapshot
         contexto["emitido_em"] = certificado.issued_at
         contexto["revogado_em"] = certificado.revoked_at
+
+        # A data de conclusao sai por extenso, igual ao documento: quem esta
+        # com o papel na mao confere lendo, e nao convertendo formato.
+        #
+        # Vazia nos certificados anteriores a este ajuste. Mostrar issued_at
+        # sob o rotulo "Concluido em" seria afirmar uma data de conclusao que
+        # aqueles documentos nunca registraram.
+        contexto["concluido_em"] = (
+            data_por_extenso(certificado.completed_at_snapshot)
+            if certificado.completed_at_snapshot
+            else ""
+        )
 
         # Campos do modelo oficial. Vazios nos certificados da versao 1, que
         # nunca os tiveram; o template omite a linha em vez de mostrar rotulo

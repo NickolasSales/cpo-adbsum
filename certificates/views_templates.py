@@ -41,7 +41,7 @@ from certificates.models import (
     TemplateStatus,
 )
 from certificates.models.template import (
-    FONTES_PERMITIDAS,
+    FAMILIAS_PERMITIDAS,
     TIPOS_DE_IMAGEM,
     TextAlign,
 )
@@ -69,6 +69,8 @@ PADRAO_DO_CAMPO = {
     "width": 70,
     "height": 10,
     "font_family": "Helvetica",
+    "bold": False,
+    "italic": False,
     "font_size": 16,
     "min_font_size": 10,
     "auto_fit": True,
@@ -258,6 +260,8 @@ class TemplateEditView(PainelAdminMixin, TemplateView):
                     "width": campo.width,
                     "height": campo.height,
                     "font_family": campo.font_family,
+                    "bold": campo.bold,
+                    "italic": campo.italic,
                     "font_size": campo.font_size,
                     "min_font_size": campo.min_font_size,
                     "auto_fit": campo.auto_fit,
@@ -286,7 +290,7 @@ class TemplateEditView(PainelAdminMixin, TemplateView):
             {
                 "modelo": modelo,
                 "linhas": linhas,
-                "fontes": FONTES_PERMITIDAS,
+                "familias": FAMILIAS_PERMITIDAS,
                 "alinhamentos": TextAlign.choices,
                 "orientacoes": PageOrientation.choices,
                 "editavel": modelo.editavel,
@@ -323,6 +327,8 @@ def template_save_fields(request, pk):
             "width": request.POST.get("{}-width".format(tipo)),
             "height": request.POST.get("{}-height".format(tipo)),
             "font_family": request.POST.get("{}-font_family".format(tipo)),
+            "bold": bool(request.POST.get("{}-bold".format(tipo))),
+            "italic": bool(request.POST.get("{}-italic".format(tipo))),
             "font_size": request.POST.get("{}-font_size".format(tipo)),
             "min_font_size": request.POST.get("{}-min_font_size".format(tipo)),
             "auto_fit": bool(request.POST.get("{}-auto_fit".format(tipo))),

@@ -24,6 +24,8 @@ from certificates.models.certificate import (  # noqa: F401
 from certificates.models.template import (  # noqa: F401
     ALINHAMENTOS,
     CORES_ACEITAS,
+    FAMILIAS_DE_FONTE,
+    FAMILIAS_PERMITIDAS,
     FONTES_PERMITIDAS,
     LIMITE_DA_FONTE,
     LIMITE_DA_ROTACAO,
@@ -37,6 +39,8 @@ from certificates.models.template import (  # noqa: F401
     TextAlign,
     caminho_do_fundo,
     caminho_do_asset,
+    decompor_fonte,
+    resolver_fonte,
 )
 
 __all__ = [
@@ -46,6 +50,8 @@ __all__ = [
     "CertificateStatus",
     "ALINHAMENTOS",
     "CORES_ACEITAS",
+    "FAMILIAS_DE_FONTE",
+    "FAMILIAS_PERMITIDAS",
     "FONTES_PERMITIDAS",
     "LIMITE_DA_FONTE",
     "LIMITE_DA_ROTACAO",
@@ -59,4 +65,6 @@ __all__ = [
     "TextAlign",
     "caminho_do_fundo",
     "caminho_do_asset",
+    "decompor_fonte",
+    "resolver_fonte",
 ]

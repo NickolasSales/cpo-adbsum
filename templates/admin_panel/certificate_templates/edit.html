@@ -127,6 +127,21 @@ Em telas estreitas as duas colunas viram uma, na ordem preview -> controles.
       </p>
 
       {% if modelo.tem_arte %}
+        {# O sistema nao tem como saber se a arte enviada ja traz textos
+           gravados, e nao tenta adivinhar: apagar texto de uma imagem em
+           runtime produziria borrao no documento oficial. O que ele pode
+           fazer e dizer o que procurar no preview. #}
+        <div class="alert alert-warning small" role="alert">
+          <p class="fw-medium mb-1">Confira se algum dado aparece duas vezes</p>
+          <p class="mb-0">
+            O sistema usa a imagem enviada <strong>inteira</strong> como fundo
+            e nao apaga nada dela. Se a arte ja tiver nome, data, modulo ou
+            carga horaria impressos, eles vao aparecer junto com os dados
+            gerados — dois textos sobrepostos. A correcao e enviar a arte sem
+            esses campos, e nao mover a caixa para outro canto.
+          </p>
+        </div>
+
         <div class="cpo-preview-pdf">
           <embed type="application/pdf" class="w-100"
                  src="{% url 'admin_panel:certificate_template_preview' modelo.pk %}?v={{ versao_do_preview }}">
@@ -338,11 +353,31 @@ Em telas estreitas as duas colunas viram uma, na ordem preview -> controles.
                     <select class="form-select form-select-sm"
                             id="{{ linha.tipo }}-font_family" name="{{ linha.tipo }}-font_family"
                             {% if not editavel %}disabled{% endif %}>
-                      {% for fonte in fontes %}
-                        <option value="{{ fonte }}"
-                          {% if linha.valores.font_family == fonte %}selected{% endif %}>{{ fonte }}</option>
+                      {% for familia in familias %}
+                        <option value="{{ familia }}"
+                          {% if linha.valores.font_family == familia %}selected{% endif %}>{{ familia }}</option>
                       {% endfor %}
                     </select>
+                    <div class="d-flex gap-3 pt-1">
+                      <div class="form-check">
+                        <input type="checkbox" class="form-check-input"
+                               id="{{ linha.tipo }}-bold" name="{{ linha.tipo }}-bold"
+                               {% if linha.valores.bold %}checked{% endif %}
+                               {% if not editavel %}disabled{% endif %}>
+                        <label for="{{ linha.tipo }}-bold" class="form-check-label small">
+                          <strong>Negrito</strong>
+                        </label>
+                      </div>
+                      <div class="form-check">
+                        <input type="checkbox" class="form-check-input"
+                               id="{{ linha.tipo }}-italic" name="{{ linha.tipo }}-italic"
+                               {% if linha.valores.italic %}checked{% endif %}
+                               {% if not editavel %}disabled{% endif %}>
+                        <label for="{{ linha.tipo }}-italic" class="form-check-label small">
+                          <em>Italico</em>
+                        </label>
+                      </div>
+                    </div>
                   </div>
                   <div class="col-6 col-sm-3">
                     <label for="{{ linha.tipo }}-font_size" class="form-label small mb-1">Tamanho</label>
@@ -390,6 +425,8 @@ Em telas estreitas as duas colunas viram uma, na ordem preview -> controles.
                      servico receba o dicionario completo, e nao para que a
                      tela ofereca algo sem efeito. #}
                   <input type="hidden" name="{{ linha.tipo }}-font_family" value="Helvetica">
+                  {# bold/italic ausentes valem False; nao ha marcador oculto
+                     a enviar. #}
                   <input type="hidden" name="{{ linha.tipo }}-font_size" value="12">
                   <input type="hidden" name="{{ linha.tipo }}-min_font_size" value="8">
                   <input type="hidden" name="{{ linha.tipo }}-text_align" value="CENTER">
@@ -438,6 +475,13 @@ Em telas estreitas as duas colunas viram uma, na ordem preview -> controles.
                 </div>
               </div>
 
+              {% if linha.tipo == "COMPLETION_DATE" %}
+                <div class="form-text small mt-2">
+                  Sai por extenso, no formato <code>02 de setembro de 2026</code>.
+                  E a data em que a prova foi corrigida, congelada na emissao —
+                  ela nao muda quando o aluno baixa o PDF de novo.
+                </div>
+              {% endif %}
               {% if linha.tipo == "YEAR" %}
                 <div class="form-text small mt-2">
                   O modelo oficial imprime o ano na vertical, na lateral

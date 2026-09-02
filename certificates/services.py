@@ -188,6 +188,19 @@ def issue_certificate(attempt, *, actor=None, request=None):
             certificate_year_snapshot=modulo.certificate_year,
             signatory_name_snapshot=settings.CERTIFICATE_SIGNATORY_NAME,
             signatory_title_snapshot=settings.CERTIFICATE_SIGNATORY_TITLE,
+            # A data de conclusao e a da CORRECAO, nao a de agora. Emitir e
+            # um ato administrativo que pode acontecer semanas depois da
+            # prova; o aluno concluiu quando a avaliacao fechou.
+            #
+            # graded_at existe: _validar_emissivel ja exigiu GRADED, e a
+            # constraint tentativa_nota_so_existe_se_corrigida garante o
+            # carimbo no banco. Os dois recuos a seguir sao defesa contra
+            # dado antigo carregado por script, e nao um caminho esperado —
+            # nenhum deles inventa data, todos apontam para um instante real
+            # da tentativa.
+            completed_at_snapshot=(
+                travada.graded_at or travada.submitted_at or timezone.now()
+            ),
             template_version=VERSAO_ATUAL_DO_MODELO,
             certificate_template=template,
             # A copia congelada. A partir daqui o modelo pode ganhar versoes

@@ -85,6 +85,11 @@ objeto do certificado.
       <dd class="col-7 col-sm-8">{{ ano }}</dd>
     {% endif %}
 
+    {% if concluido_em %}
+      <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Concluido em</dt>
+      <dd class="col-7 col-sm-8 cpo-quebra">{{ concluido_em }}</dd>
+    {% endif %}
+
     <dt class="col-5 col-sm-4 text-body-secondary fw-normal">Emitido em</dt>
     <dd class="col-7 col-sm-8">{{ emitido_em|date:"d/m/Y" }}</dd>
 

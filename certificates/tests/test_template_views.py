@@ -555,3 +555,97 @@ def test_modulo_nao_aceita_modelo_em_rascunho(
     assert resposta.status_code == 200
     modulo.refresh_from_db()
     assert modulo.certificate_template_id is None
+
+
+# ---------------------------------------------------------------------------
+# Ajuste do certificado oficial: data de conclusao, negrito e italico
+# ---------------------------------------------------------------------------
+
+
+def test_a_tela_oferece_a_data_de_conclusao(admin_client_logado, rascunho):
+    """
+    O campo precisa aparecer na lista, senao nao ha como configura-lo — e o
+    certificado oficial imprime a data de conclusao.
+    """
+    resposta = admin_client_logado.get(url("certificate_template_edit", rascunho.pk))
+    corpo = resposta.content.decode()
+
+    assert resposta.status_code == 200
+    assert "COMPLETION_DATE-x" in corpo
+    assert "Data de conclusao" in corpo
+
+
+def test_a_tela_oferece_negrito_e_italico(admin_client_logado, rascunho):
+    resposta = admin_client_logado.get(url("certificate_template_edit", rascunho.pk))
+    corpo = resposta.content.decode()
+
+    assert 'name="STUDENT_NAME-bold"' in corpo
+    assert 'name="STUDENT_NAME-italic"' in corpo
+
+
+def test_a_tela_oferece_familias_e_nao_nomes_compostos(admin_client_logado, rascunho):
+    """
+    O select passou a listar familias. Oferecer "Times-BoldItalic" junto com
+    as caixas de negrito e italico deixaria duas formas de dizer a mesma
+    coisa na mesma tela.
+    """
+    corpo = admin_client_logado.get(
+        url("certificate_template_edit", rascunho.pk)
+    ).content.decode()
+
+    assert 'value="Times"' in corpo
+    assert 'value="Times-BoldItalic"' not in corpo
+
+
+def test_a_tela_avisa_sobre_arte_com_texto_gravado(
+    admin_client_logado, rascunho, admin_user, arte_de_fundo
+):
+    """
+    O sistema nao apaga texto da imagem em runtime — isso produziria borrao
+    num documento oficial. O que ele faz e dizer o que procurar no preview.
+    """
+    servicos.set_background(rascunho, arte_de_fundo, actor=admin_user)
+
+    corpo = admin_client_logado.get(
+        url("certificate_template_edit", rascunho.pk)
+    ).content.decode()
+
+    assert "duas vezes" in corpo
+    assert "sem os campos variaveis" in corpo
+
+
+def test_salvar_com_negrito_e_italico(admin_client_logado, rascunho):
+    dados = campos_do_post(
+        FieldType.STUDENT_NAME, font_family="Times", bold="1", italic="1"
+    )
+
+    resposta = admin_client_logado.post(
+        url("certificate_template_save_fields", rascunho.pk), dados
+    )
+    campo = CertificateTemplateField.objects.get(template=rascunho)
+
+    assert resposta.status_code == 302
+    assert campo.font_family == "Times"
+    assert campo.bold is True
+    assert campo.italic is True
+    assert campo.fonte_resolvida == "Times-BoldItalic"
+
+
+def test_desmarcar_negrito_volta_para_a_regular(admin_client_logado, rascunho):
+    """
+    Marcador ausente no POST vale False. Sem isto, negrito seria um caminho
+    so de ida: uma vez marcado, nunca mais sairia.
+    """
+    admin_client_logado.post(
+        url("certificate_template_save_fields", rascunho.pk),
+        campos_do_post(FieldType.STUDENT_NAME, font_family="Times", bold="1"),
+    )
+    admin_client_logado.post(
+        url("certificate_template_save_fields", rascunho.pk),
+        campos_do_post(FieldType.STUDENT_NAME, font_family="Times"),
+    )
+
+    campo = CertificateTemplateField.objects.get(template=rascunho)
+
+    assert campo.bold is False
+    assert campo.fonte_resolvida == "Times-Roman"

@@ -24,9 +24,9 @@ desconhecido simplesmente nao existe.
 """
 
 from django.conf import settings
-from django.utils import timezone
 
 from certificates.models.template import FieldType
+from common.datas import data_curta, data_por_extenso
 
 # ---------------------------------------------------------------------------
 # Snapshot
@@ -42,6 +42,8 @@ ATRIBUTOS_DO_CAMPO = (
     "width",
     "height",
     "font_family",
+    "bold",
+    "italic",
     "font_size",
     "min_font_size",
     "auto_fit",
@@ -123,8 +125,20 @@ def _carga_horaria(certificado):
 
 
 def _data_de_emissao(certificado):
-    emitido = certificado.issued_at or timezone.now()
-    return timezone.localtime(emitido).strftime("%d/%m/%Y")
+    return data_curta(certificado.issued_at)
+
+
+def _data_de_conclusao(certificado):
+    """
+    A data em que a avaliacao foi fechada, por extenso.
+
+    Le `data_de_conclusao` do certificado — que e o snapshot gravado na
+    emissao, com issued_at como ultimo recurso para os documentos anteriores
+    a esta etapa. Nunca timezone.now(): o PDF e gerado sob demanda, e uma
+    data calculada na hora do download mudaria a cada vez que o aluno
+    abrisse o proprio certificado.
+    """
+    return data_por_extenso(certificado.data_de_conclusao)
 
 
 def _curso(certificado):
@@ -140,6 +154,7 @@ def _curso(certificado):
 # a imagem vem do proprio campo, e nao do certificado.
 RESOLVEDORES = {
     FieldType.STUDENT_NAME: lambda c: c.student_name_snapshot,
+    FieldType.COMPLETION_DATE: _data_de_conclusao,
     FieldType.COURSE_NAME: _curso,
     FieldType.MODULE_NAME: lambda c: c.modulo_impresso,
     FieldType.COURSE_DATES: lambda c: c.course_dates_snapshot,
@@ -191,6 +206,7 @@ def valores_do_certificado(certificado):
 # que precisa aparecer enquanto se posiciona.
 VALORES_DE_EXEMPLO = {
     FieldType.STUDENT_NAME: "João da Silva de Oliveira",
+    FieldType.COMPLETION_DATE: "02 de setembro de 2026",
     FieldType.COURSE_NAME: "CPO - Curso de Preparação de Obreiros",
     FieldType.MODULE_NAME: "Módulo I - Cooperadores e Diáconos",
     FieldType.COURSE_DATES: "10 e 17 de outubro de 2026",

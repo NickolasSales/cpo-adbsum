@@ -19,6 +19,7 @@ from audit.models import AuditEvent
 from audit.services import record
 from certificates.models.template import (
     CORES_ACEITAS,
+    FAMILIAS_PERMITIDAS,
     FONTES_PERMITIDAS,
     LIMITE_DA_FONTE,
     LIMITE_DA_ROTACAO,
@@ -28,6 +29,7 @@ from certificates.models.template import (
     PageOrientation,
     TemplateStatus,
     TextAlign,
+    decompor_fonte,
 )
 from certificates.uploads import proporcao_compativel, validar_imagem_enviada
 from common.exceptions import DomainError
@@ -72,9 +74,24 @@ def normalizar_campo(dados):
     conferidos contra as listas do modelo. Nada que venha do navegador vira
     nome de arquivo, propriedade CSS ou atributo de objeto.
     """
-    fonte = (dados.get("font_family") or "").strip()
-    if fonte not in FONTES_PERMITIDAS:
-        raise DomainError("Fonte nao permitida: {}.".format(fonte or "vazia"))
+    # A tela manda a FAMILIA ("Times") mais os dois marcadores. O nome
+    # composto ("Times-BoldItalic") tambem e aceito e decomposto: e o que os
+    # campos gravados ate agora guardavam, e recusa-lo transformaria uma
+    # melhoria de tela em perda de configuracao.
+    #
+    # A conferencia acontece ANTES de decompor. `decompor_fonte` cai na
+    # familia padrao para o que nao reconhece — comportamento certo para
+    # renderizar um snapshot antigo, e errado aqui: "Arial" viraria
+    # Helvetica em silencio em vez de dizer que nao existe.
+    nome_da_fonte = (dados.get("font_family") or "").strip()
+    if nome_da_fonte not in FAMILIAS_PERMITIDAS and nome_da_fonte not in FONTES_PERMITIDAS:
+        raise DomainError(
+            "Fonte nao permitida: {}.".format(nome_da_fonte or "vazia")
+        )
+
+    familia, negrito_do_nome, italico_do_nome = decompor_fonte(nome_da_fonte)
+    negrito = bool(dados.get("bold")) or negrito_do_nome
+    italico = bool(dados.get("italic")) or italico_do_nome
 
     alinhamento = (dados.get("text_align") or "").strip().upper()
     if alinhamento not in TextAlign.values:
@@ -110,7 +127,9 @@ def normalizar_campo(dados):
         "y": _numero(dados.get("y"), "A posicao Y", *LIMITE_PERCENTUAL),
         "width": largura,
         "height": altura,
-        "font_family": fonte,
+        "font_family": familia,
+        "bold": negrito,
+        "italic": italico,
         "font_size": tamanho,
         "min_font_size": minimo,
         "auto_fit": bool(dados.get("auto_fit")),
@@ -524,6 +543,8 @@ def duplicate_template(template, *, actor=None, request=None):
                 width=campo.width,
                 height=campo.height,
                 font_family=campo.font_family,
+                bold=campo.bold,
+                italic=campo.italic,
                 font_size=campo.font_size,
                 min_font_size=campo.min_font_size,
                 auto_fit=campo.auto_fit,

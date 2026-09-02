@@ -53,11 +53,9 @@ from django.db.models import F, Q
 # existir no servidor, e por isso mesmo a lista nao pode crescer sozinha: um
 # nome fora dela faria o ReportLab procurar um arquivo que nao existe.
 #
-# Peso e estilo estao no proprio nome, e nao em campos separados. O pedido
-# desta etapa sugeria font_weight e font_style a parte, mas com fontes Type 1
-# os dois seriam contraditorios por construcao: nao existe
-# "Times-Bold + italic", existe "Times-BoldItalic". Um campo so nao pode
-# discordar de si mesmo.
+# Esta tupla e o que o RENDERIZADOR aceita. Nao e o que a tela oferece: ali o
+# administrador escolhe familia + negrito + italico, e a combinacao e
+# resolvida para um destes nomes por resolver_fonte(). Ver FAMILIAS_DE_FONTE.
 FONTES_PERMITIDAS = (
     "Helvetica",
     "Helvetica-Bold",
@@ -72,6 +70,82 @@ FONTES_PERMITIDAS = (
     "Courier-Oblique",
     "Courier-BoldOblique",
 )
+
+# Familia + negrito + italico -> nome PostScript.
+#
+# O campo guarda a FAMILIA e dois booleanos, e nao o nome composto. A
+# alternativa — guardar "Times-BoldItalic" e mais duas caixas de selecao —
+# criaria dois lugares para o mesmo fato, e dois lugares divergem: bastaria
+# gravar "Times-Bold" com italico marcado para ninguem saber qual dos dois
+# manda.
+#
+# Repare que a regular do Times chama "Times-Roman" e a inclinada da
+# Helvetica chama "Oblique". Sao os nomes reais do formato, nao ha padrao
+# entre as familias, e e exatamente por isso que a composicao precisa de uma
+# tabela em vez de concatenacao de strings.
+FAMILIAS_DE_FONTE = {
+    "Helvetica": {
+        (False, False): "Helvetica",
+        (True, False): "Helvetica-Bold",
+        (False, True): "Helvetica-Oblique",
+        (True, True): "Helvetica-BoldOblique",
+    },
+    "Times": {
+        (False, False): "Times-Roman",
+        (True, False): "Times-Bold",
+        (False, True): "Times-Italic",
+        (True, True): "Times-BoldItalic",
+    },
+    "Courier": {
+        (False, False): "Courier",
+        (True, False): "Courier-Bold",
+        (False, True): "Courier-Oblique",
+        (True, True): "Courier-BoldOblique",
+    },
+}
+
+FAMILIAS_PERMITIDAS = tuple(FAMILIAS_DE_FONTE)
+FAMILIA_PADRAO = "Helvetica"
+
+# Nome PostScript -> (familia, negrito, italico). Construido a partir da
+# tabela acima para que as duas nunca discordem.
+_DECOMPOSICAO = {
+    nome: (familia, negrito, italico)
+    for familia, variantes in FAMILIAS_DE_FONTE.items()
+    for (negrito, italico), nome in variantes.items()
+}
+
+
+def decompor_fonte(valor):
+    """
+    (familia, negrito, italico) a partir de familia OU de nome composto.
+
+    Aceita os dois porque os dois existem no historico: os campos gravados
+    ate agora guardavam "Times-BoldItalic", e os snapshots ja emitidos
+    continuam guardando. Um documento antigo precisa continuar saindo com a
+    fonte com que foi assinado.
+    """
+    texto = (valor or "").strip()
+    if texto in _DECOMPOSICAO:
+        return _DECOMPOSICAO[texto]
+    if texto in FAMILIAS_DE_FONTE:
+        return texto, False, False
+    return FAMILIA_PADRAO, False, False
+
+
+def resolver_fonte(valor, negrito=False, italico=False):
+    """
+    Nome PostScript de uma familia com os atributos pedidos.
+
+    Os atributos do nome recebido e os booleanos se SOMAM: pedir negrito
+    sobre "Times-Italic" da "Times-BoldItalic". E o que torna a funcao
+    idempotente — resolver duas vezes devolve o mesmo nome — e o que permite
+    aplica-la sobre um snapshot antigo sem alterar o resultado.
+    """
+    familia, ja_negrito, ja_italico = decompor_fonte(valor)
+    variantes = FAMILIAS_DE_FONTE.get(familia) or FAMILIAS_DE_FONTE[FAMILIA_PADRAO]
+    return variantes[(bool(ja_negrito or negrito), bool(ja_italico or italico))]
+
 
 # Somente #RRGGBB. Nao e "validacao de cor": e a recusa de qualquer coisa que
 # pareca CSS. `red; background: url(...)` nao passa por aqui.
@@ -158,6 +232,9 @@ class FieldType(models.TextChoices):
     """
 
     STUDENT_NAME = "STUDENT_NAME", "Nome do aluno"
+    # A data em que a avaliacao foi fechada — nao a de hoje, nao a do
+    # download. Ver Certificate.completed_at_snapshot.
+    COMPLETION_DATE = "COMPLETION_DATE", "Data de conclusao"
     COURSE_NAME = "COURSE_NAME", "Nome do curso"
     MODULE_NAME = "MODULE_NAME", "Modulo"
     COURSE_DATES = "COURSE_DATES", "Data(s) do curso"
@@ -455,9 +532,16 @@ class CertificateTemplateField(models.Model):
         validators=[MinValueValidator(0.1), MaxValueValidator(100)],
     )
 
+    # A FAMILIA, nao o nome composto: "Times", e nao "Times-BoldItalic". O
+    # peso e a inclinacao moram em bold/italic, e resolver_fonte junta os
+    # tres num nome PostScript na hora de renderizar.
     font_family = models.CharField(
-        "fonte", max_length=32, default="Helvetica"
+        "fonte", max_length=32, default=FAMILIA_PADRAO, choices=[
+            (familia, familia) for familia in FAMILIAS_PERMITIDAS
+        ]
     )
+    bold = models.BooleanField("negrito", default=False)
+    italic = models.BooleanField("italico", default=False)
     font_size = models.PositiveSmallIntegerField(
         "tamanho",
         default=14,
@@ -579,6 +663,13 @@ class CertificateTemplateField(models.Model):
                 condition=Q(text_color__regex=r"^#[0-9A-Fa-f]{6}$"),
                 name="campo_cor_hexadecimal",
             ),
+            # A familia tambem: um valor fora da tabela faria o ReportLab
+            # procurar um arquivo de fonte que nao existe no servidor, e a
+            # falha apareceria no meio de uma emissao.
+            models.CheckConstraint(
+                condition=Q(font_family__in=FAMILIAS_PERMITIDAS),
+                name="campo_familia_de_fonte_conhecida",
+            ),
             # Imagem fixa exige arquivo; os demais tipos nao carregam
             # arquivo nenhum. Sem isto, um campo de texto poderia guardar um
             # upload que nada desenha e ninguem apaga.
@@ -598,9 +689,14 @@ class CertificateTemplateField(models.Model):
     def e_imagem(self):
         return self.field_type in TIPOS_DE_IMAGEM
 
+    @property
+    def fonte_resolvida(self):
+        """Nome PostScript que o ReportLab vai receber."""
+        return resolver_fonte(self.font_family, self.bold, self.italic)
+
     def clean(self):
         super().clean()
-        if self.font_family not in FONTES_PERMITIDAS:
+        if self.font_family not in FAMILIAS_PERMITIDAS:
             raise ValidationError({"font_family": "Fonte nao permitida."})
         if not CORES_ACEITAS.match(self.text_color or ""):
             raise ValidationError(

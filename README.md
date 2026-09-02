@@ -23,7 +23,10 @@ serviços proprietários da AWS na lógica de negócio.
 >
 > A Etapa 10 inverte o desenho do certificado: o layout deixou de ser código.
 > O administrador **envia a arte oficial** e posiciona os campos variáveis
-> sobre ela; o renderizador não inventa mais estética nenhuma.
+> sobre ela; o renderizador não inventa mais estética nenhuma. O ajuste
+> seguinte acrescentou a **data de conclusão congelada** — a da correção, não a
+> do download —, negrito e itálico como opções próprias, e o aviso de arte com
+> texto já gravado.
 >
 > O nome anterior do projeto era "CPO Provas". Ele aparece no histórico do Git
 > e em trechos deste README que contam a história de uma decisão; na interface,
@@ -2288,10 +2291,10 @@ num lugar só, em `certificates/render.py`.
 
 ### Campos disponíveis
 
-`STUDENT_NAME` · `COURSE_NAME` · `MODULE_NAME` · `COURSE_DATES` ·
-`COURSE_LOCATION` · `WORKLOAD` · `YEAR` · `ISSUED_AT` · `INSTITUTION` ·
-`SIGNATORY_NAME` · `SIGNATORY_TITLE` · `VERIFICATION_CODE` · `QR_CODE` ·
-`STATIC_IMAGE`
+`STUDENT_NAME` · `COMPLETION_DATE` · `COURSE_NAME` · `MODULE_NAME` ·
+`COURSE_DATES` · `COURSE_LOCATION` · `WORKLOAD` · `YEAR` · `ISSUED_AT` ·
+`INSTITUTION` · `SIGNATORY_NAME` · `SIGNATORY_TITLE` · `VERIFICATION_CODE` ·
+`QR_CODE` · `STATIC_IMAGE`
 
 **Não existe placeholder livre.** O administrador escolhe da lista; ele não
 digita `{{qualquer_coisa}}` para o sistema resolver por introspecção. A
@@ -2299,6 +2302,90 @@ tradução de cada tipo para um dado do certificado é um **dicionário explíci
 em `certificates/snapshot.py`. Com `getattr(certificado, nome_do_navegador)`, a
 tela de edição viraria um leitor de atributos arbitrários — e dali para
 `attempt.student.password` é um passo.
+
+### A data de conclusão
+
+`COMPLETION_DATE` sai **por extenso**:
+
+```
+02 de setembro de 2026
+```
+
+Três datas convivem no `Certificate`, e elas respondem perguntas diferentes:
+
+| | |
+|---|---|
+| `completed_at_snapshot` | quando o aluno **concluiu** |
+| `issued_at` | quando o documento foi emitido |
+| `created_at` | quando a linha entrou na tabela |
+
+A que sai impressa é a primeira, copiada de `ExamAttempt.graded_at` **no
+momento da emissão**. Não é detalhe:
+
+- usar a data de hoje faria o mesmo certificado imprimir uma data diferente a
+  cada download — o PDF é gerado sob demanda, não fica guardado;
+- usar `issued_at` faria a conclusão "acontecer" no dia em que alguém clicou em
+  emitir, que pode ser semanas depois da prova.
+
+É **cópia**, e não leitura de `attempt.graded_at` na hora de desenhar: uma
+correção administrativa posterior na tentativa não pode reescrever a data de um
+documento já assinado. Há teste que faz `timezone.now` explodir durante a
+resolução de todos os valores impressos — se algum resolvedor consultar o
+relógio para decidir o que imprimir, ele cai.
+
+Certificados emitidos antes desta correção não têm o campo; a migration os
+preencheu a partir da própria tentativa, que é o dado historicamente correto e
+já estava no banco. Onde nem isso existe, o renderizador cai em `issued_at` —
+nunca em "hoje".
+
+#### Por que não `strftime("%B")`
+
+Porque `%B` devolve o nome do mês no locale do processo, e o locale de um
+Ubuntu recém-instalado é `C`:
+
+```
+02 de September de 2026
+```
+
+num certificado oficial. Trocar o locale do processo resolveria o mês e traria
+dois problemas piores: `setlocale` não é seguro em processo com threads, e a
+formatação do sistema inteiro passaria a depender de um pacote de idioma
+instalado no servidor — algo que nenhuma migration garante.
+
+A tabela de meses em `common/datas.py` **é** o idioma. O mesmo dado produz o
+mesmo texto em qualquer máquina.
+
+### Fonte: família, negrito e itálico
+
+O editor oferece **três famílias** — Helvetica, Times, Courier — mais duas
+caixas: negrito e itálico.
+
+O campo guarda a família e os dois booleanos; o nome PostScript é **calculado**
+por `resolver_fonte`. Guardar `"Times-BoldItalic"` *e* os marcadores criaria
+dois lugares para o mesmo fato, e um dia eles discordariam — bastaria gravar
+`Times-Bold` com itálico marcado para ninguém saber qual dos dois manda.
+
+A composição precisa de uma tabela, e não de concatenação: a regular do Times
+chama `Times-Roman` e a da Helvetica chama `Helvetica`; uma família chama a
+inclinada de `Italic` e a outra de `Oblique`. Não há padrão entre elas.
+
+Configurações antigas, que guardavam o nome composto, continuam sendo aceitas e
+decompostas — e snapshots já emitidos continuam saindo com a fonte com que
+foram assinados.
+
+### A arte precisa estar limpa
+
+O sistema usa a imagem enviada **inteira** como fundo e **não apaga nada dela**.
+Se a arte já trouxer nome, data, módulo ou carga horária impressos, esses
+textos vão aparecer junto com os dados gerados — dois textos sobrepostos.
+
+Apagar texto de uma imagem em runtime não é uma opção: produziria borrão num
+documento oficial. O que o sistema faz é **avisar** — na tela de upload e ao
+lado do preview — e a correção é enviar a arte sem esses campos.
+
+A arte base ideal traz apenas o que é fixo: logo, molduras, ornamentos,
+`CERTIFICADO`, `DE CONCLUSÃO`, identidade visual. As áreas de nome, módulo,
+data, ano, carga horária e QR ficam livres.
 
 ### Por que PNG e JPG, e não PDF
 

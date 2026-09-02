@@ -123,6 +123,32 @@ class Certificate(models.Model):
         "cargo do signatario", max_length=150, blank=True
     )
 
+    # --- quando a conclusao aconteceu ------------------------------------
+    #
+    # Tres datas convivem neste modelo, e elas respondem perguntas
+    # diferentes:
+    #
+    #   completed_at_snapshot   quando o aluno CONCLUIU
+    #   issued_at               quando o documento foi emitido
+    #   created_at              quando a linha entrou na tabela
+    #
+    # A que sai impressa como "data de conclusao" e a primeira, copiada de
+    # ExamAttempt.graded_at no momento da emissao. Nao e detalhe: usar a data
+    # de hoje faria o mesmo certificado imprimir uma data diferente a cada
+    # download, e usar issued_at faria a conclusao "acontecer" no dia em que
+    # alguem clicou em emitir — que pode ser semanas depois da prova.
+    #
+    # E copia, e nao leitura de attempt.graded_at na hora de desenhar: uma
+    # correcao administrativa posterior na tentativa nao pode reescrever a
+    # data de um documento ja assinado.
+    #
+    # Aceita nulo pelos certificados anteriores a esta etapa, que nao tinham
+    # o campo. Para eles o renderizador cai em issued_at, que e a data mais
+    # proxima da verdade que existe — e nao um valor inventado.
+    completed_at_snapshot = models.DateTimeField(
+        "concluido em", null=True, blank=True
+    )
+
     # issued_at e o ato academico; created_at e a linha da tabela. Coincidem
     # hoje e vao continuar coincidindo, mas sao perguntas diferentes e uma
     # correcao de dado nao deveria mexer na data impressa no documento.
@@ -233,6 +259,17 @@ class Certificate(models.Model):
         return (
             self.module_display_name_snapshot or ""
         ).strip() or self.module_name_snapshot
+
+    @property
+    def data_de_conclusao(self):
+        """
+        A data que sai impressa como conclusao.
+
+        Cai em issued_at quando o snapshot nao existe — certificados
+        emitidos antes desta etapa. Nunca devolve a data de hoje: um
+        documento que muda de data a cada download nao e um documento.
+        """
+        return self.completed_at_snapshot or self.issued_at
 
     @property
     def codigo_resumido(self):

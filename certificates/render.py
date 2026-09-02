@@ -47,6 +47,7 @@ from certificates.models.template import (
     FONTES_PERMITIDAS,
     FieldType,
     TextAlign,
+    resolver_fonte,
 )
 
 FONTE_PADRAO = "Helvetica"
@@ -73,7 +74,25 @@ def _cor(texto):
     return tuple(int(texto[i : i + 2], 16) / 255 for i in (1, 3, 5))
 
 
-def _fonte(nome):
+def _fonte(campo):
+    """
+    Nome PostScript do campo, a partir de familia + negrito + italico.
+
+    Funciona para as duas geracoes de snapshot. Os gravados antes desta
+    correcao trazem o nome ja composto em font_family ("Times-BoldItalic") e
+    nao trazem bold/italic; `resolver_fonte` decompoe, soma flags ausentes e
+    devolve o mesmo nome. Um documento antigo continua saindo com a fonte com
+    que foi assinado.
+
+    A conferencia final contra FONTES_PERMITIDAS fica: o snapshot e JSON no
+    banco, e um UPDATE manual poderia ter posto qualquer coisa ali. O
+    renderizador nao e o lugar onde isso vira excecao no meio de uma emissao.
+    """
+    nome = resolver_fonte(
+        campo.get("font_family"),
+        bool(campo.get("bold")),
+        bool(campo.get("italic")),
+    )
     return nome if nome in FONTES_PERMITIDAS else FONTE_PADRAO
 
 
@@ -279,7 +298,7 @@ def _quarto_de_volta(rotacao):
 
 def _desenhar_texto(c, campo, texto, largura_pt, altura_pt):
     x, y_topo, largura, altura = _caixa(campo, largura_pt, altura_pt)
-    fonte = _fonte(campo.get("font_family"))
+    fonte = _fonte(campo)
     entrelinha = float(campo.get("line_height") or 1.2)
     alinhamento = campo.get("text_align") or TextAlign.CENTER
     rotacao = int(campo.get("rotation") or 0)
