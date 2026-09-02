@@ -36,6 +36,8 @@ from certificates.models import (
     Certificate,
     CertificateStatus,
 )
+from certificates.services_templates import exigir_template
+from certificates.snapshot import montar_snapshot
 from common.exceptions import DomainError
 from courses.models import Enrollment
 from courses.services import complete_enrollment
@@ -163,6 +165,12 @@ def issue_certificate(attempt, *, actor=None, request=None):
         modulo = travada.exam.module
         _validar_dados_do_modulo(modulo)
 
+        # O modelo e resolvido ANTES de criar qualquer linha. Sem modelo nao
+        # existe documento: a Etapa 10 tirou o desenho do codigo, e emitir
+        # sem configuracao produziria uma folha em branco com texto solto.
+        template = exigir_template(modulo)
+        snapshot = montar_snapshot(template)
+
         certificado = Certificate.objects.create(
             attempt=travada,
             status=CertificateStatus.ACTIVE,
@@ -181,6 +189,11 @@ def issue_certificate(attempt, *, actor=None, request=None):
             signatory_name_snapshot=settings.CERTIFICATE_SIGNATORY_NAME,
             signatory_title_snapshot=settings.CERTIFICATE_SIGNATORY_TITLE,
             template_version=VERSAO_ATUAL_DO_MODELO,
+            certificate_template=template,
+            # A copia congelada. A partir daqui o modelo pode ganhar versoes
+            # novas, trocar de arte ou ser arquivado — este documento continua
+            # sendo desenhado exatamente como foi emitido.
+            template_snapshot=snapshot,
         )
 
         _encerrar_matricula(travada, actor=actor, request=request)
@@ -197,6 +210,9 @@ def issue_certificate(attempt, *, actor=None, request=None):
                 "module_code": modulo.code,
                 "attempt_number": travada.attempt_number,
                 "certificate_status": certificado.status,
+                "template_id": template.pk,
+                "template_name": template.name,
+                "template_version": template.version,
             },
         )
 

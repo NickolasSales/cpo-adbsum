@@ -15,10 +15,14 @@ ate a administracao — alguem liga com o papel na mao e le o codigo.
 {% block content %}
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
   <div>
-    <h1 class="h4 mb-1">Certificados</h1>
+    <h1 class="h4 mb-1">Certificados emitidos</h1>
     <p class="text-body-secondary small mb-0">
       {{ page_obj.paginator.count }} certificado(s) encontrado(s).
     </p>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm"
+       href="{% url 'admin_panel:certificate_template_list' %}">Gerenciar modelos</a>
   </div>
 </div>
 

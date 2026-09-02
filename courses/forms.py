@@ -43,6 +43,7 @@ class ModuleForm(forms.ModelForm):
             "order",
             "is_active",
             *CAMPOS_DO_CERTIFICADO,
+            "certificate_template",
         ]
         widgets = {
             "name": forms.TextInput(
@@ -84,7 +85,29 @@ class ModuleForm(forms.ModelForm):
                     "placeholder": "2026",
                 }
             ),
+            "certificate_template": forms.Select(attrs={"class": CLASSE_CAMPO}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Somente modelos ATIVOS aparecem no select.
+        #
+        # Um rascunho ainda esta sendo montado e pode nem ter arte; um
+        # arquivado foi aposentado de proposito. Oferecer os dois transformaria
+        # a escolha do modelo num campo onde e possivel selecionar algo que a
+        # emissao vai recusar depois, no pior momento possivel.
+        #
+        # A consulta e feita aqui, e nao no modelo, porque limit_choices_to e
+        # avaliado uma vez na definicao da classe: um modelo ativado depois de
+        # o processo subir nao apareceria.
+        from certificates.models import CertificateTemplate, TemplateStatus
+
+        campo = self.fields["certificate_template"]
+        campo.queryset = CertificateTemplate.objects.filter(
+            status=TemplateStatus.ACTIVE
+        ).order_by("name", "-version")
+        campo.required = False
+        campo.empty_label = "Usar o modelo padrao"
 
     def clean_code(self):
         codigo = (self.cleaned_data.get("code") or "").strip().upper()

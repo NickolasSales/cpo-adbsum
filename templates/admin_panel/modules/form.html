@@ -148,6 +148,22 @@
             {% endif %}
           </div>
         </div>
+
+        <div class="row g-3 mt-1">
+          <div class="col-12">
+            <label for="{{ form.certificate_template.id_for_label }}"
+                   class="form-label small fw-medium mb-1">Modelo de certificado</label>
+            {{ form.certificate_template }}
+            <div class="form-text">
+              Define a arte do documento. Em branco, o modulo usa o modelo
+              padrao ativo. So aparecem modelos ativos.
+              <a href="{% url 'admin_panel:certificate_template_list' %}">Gerenciar modelos</a>.
+            </div>
+            {% if form.certificate_template.errors %}
+              <div class="form-text text-danger">{{ form.certificate_template.errors.0 }}</div>
+            {% endif %}
+          </div>
+        </div>
       </fieldset>
 
       <div class="d-flex flex-wrap gap-2">

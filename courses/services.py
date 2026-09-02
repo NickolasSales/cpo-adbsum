@@ -109,6 +109,7 @@ def create_module(
     order=0,
     is_active=True,
     dados_do_certificado=None,
+    certificate_template=None,
     actor=None,
     request=None,
 ):
@@ -127,6 +128,10 @@ def create_module(
         description=description or "",
         order=order,
         is_active=is_active,
+        # A instancia vem do formulario, que ja limitou o queryset aos ativos.
+        # O servico nao aceita id solto: um id vindo do POST poderia apontar
+        # para um modelo arquivado ou em rascunho.
+        certificate_template=certificate_template,
         **certificado,
     )
 
@@ -151,6 +156,7 @@ def update_module(
     order=0,
     is_active=True,
     dados_do_certificado=None,
+    certificate_template=None,
     actor=None,
     request=None,
 ):
@@ -169,6 +175,7 @@ def update_module(
         "description": description or "",
         "order": order,
         "is_active": is_active,
+        "certificate_template": certificate_template,
         **certificado,
     }
     alterados = campos_alterados(modulo, novos)

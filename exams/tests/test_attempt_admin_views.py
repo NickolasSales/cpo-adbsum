@@ -52,7 +52,7 @@ def responder_tudo(tentativa):
 
 
 @pytest.fixture
-def aprovada(tentativa, admin_user):
+def aprovada(tentativa, admin_user, modelo_de_certificado):
     responder_tudo(tentativa)
     enviada = submit_attempt(tentativa)
     for linha in enviada.questions.select_related("question").all():

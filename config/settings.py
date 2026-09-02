@@ -252,6 +252,26 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
+# ---------------------------------------------------------------------------
+# Arquivos enviados (media)
+#
+# Entra na Etapa 10, com a arte oficial dos modelos de certificado.
+#
+# MEDIA_URL existe porque o FileField do Django o exige, mas NENHUM servidor
+# web serve este diretorio. A arte de um modelo e material administrativo: ela
+# e entregue por uma view com @admin_required, que le o arquivo e responde.
+#
+# A diferenca importa. Servir media pelo Nginx criaria uma URL publica e
+# adivinhavel para cada arquivo enviado, fora de qualquer controle de acesso —
+# e a primeira coisa a aparecer ali seria a arte institucional em alta
+# resolucao, pronta para ser baixada por quem tivesse o link.
+#
+# Por isso o caminho fica FORA de STATIC_ROOT e nao entra no collectstatic.
+# ---------------------------------------------------------------------------
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = Path(env("MEDIA_ROOT", str(BASE_DIR / "media")))
+
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {

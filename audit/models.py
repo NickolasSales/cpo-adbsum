@@ -181,6 +181,40 @@ class AuditEvent(models.TextChoices):
         "Dados de homologacao removidos",
     )
 
+    # Modelos de certificado (Etapa 10)
+    #
+    # Quem mexe no modelo define a aparencia de todo documento oficial
+    # emitido dali para a frente. Ativar um modelo novo tem alcance
+    # institucional, e por isso e um evento proprio e nao um "atualizado".
+    #
+    # A metadata guarda nome, versao e o checksum da arte — o suficiente para
+    # responder "que layout estava valendo naquele dia". O arquivo em si nao
+    # entra: a trilha registra o ato, e nao guarda copia de imagem.
+    CERTIFICATE_TEMPLATE_CREATED = (
+        "CERTIFICATE_TEMPLATE_CREATED",
+        "Modelo de certificado criado",
+    )
+    CERTIFICATE_TEMPLATE_UPDATED = (
+        "CERTIFICATE_TEMPLATE_UPDATED",
+        "Modelo de certificado atualizado",
+    )
+    CERTIFICATE_TEMPLATE_BACKGROUND_SET = (
+        "CERTIFICATE_TEMPLATE_BACKGROUND_SET",
+        "Arte do modelo enviada",
+    )
+    CERTIFICATE_TEMPLATE_ACTIVATED = (
+        "CERTIFICATE_TEMPLATE_ACTIVATED",
+        "Modelo de certificado ativado",
+    )
+    CERTIFICATE_TEMPLATE_ARCHIVED = (
+        "CERTIFICATE_TEMPLATE_ARCHIVED",
+        "Modelo de certificado arquivado",
+    )
+    CERTIFICATE_TEMPLATE_DUPLICATED = (
+        "CERTIFICATE_TEMPLATE_DUPLICATED",
+        "Modelo de certificado duplicado",
+    )
+
 
 class AuditLog(models.Model):
     """

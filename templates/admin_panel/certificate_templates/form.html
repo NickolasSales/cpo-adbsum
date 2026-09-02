@@ -1,0 +1,96 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}{{ titulo }} - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none"
+     href="{% url 'admin_panel:certificate_template_list' %}">&larr; Modelos de certificado</a>
+</nav>
+
+<div class="row">
+  <div class="col-12 col-lg-8">
+    <div class="cpo-cartao p-3 p-md-4">
+      <h1 class="h5 mb-3">{{ titulo }}</h1>
+
+      {% if erros %}
+        <div class="alert alert-danger" role="alert">
+          <ul class="mb-0 ps-3">
+            {% for erro in erros %}<li>{{ erro }}</li>{% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+
+      <p class="text-body-secondary small">
+        O modelo nasce em rascunho. Depois de criado voce envia a arte oficial
+        e posiciona os campos; ativar e um passo separado.
+      </p>
+
+      <form method="post">
+        {% csrf_token %}
+
+        <div class="mb-3">
+          <label for="name" class="form-label small fw-medium">Nome</label>
+          <input type="text" id="name" name="name" maxlength="120" required
+                 class="form-control" value="{{ valores.name }}"
+                 placeholder="Certificado CPO">
+          <div class="form-text small">
+            Duplicar um modelo mantem o nome e sobe a versao.
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label for="description" class="form-label small fw-medium">Descricao</label>
+          <textarea id="description" name="description" rows="2"
+                    class="form-control">{{ valores.description }}</textarea>
+        </div>
+
+        <div class="row g-2 mb-3">
+          <div class="col-12 col-sm-4">
+            <label for="page_orientation" class="form-label small fw-medium">Orientacao</label>
+            <select id="page_orientation" name="page_orientation" class="form-select">
+              {% for valor, rotulo in orientacoes %}
+                <option value="{{ valor }}"
+                  {% if valores.page_orientation == valor %}selected{% endif %}>{{ rotulo }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6 col-sm-4">
+            <label for="page_width_mm" class="form-label small fw-medium">Largura (mm)</label>
+            <input type="number" id="page_width_mm" name="page_width_mm" step="0.01"
+                   min="50" max="2000" required class="form-control"
+                   value="{{ valores.page_width_mm }}">
+          </div>
+          <div class="col-6 col-sm-4">
+            <label for="page_height_mm" class="form-label small fw-medium">Altura (mm)</label>
+            <input type="number" id="page_height_mm" name="page_height_mm" step="0.01"
+                   min="50" max="2000" required class="form-control"
+                   value="{{ valores.page_height_mm }}">
+          </div>
+        </div>
+        <div class="form-text small mb-3">
+          A4 paisagem e 297 &times; 210 mm, que e o formato do modelo oficial.
+        </div>
+
+        <div class="form-check mb-4">
+          <input type="checkbox" id="is_global" name="is_global" class="form-check-input"
+                 {% if valores.is_global %}checked{% endif %}>
+          <label for="is_global" class="form-check-label small">
+            Usar como modelo padrao
+          </label>
+          <div class="form-text small">
+            O padrao vale para todo modulo que nao tiver um modelo proprio.
+            So pode existir um padrao ativo: ativar outro arquiva o anterior.
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+          <button type="submit" class="btn btn-primary">Criar modelo</button>
+          <a class="btn btn-outline-secondary"
+             href="{% url 'admin_panel:certificate_template_list' %}">Cancelar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -73,7 +73,7 @@ def corrigir_manuais(tentativa, admin_user, *, cheio=True):
 
 
 @pytest.fixture
-def tentativa_aprovada(tentativa, admin_user):
+def tentativa_aprovada(tentativa, admin_user, modelo_de_certificado):
     """Tentativa corrigida com nota cheia: GRADED + APPROVED."""
     responder_tudo(tentativa, certo=True)
     enviada = submit_attempt(tentativa)

@@ -121,6 +121,7 @@ class ModuleCreateView(PainelAdminMixin, FormView):
                 order=form.cleaned_data.get("order") or 0,
                 is_active=form.cleaned_data.get("is_active", True),
                 dados_do_certificado=_dados_do_certificado(form),
+                certificate_template=form.cleaned_data.get("certificate_template"),
                 actor=self.request.user,
                 request=self.request,
             )
@@ -162,6 +163,7 @@ class ModuleUpdateView(PainelAdminMixin, FormView):
                 order=form.cleaned_data.get("order") or 0,
                 is_active=form.cleaned_data.get("is_active", True),
                 dados_do_certificado=_dados_do_certificado(form),
+                certificate_template=form.cleaned_data.get("certificate_template"),
                 actor=self.request.user,
                 request=self.request,
             )

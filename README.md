@@ -9,20 +9,21 @@ Bootstrap 5. Produção em uma instância AWS EC2 com Nginx, Gunicorn e systemd,
 atrás de Nginx Proxy Manager com HTTPS do Let's Encrypt — sem dependência de
 serviços proprietários da AWS na lógica de negócio.
 
-> **Estado atual: Etapa 9 — gestão operacional.**
+> **Estado atual: Etapa 10 — editor de modelos de certificado.**
 >
 > O ciclo está fechado de ponta a ponta: autenticação e papéis (Etapa 1),
 > alunos, módulos e matrículas (Etapa 2), montagem e publicação de provas
 > (Etapa 3), realização com cronômetro e autosave (Etapa 4), correção, notas e
 > aprovação (Etapa 5), certificado com QR e validação pública sob domínio
 > próprio com HTTPS (Etapa 6), contas administrativas, anulação de tentativa e
-> trilha de auditoria consultável (Etapa 7), certificado no modelo oficial da
-> AD Brás Sumaré e compartilhamento do endereço de validação (Etapa 8).
+> trilha de auditoria consultável (Etapa 7), certificado com QR e
+> compartilhamento do endereço de validação (Etapa 8), e gestão operacional —
+> excluir e arquivar provas, revogar matrículas e limpar dados de homologação
+> (Etapa 9).
 >
-> A Etapa 9 dá ao administrador as ferramentas para **limpar a operação sem
-> destruir histórico acadêmico**: excluir prova que nunca foi usada, arquivar
-> prova que já tem histórico, revogar ou excluir matrícula, e um comando de
-> gestão para apagar os dados de teste da homologação.
+> A Etapa 10 inverte o desenho do certificado: o layout deixou de ser código.
+> O administrador **envia a arte oficial** e posiciona os campos variáveis
+> sobre ela; o renderizador não inventa mais estética nenhuma.
 >
 > O nome anterior do projeto era "CPO Provas". Ele aparece no histórico do Git
 > e em trechos deste README que contam a história de uma decisão; na interface,
@@ -2241,6 +2242,237 @@ ele tem em mãos.
 Sem `--module-code` não há módulo para avaliar e a reativação não acontece:
 adivinhar o módulo pelo título da prova seria decidir sobre acesso acadêmico
 por heurística. O dry run informa `Matricula sera reativada ...... SIM/NAO`.
+
+---
+
+## 9.20 Editor de modelos de certificado
+
+A inversão desta etapa: **o sistema deixou de inventar design**.
+
+Até a Etapa 9 o desenho do certificado era código Python — moldura, ornamentos
+e tipografia viviam em `certificates/pdf.py`, e a fidelidade ao documento
+institucional dependia de o programa reproduzir a arte à mão. Isso nunca fica
+idêntico, e cada ajuste custava um deploy.
+
+Agora:
+
+```
+arte oficial (imagem enviada pelo administrador)
+        +
+campos variáveis posicionados sobre ela
+        +
+QR Code
+        =
+PDF
+```
+
+Moldura, detalhes dourados, ornamentos e logo **estão na arte**. O renderizador
+acrescenta só o que muda de aluno para aluno.
+
+### Os dois modelos
+
+`CertificateTemplate` guarda a arte e a página; `CertificateTemplateField`
+guarda um valor variável e onde ele fica. O campo não guarda texto: guarda
+**qual dado** imprimir e **onde**.
+
+### Coordenadas em porcentagem
+
+`x`, `y`, `width` e `height` são percentuais de 0 a 100 da página, com origem
+no **canto superior esquerdo** e `y` crescendo para **baixo**. `(x, y)` é o
+canto superior esquerdo da caixa.
+
+Duas razões. Trocar a resolução do fundo (300 dpi por 600 dpi) não move nada,
+porque nada está preso a pixel. E quem posiciona está olhando uma tela, onde o
+eixo vertical cresce para baixo — o PDF usa o oposto, e a conversão acontece
+num lugar só, em `certificates/render.py`.
+
+### Campos disponíveis
+
+`STUDENT_NAME` · `COURSE_NAME` · `MODULE_NAME` · `COURSE_DATES` ·
+`COURSE_LOCATION` · `WORKLOAD` · `YEAR` · `ISSUED_AT` · `INSTITUTION` ·
+`SIGNATORY_NAME` · `SIGNATORY_TITLE` · `VERIFICATION_CODE` · `QR_CODE` ·
+`STATIC_IMAGE`
+
+**Não existe placeholder livre.** O administrador escolhe da lista; ele não
+digita `{{qualquer_coisa}}` para o sistema resolver por introspecção. A
+tradução de cada tipo para um dado do certificado é um **dicionário explícito**
+em `certificates/snapshot.py`. Com `getattr(certificado, nome_do_navegador)`, a
+tela de edição viraria um leitor de atributos arbitrários — e dali para
+`attempt.student.password` é um passo.
+
+### Por que PNG e JPG, e não PDF
+
+O pedido admitia PDF de uma página como fundo. O ReportLab não importa uma
+página de PDF sozinho: seria preciso `pdfrw` ou `pypdf` só para isso — uma
+dependência nova no servidor para um caminho que a alternativa já resolve.
+
+**A decisão desta versão é exigir PNG ou JPG**, e ela é explícita. Quem tem a
+arte em PDF exporta em 300 dpi; o resultado impresso é o mesmo, porque a arte
+entra no documento como imagem de qualquer maneira.
+
+### O que o upload recusa
+
+| | |
+|---|---|
+| extensão fora de `.png`/`.jpg`/`.jpeg` | recusa |
+| conteúdo que não é PNG/JPEG | recusa — o formato vem de **abrir** o arquivo com o Pillow, não do nome |
+| acima de 10 MB | recusa |
+| abaixo de 900×600 px | recusa: não imprime |
+| lado > 20.000 px ou > 60 MP | recusa — bomba de descompressão, barrada **antes** de decodificar |
+| proporção diferente da página | **avisa**, não recusa |
+
+O nome interno é um `uuid4`. Nada do que veio do navegador vira caminho: `../`
+não precisa ser filtrado se o nome simplesmente não for usado.
+
+A arte **não tem URL pública**. Ela não é servida pelo Nginx nem mora em
+`STATIC_ROOT`; é entregue por uma view com `@admin_required`. Servir o
+diretório de media daria a cada arquivo uma URL adivinhável fora de qualquer
+controle de acesso, e a primeira coisa a aparecer ali seria a identidade
+visual da instituição em alta resolução.
+
+### Auto-ajuste, e a regra que não se negocia
+
+O renderizador tenta, nesta ordem: o tamanho pedido; encolher um ponto e tentar
+de novo; no tamanho mínimo, aceitar quantas linhas forem precisas.
+
+**Nunca trunca.** Um nome cortado com reticências num certificado é um
+documento oficial com o nome da pessoa errado — pior que qualquer desalinho.
+
+Sem `auto_fit`, o tamanho é respeitado como pedido e só a quebra acontece.
+
+A quebra em duas linhas é **equilibrada**: a quebra gulosa encheria a primeira
+linha e deixaria uma palavra sozinha na segunda, o que num nome em destaque
+parece erro.
+
+### O campo girado troca as dimensões
+
+Num campo girado 90°, o texto corre ao longo da **altura** da caixa na página.
+Quebrar pela largura partia `2026` em `20` e `26`, lado a lado — que é
+exatamente o formato do ano na lateral do modelo oficial.
+
+Esse bug não foi encontrado por asserção nenhuma: o PDF saía válido, com uma
+página e o texto presente. Apareceu **olhando** a amostra rasterizada. Hoje há
+teste espionando `drawCentredString` para garantir que `"2026"` sai numa linha.
+
+A troca vale só no quarto de volta. Para um ângulo qualquer não existe "a
+dimensão ao longo do texto".
+
+### O preview é o PDF
+
+Não existe preview em HTML tentando parecer com o documento. O preview passa
+pelo **mesmo renderizador**, e é exibido dentro da página num `<embed>`. Um
+preview desenhado em HTML seria uma segunda implementação do layout, e as duas
+divergiriam no primeiro nome comprido.
+
+A grade arrastável sobre a arte é uma **ajuda de posicionamento**, e a tela diz
+isso. Ela usa as mesmas coordenadas percentuais do PDF — então a posição é a
+mesma; o que ela não reproduz é a tipografia.
+
+O preview usa dados fictícios com nomes deliberadamente longos: um preview com
+"João Silva" mentiria sobre o comportamento do campo. O QR aponta para
+`/certificados/validar/preview/`, que não corresponde a certificado nenhum.
+**Nenhum `Certificate` é criado, nenhuma matrícula muda, nada é registrado.**
+
+### Sem JavaScript a tela continua inteira
+
+Os campos numéricos, o upload e o botão de salvar são HTML puro. O arraste
+apenas escreve nesses mesmos campos, e o caminho inverso também vale: digitar
+move a caixa.
+
+### Snapshot: o certificado é imutável
+
+Na emissão, o certificado guarda:
+
+- `certificate_template` — **qual** modelo produziu o documento (`PROTECT`);
+- `template_snapshot` — **com que configuração**: página, caminho e checksum da
+  arte, e todos os campos com posição, fonte, cor e rotação.
+
+São perguntas diferentes. O modelo continua vivo e pode ganhar versões novas; o
+documento antigo é desenhado pelo snapshot, e nenhuma delas o alcança.
+
+Certificados emitidos até a Etapa 9 não têm snapshot e continuam sendo
+desenhados por `_desenhar_v1`/`_desenhar_v2`, pela `template_version`. **Isso
+não é fallback para falta de configuração** — a emissão recusa nesse caso. É
+que esses documentos não têm snapshot e não há de onde tirar um: inventar
+posições para eles seria afirmar uma configuração que nunca existiu.
+
+### Versionamento da arte
+
+Trocar a arte grava um **arquivo novo**; o antigo continua onde estava. O
+arquivo da v1 nunca é sobrescrito pelo conteúdo da v2 — senão um certificado
+antigo perderia o próprio fundo na próxima vez que fosse baixado.
+
+Duplicar cria a próxima versão em rascunho, apontando para a mesma arte. A
+cópia **nunca nasce padrão**: se herdasse `is_global` e fosse ativada, o
+certificado de todo mundo mudaria por um clique em "Duplicar".
+
+### Imutabilidade do modelo usado
+
+Um modelo que já emitiu certificado não muda mais, e um arquivado também não.
+Ainda que cada certificado carregue o próprio snapshot e não fosse afetado,
+deixar o layout usado ser reescrito faria a resposta a "como este documento foi
+produzido?" depender de quando a pergunta é feita.
+
+Para mudar: **duplicar → editar a cópia → ativar** — o mesmo caminho das provas
+desde a Etapa 3. Tentar editar responde **409**, com o botão de duplicar na
+própria página.
+
+Não existe exclusão física de modelo. Arquivar preserva tudo; a arte continua
+sendo lida do disco toda vez que um PDF histórico é gerado.
+
+### Ciclo de vida
+
+`DRAFT → ACTIVE → ARCHIVED`. Um booleano `is_active` não daria conta: "ainda
+sendo montado" e "aposentado depois de usado" são estados diferentes e os dois
+responderiam `False`.
+
+Ativar exige arte **e** ao menos um campo visível — o banco também impõe a
+primeira (`modelo_ativo_tem_arte`).
+
+### Qual modelo cada módulo usa
+
+```
+modelo configurado no módulo (se ativo)
+        ↓
+modelo padrão global ativo
+        ↓
+emissão bloqueada
+```
+
+O vínculo mora em `Module.certificate_template`, e **não** em
+`CertificateTemplate.module` — o pedido sugeria o segundo. Os dois sentidos
+expressariam o mesmo fato, e dois lugares para o mesmo fato divergem: bastaria
+alguém editar um deles. Além disso o sentido escolhido permite o que a
+instituição de fato tem — uma arte oficial servindo os três módulos —, enquanto
+o inverso amarraria cada arte a um módulo só.
+
+Só pode existir **um** padrão global ativo; ativar outro arquiva o anterior na
+mesma transação. Dois candidatos fariam a emissão depender da ordenação da
+consulta.
+
+Sem modelo válido, a emissão recusa:
+
+> Não foi possível emitir o certificado.
+>
+> Nenhum modelo de certificado está configurado para este módulo.
+
+**Não volta para layout embutido.** Voltar a desenhar em código quando falta
+configuração produziria, justamente no dia em que ninguém está olhando, um
+documento oficial com estética que ninguém aprovou.
+
+### A arte ideal
+
+Envie a arte **sem os campos variáveis** — sem nome, data, módulo ou carga
+horária impressos. Se a arte já trouxer esses textos, os dados do sistema serão
+desenhados **por cima** deles e o documento sai com a informação duplicada. A
+tela de upload avisa isso.
+
+### Backup
+
+`MEDIA_ROOT` passa a ser dado operacional: sem a arte, um certificado histórico
+é gerado sem fundo. O backup automático de hoje cobre **apenas o PostgreSQL** —
+incluir `media/certificate_templates/` continua pendente e está registrado como
+tal.
 
 ---
 

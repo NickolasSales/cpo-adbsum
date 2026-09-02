@@ -1,0 +1,164 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}Modelos de certificado - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:certificate_list' %}">
+    &larr; Certificados emitidos
+  </a>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">Modelos de certificado</h1>
+    <p class="text-body-secondary small mb-0">
+      {{ total_geral }} modelo(s). A arte enviada aqui define a aparencia do
+      documento; o sistema so acrescenta os dados por cima.
+    </p>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-primary btn-sm"
+       href="{% url 'admin_panel:certificate_template_create' %}">Novo modelo</a>
+  </div>
+</div>
+
+{% if not tem_padrao %}
+  <div class="alert alert-warning small" role="alert">
+    <p class="fw-medium mb-1">Nenhum modelo padrao ativo</p>
+    <p class="mb-0">
+      Enquanto nao houver um modelo ativo — marcado como padrao ou escolhido
+      no modulo — a emissao de certificados fica bloqueada, com mensagem
+      explicando o motivo.
+    </p>
+  </div>
+{% endif %}
+
+<form method="get" class="cpo-cartao p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-md">
+      <label for="q" class="form-label small fw-medium mb-1">Buscar</label>
+      <input type="search" id="q" name="q" value="{{ busca }}"
+             class="form-control form-control-sm" placeholder="Nome do modelo">
+    </div>
+    <div class="col-6 col-md-3">
+      <label for="situacao" class="form-label small fw-medium mb-1">Situacao</label>
+      <select id="situacao" name="situacao" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        {% for valor, rotulo in situacoes %}
+          <option value="{{ valor }}" {% if filtro_situacao == valor %}selected{% endif %}>{{ rotulo }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-auto d-flex gap-2">
+      <button type="submit" class="btn btn-sm btn-primary w-100">Filtrar</button>
+      {% if busca or filtro_situacao %}
+        <a class="btn btn-sm btn-outline-secondary"
+           href="{% url 'admin_panel:certificate_template_list' %}">Limpar</a>
+      {% endif %}
+    </div>
+  </div>
+</form>
+
+<div class="cpo-cartao">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 cpo-tabela cpo-lista--cartoes">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th class="d-none d-md-table-cell">Modulos</th>
+          <th>Situacao</th>
+          <th class="d-none d-lg-table-cell">Formato</th>
+          <th class="d-none d-lg-table-cell">Criado em</th>
+          <th class="d-none d-lg-table-cell">Atualizado em</th>
+          <th class="text-end cpo-acoes">Acoes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for modelo in modelos %}
+          <tr>
+            <td class="cpo-celula-titulo">
+              <a href="{% url 'admin_panel:certificate_template_edit' modelo.pk %}"
+                 class="fw-medium text-decoration-none">{{ modelo.name }}</a>
+              <div class="small text-body-secondary">
+                v{{ modelo.version }}
+                {% if modelo.is_global %} &middot; padrao{% endif %}
+                {% if not modelo.tem_arte %} &middot; sem arte{% endif %}
+              </div>
+            </td>
+            <td class="d-none d-md-table-cell small" data-rotulo="Modulos">
+              {% for m in modelo.modules.all %}
+                <code>{{ m.code }}</code>{% if not forloop.last %} {% endif %}
+              {% empty %}
+                {% if modelo.is_global %}
+                  <span class="text-body-secondary">todos sem modelo proprio</span>
+                {% else %}
+                  <span class="text-body-secondary">&mdash;</span>
+                {% endif %}
+              {% endfor %}
+            </td>
+            <td data-rotulo="Situacao">
+              {% if modelo.status == "ACTIVE" %}
+                <span class="cpo-badge cpo-badge--ok">Ativo</span>
+              {% elif modelo.status == "DRAFT" %}
+                <span class="cpo-badge cpo-badge--neutro">Rascunho</span>
+              {% else %}
+                <span class="cpo-badge cpo-badge--neutro">Arquivado</span>
+              {% endif %}
+            </td>
+            <td class="d-none d-lg-table-cell small" data-rotulo="Formato">
+              {{ modelo.get_page_orientation_display }}<br>
+              <span class="text-body-secondary">
+                {{ modelo.page_width_mm|floatformat:0 }} &times;
+                {{ modelo.page_height_mm|floatformat:0 }} mm
+              </span>
+            </td>
+            <td class="d-none d-lg-table-cell small text-body-secondary" data-rotulo="Criado em">
+              {{ modelo.created_at|date:"d/m/Y H:i" }}
+            </td>
+            <td class="d-none d-lg-table-cell small text-body-secondary" data-rotulo="Atualizado em">
+              {{ modelo.updated_at|date:"d/m/Y H:i" }}
+            </td>
+            <td class="text-end cpo-acoes">
+              <div class="d-flex gap-1 justify-content-end flex-wrap">
+                <a class="btn btn-sm btn-outline-secondary"
+                   href="{% url 'admin_panel:certificate_template_edit' modelo.pk %}">Editar</a>
+                {% if modelo.tem_arte %}
+                  <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
+                     href="{% url 'admin_panel:certificate_template_preview' modelo.pk %}">Preview</a>
+                {% endif %}
+                <form method="post"
+                      action="{% url 'admin_panel:certificate_template_duplicate' modelo.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-primary"
+                          title="Cria a proxima versao, em rascunho">Duplicar</button>
+                </form>
+                {% if modelo.status != "ARCHIVED" %}
+                  <form method="post"
+                        action="{% url 'admin_panel:certificate_template_archive' modelo.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger"
+                            title="Aposenta o modelo; nada e apagado">Arquivar</button>
+                  </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" class="text-center text-body-secondary py-5 cpo-celula-vazia">
+              {% if busca or filtro_situacao %}
+                Nenhum modelo encontrado com esses filtros.
+              {% else %}
+                Nenhum modelo cadastrado ainda. Comece enviando a arte oficial.
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "admin_panel/_paginacao.html" %}
+{% endblock %}

@@ -426,3 +426,117 @@ def tokens(db, tentativa):
             [str(alternativa.public_token) for alternativa in alternativas],
         )
     return mapa
+
+
+# ---------------------------------------------------------------------------
+# Modelos de certificado (Etapa 10)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def media_temporaria(tmp_path, settings):
+    """
+    MEDIA_ROOT proprio por teste.
+
+    Autouse porque nenhum teste deve escrever no diretorio de media do
+    repositorio. Sem isto, o primeiro teste de upload deixaria arquivos em
+    media/ — versionados por engano ou acumulando em silencio.
+
+    Nao depende de `db`: e barato e nao forca a criacao do banco em testes
+    que nao usam banco.
+    """
+    settings.MEDIA_ROOT = str(tmp_path / "media")
+
+
+def png_de_teste(largura=1200, altura=850, cor=(250, 248, 240)):
+    """
+    Bytes de um PNG valido, na proporcao aproximada de uma A4 paisagem.
+
+    1200x850 nao e capricho: a validacao de upload recusa imagem pequena
+    demais para impressao, e um PNG de 1x1 nao passaria. O teste precisa
+    exercitar o caminho que o administrador percorre, e nao um atalho.
+    """
+    import io as _io
+
+    from PIL import Image
+
+    imagem = Image.new("RGB", (largura, altura), cor)
+    buffer = _io.BytesIO()
+    imagem.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+@pytest.fixture
+def arte_de_fundo():
+    """Upload de arte pronto para o formulario."""
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    return SimpleUploadedFile(
+        "arte-oficial.png", png_de_teste(), content_type="image/png"
+    )
+
+
+@pytest.fixture
+def modelo_de_certificado(db, admin_user, arte_de_fundo):
+    """
+    Modelo padrao ativo, com arte e campos, pronto para emitir.
+
+    A partir da Etapa 10 a emissao exige um modelo: sem ele o sistema recusa,
+    de proposito. Este fixture e o equivalente a "a instituicao ja configurou
+    o certificado" — a precondicao de qualquer teste que emita documento.
+    """
+    from certificates.models import FieldType
+    from certificates.services_templates import (
+        activate_template,
+        create_template,
+        save_fields,
+        set_background,
+    )
+
+    template = create_template(
+        name="Modelo de teste", is_global=True, actor=admin_user
+    )
+    set_background(template, arte_de_fundo, actor=admin_user)
+
+    def caixa(y, **extras):
+        base = {
+            "x": 10,
+            "y": y,
+            "width": 80,
+            "height": 8,
+            "font_family": "Helvetica",
+            "font_size": 14,
+            "min_font_size": 8,
+            "auto_fit": True,
+            "line_height": 1.2,
+            "text_align": "CENTER",
+            "text_color": "#000000",
+            "rotation": 0,
+            "is_visible": True,
+            "z_index": 10,
+        }
+        base.update(extras)
+        return base
+
+    save_fields(
+        template,
+        {
+            FieldType.STUDENT_NAME: caixa(30, font_size=24),
+            FieldType.COURSE_NAME: caixa(45),
+            FieldType.MODULE_NAME: caixa(52),
+            FieldType.COURSE_DATES: caixa(60),
+            FieldType.COURSE_LOCATION: caixa(66),
+            FieldType.WORKLOAD: caixa(72),
+            FieldType.YEAR: caixa(20, x=88, width=8, height=25, rotation=90),
+            FieldType.ISSUED_AT: caixa(78),
+            FieldType.INSTITUTION: caixa(12),
+            FieldType.SIGNATORY_NAME: caixa(84),
+            FieldType.SIGNATORY_TITLE: caixa(88, font_size=9),
+            FieldType.VERIFICATION_CODE: caixa(94, font_size=7, min_font_size=6),
+            FieldType.QR_CODE: caixa(78, x=78, width=14, height=20),
+        },
+        actor=admin_user,
+    )
+
+    template, _ = activate_template(template, actor=admin_user)
+    return template

@@ -82,7 +82,7 @@ def corrigir(tentativa, admin_user, *, cheio=True):
 
 
 @pytest.fixture
-def aprovada(tentativa, admin_user):
+def aprovada(tentativa, admin_user, modelo_de_certificado):
     responder_tudo(tentativa, certo=True)
     fechada = corrigir(submit_attempt(tentativa), admin_user, cheio=True)
     assert fechada.result == AttemptResult.APPROVED

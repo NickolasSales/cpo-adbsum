@@ -143,6 +143,32 @@ class Certificate(models.Model):
         "versao do modelo", default=VERSAO_ATUAL_DO_MODELO
     )
 
+    # --- o modelo usado, e a copia congelada dele (Etapa 10) --------------
+    #
+    # A FK responde "qual modelo produziu este documento" e e o que impede o
+    # modelo de ser apagado enquanto houver certificado emitido por ele.
+    #
+    # O snapshot responde "com QUE configuracao". Sao perguntas diferentes: o
+    # modelo continua vivo e pode ganhar versoes novas, e nenhuma delas pode
+    # reescrever um documento ja assinado. O renderizador le o snapshot, e
+    # nao o modelo.
+    #
+    # Os dois aceitam vazio porque os certificados emitidos ate a Etapa 9 nao
+    # tem nem um nem outro: eles foram desenhados por codigo, e continuam
+    # sendo, pela template_version. Inventar um snapshot para eles seria
+    # afirmar uma configuracao que nunca existiu.
+    certificate_template = models.ForeignKey(
+        "certificates.CertificateTemplate",
+        verbose_name="modelo utilizado",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="certificates",
+    )
+    template_snapshot = models.JSONField(
+        "configuracao congelada", default=dict, blank=True
+    )
+
     created_at = models.DateTimeField("criado em", auto_now_add=True)
     updated_at = models.DateTimeField("atualizado em", auto_now=True)
 

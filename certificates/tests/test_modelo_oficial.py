@@ -167,12 +167,25 @@ def test_continua_sem_arquivo_de_fonte_no_servidor(certificado):
     Uma fonte embutida apareceria como FontFile no PDF. Sem isso, o mesmo
     arquivo e gerado igual no Windows do desenvolvimento e na EC2, sem
     instalar nada no servidor.
+
+    A assercao mudou na Etapa 10, e vale registrar por que. Antes o teste
+    exigia /Times no PDF, porque o layout era codigo e o codigo usava Times
+    no nome do aluno. Agora a fonte de cada campo vem do MODELO configurado
+    pelo administrador, e exigir uma fonte especifica testaria a escolha do
+    fixture, e nao o sistema.
+
+    O invariante que importa continua igual e continua verificado: nenhum
+    arquivo de fonte e embutido, e a fonte que aparece pertence a lista das
+    Type 1 padrao.
     """
+    from certificates.models import FONTES_PERMITIDAS
+
     dados = render_certificate_pdf(certificado)
 
     assert b"/FontFile" not in dados
-    assert b"/Helvetica" in dados
-    assert b"/Times" in dados
+    assert any(
+        "/{}".format(fonte).encode("ascii") in dados for fonte in FONTES_PERMITIDAS
+    )
 
 
 def test_o_qr_entra_no_arquivo(certificado):
@@ -417,7 +430,7 @@ def test_a_recusa_nao_deixa_matricula_concluida(
 
 
 def test_o_nome_exibido_em_branco_cai_no_nome_do_modulo(
-    modulo_sem_dados_de_certificado, student_user, admin_user
+    modulo_sem_dados_de_certificado, student_user, admin_user, modelo_de_certificado
 ):
     """
     Dos cinco campos, so o nome exibido tem substituto natural.

@@ -1,0 +1,549 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}{{ modelo.name }} - Modelos - {{ APP_NAME }}{% endblock %}
+
+{% comment %}
+Editor do modelo: preview a esquerda, controles a direita.
+
+Tres coisas que a estrutura desta pagina resolve:
+
+1. O preview e o PDF de verdade, no <embed>. Nao existe um segundo desenho
+   em HTML que "pareceria" o documento — ele divergiria no primeiro nome
+   comprido, e o administrador estaria posicionando contra uma mentira.
+
+2. A grade de arraste e uma AJUDA de posicionamento, e nao o preview. Ela
+   usa exatamente as mesmas coordenadas percentuais que o PDF, entao a
+   posicao e a mesma; o que ela nao reproduz e a tipografia. Fica dito na
+   propria tela.
+
+3. Sem JavaScript a pagina continua inteira: os campos numericos, o upload e
+   o botao de salvar sao HTML puro. O arraste apenas escreve nesses mesmos
+   campos.
+
+Em telas estreitas as duas colunas viram uma, na ordem preview -> controles.
+{% endcomment %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none"
+     href="{% url 'admin_panel:certificate_template_list' %}">&larr; Modelos de certificado</a>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+      <h1 class="h4 mb-0">{{ modelo.name }}</h1>
+      <span class="cpo-badge cpo-badge--neutro">v{{ modelo.version }}</span>
+      {% if modelo.status == "ACTIVE" %}
+        <span class="cpo-badge cpo-badge--ok">Ativo</span>
+      {% elif modelo.status == "DRAFT" %}
+        <span class="cpo-badge cpo-badge--neutro">Rascunho</span>
+      {% else %}
+        <span class="cpo-badge cpo-badge--neutro">Arquivado</span>
+      {% endif %}
+      {% if modelo.is_global %}
+        <span class="cpo-badge cpo-badge--info">Padrao</span>
+      {% endif %}
+    </div>
+    <p class="text-body-secondary small mb-0">
+      {{ modelo.get_page_orientation_display }} &middot;
+      {{ modelo.page_width_mm|floatformat:0 }} &times;
+      {{ modelo.page_height_mm|floatformat:0 }} mm
+    </p>
+  </div>
+
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
+       href="{% url 'admin_panel:certificate_template_preview' modelo.pk %}?baixar=1">
+      Baixar PDF de teste
+    </a>
+    <form method="post"
+          action="{% url 'admin_panel:certificate_template_duplicate' modelo.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm btn-outline-primary">Duplicar</button>
+    </form>
+    {% if modelo.status != "ACTIVE" and modelo.status != "ARCHIVED" %}
+      <form method="post"
+            action="{% url 'admin_panel:certificate_template_activate' modelo.pk %}">
+        {% csrf_token %}
+        {# O botao continua clicavel mesmo com pendencia: o servico recusa
+           com 409 e a lista de pendencias ja aparece no alerta acima. Um
+           botao desabilitado nao explica o que falta. #}
+        <button type="submit" class="btn btn-sm btn-success">Ativar</button>
+      </form>
+    {% endif %}
+    {% if modelo.status != "ARCHIVED" %}
+      <form method="post"
+            action="{% url 'admin_panel:certificate_template_archive' modelo.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-outline-danger">Arquivar</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if not editavel %}
+  <div class="alert alert-secondary small" role="alert">
+    <p class="fw-medium mb-1">Este modelo nao aceita mais alteracoes</p>
+    <p class="mb-0">
+      {% if em_uso %}
+        Ele ja foi usado para emitir certificado. Para mudar o layout,
+        <strong>duplique</strong>, edite a copia e ative a nova versao — o
+        mesmo caminho das provas. Os documentos ja emitidos continuam sendo
+        desenhados com a configuracao que tinham na emissao.
+      {% else %}
+        Modelos arquivados sao apenas consultaveis. Duplique para voltar a
+        trabalhar a partir dele.
+      {% endif %}
+    </p>
+  </div>
+{% endif %}
+
+{% if pendencias %}
+  <div class="alert alert-warning small" role="alert">
+    <p class="fw-medium mb-2">Antes de ativar:</p>
+    <ul class="mb-0 ps-3">
+      {% for pendencia in pendencias %}<li>{{ pendencia }}</li>{% endfor %}
+    </ul>
+  </div>
+{% endif %}
+
+<div class="row g-3">
+  {# ---------------------------------------------------------------- #}
+  {# Preview                                                           #}
+  {# ---------------------------------------------------------------- #}
+  <div class="col-12 col-xl-7">
+    <div class="cpo-cartao p-3 mb-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <h2 class="h6 mb-0">Preview</h2>
+        <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
+           href="{% url 'admin_panel:certificate_template_preview' modelo.pk %}">
+          Abrir em nova aba
+        </a>
+      </div>
+      <p class="text-body-secondary small">
+        PDF gerado pelo mesmo renderizador do documento final, com dados de
+        exemplo. Nenhum certificado e criado.
+      </p>
+
+      {% if modelo.tem_arte %}
+        <div class="cpo-preview-pdf">
+          <embed type="application/pdf" class="w-100"
+                 src="{% url 'admin_panel:certificate_template_preview' modelo.pk %}?v={{ versao_do_preview }}">
+        </div>
+      {% else %}
+        <div class="alert alert-warning small mb-0" role="alert">
+          Envie a arte de fundo para ver o preview.
+        </div>
+      {% endif %}
+    </div>
+
+    {% if modelo.tem_arte %}
+      <div class="cpo-cartao p-3">
+        <h2 class="h6 mb-1">Posicionamento</h2>
+        <p class="text-body-secondary small">
+          Arraste as caixas para mover os campos. As coordenadas sao as mesmas
+          do PDF — o que esta grade <strong>nao</strong> reproduz e a
+          tipografia; para conferir tamanho e quebra de linha, use o preview
+          acima.
+        </p>
+        <div class="cpo-palco" id="palco"
+             data-largura="{{ modelo.page_width_mm|floatformat:2 }}"
+             data-altura="{{ modelo.page_height_mm|floatformat:2 }}">
+          <img src="{% url 'admin_panel:certificate_template_art' modelo.pk %}"
+               alt="Arte de fundo do modelo {{ modelo.name }}" class="cpo-palco__arte">
+          {% for linha in linhas %}
+            {% if linha.configurado and linha.valores.is_visible %}
+              <div class="cpo-palco__campo" data-tipo="{{ linha.tipo }}"
+                   style="left:{{ linha.valores.x|floatformat:2 }}%;
+                          top:{{ linha.valores.y|floatformat:2 }}%;
+                          width:{{ linha.valores.width|floatformat:2 }}%;
+                          height:{{ linha.valores.height|floatformat:2 }}%;">
+                <span>{{ linha.rotulo }}</span>
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  {# ---------------------------------------------------------------- #}
+  {# Controles                                                         #}
+  {# ---------------------------------------------------------------- #}
+  <div class="col-12 col-xl-5">
+
+    {# --- arte --- #}
+    <div class="cpo-cartao p-3 mb-3">
+      <h2 class="h6 mb-1">Arte de fundo</h2>
+      {% if modelo.tem_arte %}
+        <p class="text-body-secondary small mb-2">
+          {{ modelo.background_width }} &times; {{ modelo.background_height }} px
+          &middot; <code class="cpo-quebra">{{ modelo.background_checksum|slice:":16" }}…</code>
+        </p>
+      {% endif %}
+
+      <div class="alert alert-info small" role="alert">
+        Envie a arte <strong>sem os campos variaveis</strong> — sem nome,
+        data, modulo ou carga horaria impressos. Se a arte ja trouxer esses
+        textos, os dados do sistema serao desenhados por cima deles e o
+        documento sai com a informacao duplicada. Moldura, ornamentos, logo e
+        titulo devem estar na arte; e isso que garante a fidelidade.
+      </div>
+
+      {% if editavel %}
+        <form method="post" enctype="multipart/form-data"
+              action="{% url 'admin_panel:certificate_template_background' modelo.pk %}">
+          {% csrf_token %}
+          <div class="mb-2">
+            <label for="background" class="form-label small fw-medium">
+              Arquivo PNG ou JPG
+            </label>
+            <input type="file" id="background" name="background" required
+                   accept="image/png,image/jpeg" class="form-control form-control-sm">
+            <div class="form-text small">
+              Ate 10 MB. Se a arte estiver em PDF, exporte em 300 dpi.
+            </div>
+          </div>
+          <button type="submit" class="btn btn-sm btn-primary">
+            {% if modelo.tem_arte %}Substituir arte{% else %}Enviar arte{% endif %}
+          </button>
+        </form>
+      {% endif %}
+    </div>
+
+    {# --- dados gerais --- #}
+    {% if editavel %}
+      <div class="cpo-cartao p-3 mb-3">
+        <h2 class="h6 mb-2">Dados do modelo</h2>
+        <form method="post"
+              action="{% url 'admin_panel:certificate_template_update' modelo.pk %}">
+          {% csrf_token %}
+          <div class="mb-2">
+            <label for="name" class="form-label small fw-medium">Nome</label>
+            <input type="text" id="name" name="name" maxlength="120" required
+                   class="form-control form-control-sm" value="{{ modelo.name }}">
+          </div>
+          <div class="mb-2">
+            <label for="description" class="form-label small fw-medium">Descricao</label>
+            <textarea id="description" name="description" rows="2"
+                      class="form-control form-control-sm">{{ modelo.description }}</textarea>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-12 col-sm-4">
+              <label for="page_orientation" class="form-label small fw-medium">Orientacao</label>
+              <select id="page_orientation" name="page_orientation"
+                      class="form-select form-select-sm">
+                {% for valor, rotulo in orientacoes %}
+                  <option value="{{ valor }}"
+                    {% if modelo.page_orientation == valor %}selected{% endif %}>{{ rotulo }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6 col-sm-4">
+              <label for="page_width_mm" class="form-label small fw-medium">Largura (mm)</label>
+              <input type="number" id="page_width_mm" name="page_width_mm" step="0.01"
+                     min="50" max="2000" required class="form-control form-control-sm"
+                     value="{{ modelo.page_width_mm|floatformat:2 }}">
+            </div>
+            <div class="col-6 col-sm-4">
+              <label for="page_height_mm" class="form-label small fw-medium">Altura (mm)</label>
+              <input type="number" id="page_height_mm" name="page_height_mm" step="0.01"
+                     min="50" max="2000" required class="form-control form-control-sm"
+                     value="{{ modelo.page_height_mm|floatformat:2 }}">
+            </div>
+          </div>
+          <div class="form-check mb-3">
+            <input type="checkbox" id="is_global" name="is_global" class="form-check-input"
+                   {% if modelo.is_global %}checked{% endif %}>
+            <label for="is_global" class="form-check-label small">Modelo padrao</label>
+          </div>
+          <button type="submit" class="btn btn-sm btn-outline-primary">Salvar dados</button>
+        </form>
+      </div>
+    {% endif %}
+
+    {# --- campos --- #}
+    <div class="cpo-cartao p-3">
+      <h2 class="h6 mb-1">Campos do certificado</h2>
+      <p class="text-body-secondary small">
+        Marque o que deve sair impresso e ajuste posicao e estilo. As
+        coordenadas sao percentuais da pagina, com origem no canto superior
+        esquerdo.
+      </p>
+
+      <form method="post" id="formCampos"
+            action="{% url 'admin_panel:certificate_template_save_fields' modelo.pk %}">
+        {% csrf_token %}
+
+        {% for linha in linhas %}
+          <details class="cpo-campo" {% if linha.configurado %}open{% endif %}>
+            <summary class="d-flex align-items-center gap-2">
+              <span class="fw-medium">{{ linha.rotulo }}</span>
+              {% if linha.configurado %}
+                <span class="cpo-badge cpo-badge--ok">configurado</span>
+              {% endif %}
+            </summary>
+
+            <div class="pt-2">
+              <div class="form-check mb-2">
+                <input type="checkbox" class="form-check-input"
+                       id="{{ linha.tipo }}-ativo" name="{{ linha.tipo }}-ativo"
+                       {% if linha.configurado %}checked{% endif %}
+                       {% if not editavel %}disabled{% endif %}>
+                <label for="{{ linha.tipo }}-ativo" class="form-check-label small">
+                  Incluir este campo no certificado
+                </label>
+              </div>
+
+              <div class="row g-2">
+                <div class="col-6 col-sm-3">
+                  <label for="{{ linha.tipo }}-x" class="form-label small mb-1">X (%)</label>
+                  <input type="number" step="0.01" min="0" max="100"
+                         class="form-control form-control-sm cpo-coord"
+                         id="{{ linha.tipo }}-x" name="{{ linha.tipo }}-x"
+                         data-tipo="{{ linha.tipo }}" data-eixo="x"
+                         value="{{ linha.valores.x|floatformat:2 }}"
+                         {% if not editavel %}disabled{% endif %}>
+                </div>
+                <div class="col-6 col-sm-3">
+                  <label for="{{ linha.tipo }}-y" class="form-label small mb-1">Y (%)</label>
+                  <input type="number" step="0.01" min="0" max="100"
+                         class="form-control form-control-sm cpo-coord"
+                         id="{{ linha.tipo }}-y" name="{{ linha.tipo }}-y"
+                         data-tipo="{{ linha.tipo }}" data-eixo="y"
+                         value="{{ linha.valores.y|floatformat:2 }}"
+                         {% if not editavel %}disabled{% endif %}>
+                </div>
+                <div class="col-6 col-sm-3">
+                  <label for="{{ linha.tipo }}-width" class="form-label small mb-1">Larg. (%)</label>
+                  <input type="number" step="0.01" min="0.1" max="100"
+                         class="form-control form-control-sm"
+                         id="{{ linha.tipo }}-width" name="{{ linha.tipo }}-width"
+                         value="{{ linha.valores.width|floatformat:2 }}"
+                         {% if not editavel %}disabled{% endif %}>
+                </div>
+                <div class="col-6 col-sm-3">
+                  <label for="{{ linha.tipo }}-height" class="form-label small mb-1">Alt. (%)</label>
+                  <input type="number" step="0.01" min="0.1" max="100"
+                         class="form-control form-control-sm"
+                         id="{{ linha.tipo }}-height" name="{{ linha.tipo }}-height"
+                         value="{{ linha.valores.height|floatformat:2 }}"
+                         {% if not editavel %}disabled{% endif %}>
+                </div>
+
+                {% if not linha.e_imagem %}
+                  <div class="col-12 col-sm-6">
+                    <label for="{{ linha.tipo }}-font_family" class="form-label small mb-1">Fonte</label>
+                    <select class="form-select form-select-sm"
+                            id="{{ linha.tipo }}-font_family" name="{{ linha.tipo }}-font_family"
+                            {% if not editavel %}disabled{% endif %}>
+                      {% for fonte in fontes %}
+                        <option value="{{ fonte }}"
+                          {% if linha.valores.font_family == fonte %}selected{% endif %}>{{ fonte }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="col-6 col-sm-3">
+                    <label for="{{ linha.tipo }}-font_size" class="form-label small mb-1">Tamanho</label>
+                    <input type="number" min="6" max="120" class="form-control form-control-sm"
+                           id="{{ linha.tipo }}-font_size" name="{{ linha.tipo }}-font_size"
+                           value="{{ linha.valores.font_size }}"
+                           {% if not editavel %}disabled{% endif %}>
+                  </div>
+                  <div class="col-6 col-sm-3">
+                    <label for="{{ linha.tipo }}-min_font_size" class="form-label small mb-1">Minimo</label>
+                    <input type="number" min="6" max="120" class="form-control form-control-sm"
+                           id="{{ linha.tipo }}-min_font_size" name="{{ linha.tipo }}-min_font_size"
+                           value="{{ linha.valores.min_font_size }}"
+                           {% if not editavel %}disabled{% endif %}>
+                  </div>
+                  <div class="col-6 col-sm-4">
+                    <label for="{{ linha.tipo }}-text_align" class="form-label small mb-1">Alinhamento</label>
+                    <select class="form-select form-select-sm"
+                            id="{{ linha.tipo }}-text_align" name="{{ linha.tipo }}-text_align"
+                            {% if not editavel %}disabled{% endif %}>
+                      {% for valor, rotulo in alinhamentos %}
+                        <option value="{{ valor }}"
+                          {% if linha.valores.text_align == valor %}selected{% endif %}>{{ rotulo }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="col-6 col-sm-4">
+                    <label for="{{ linha.tipo }}-text_color" class="form-label small mb-1">Cor</label>
+                    <input type="color" class="form-control form-control-sm form-control-color w-100"
+                           id="{{ linha.tipo }}-text_color" name="{{ linha.tipo }}-text_color"
+                           value="{{ linha.valores.text_color }}"
+                           {% if not editavel %}disabled{% endif %}>
+                  </div>
+                  <div class="col-6 col-sm-4">
+                    <label for="{{ linha.tipo }}-line_height" class="form-label small mb-1">Entrelinha</label>
+                    <input type="number" step="0.05" min="0.8" max="3"
+                           class="form-control form-control-sm"
+                           id="{{ linha.tipo }}-line_height" name="{{ linha.tipo }}-line_height"
+                           value="{{ linha.valores.line_height|floatformat:2 }}"
+                           {% if not editavel %}disabled{% endif %}>
+                  </div>
+                {% else %}
+                  {# Imagem nao usa fonte, alinhamento nem entrelinha. Os
+                     valores continuam sendo enviados como ocultos para que o
+                     servico receba o dicionario completo, e nao para que a
+                     tela ofereca algo sem efeito. #}
+                  <input type="hidden" name="{{ linha.tipo }}-font_family" value="Helvetica">
+                  <input type="hidden" name="{{ linha.tipo }}-font_size" value="12">
+                  <input type="hidden" name="{{ linha.tipo }}-min_font_size" value="8">
+                  <input type="hidden" name="{{ linha.tipo }}-text_align" value="CENTER">
+                  <input type="hidden" name="{{ linha.tipo }}-text_color" value="#000000">
+                  <input type="hidden" name="{{ linha.tipo }}-line_height" value="1.20">
+                {% endif %}
+
+                <div class="col-6 col-sm-4">
+                  <label for="{{ linha.tipo }}-rotation" class="form-label small mb-1">Rotacao</label>
+                  <input type="number" min="-360" max="360" class="form-control form-control-sm"
+                         id="{{ linha.tipo }}-rotation" name="{{ linha.tipo }}-rotation"
+                         value="{{ linha.valores.rotation }}"
+                         {% if not editavel %}disabled{% endif %}>
+                </div>
+                <div class="col-6 col-sm-4">
+                  <label for="{{ linha.tipo }}-z_index" class="form-label small mb-1">Ordem</label>
+                  <input type="number" min="0" max="999" class="form-control form-control-sm"
+                         id="{{ linha.tipo }}-z_index" name="{{ linha.tipo }}-z_index"
+                         value="{{ linha.valores.z_index }}"
+                         {% if not editavel %}disabled{% endif %}>
+                </div>
+
+                <div class="col-12 col-sm-4 d-flex align-items-end">
+                  <div class="w-100">
+                    {% if not linha.e_imagem %}
+                      <div class="form-check">
+                        <input type="checkbox" class="form-check-input"
+                               id="{{ linha.tipo }}-auto_fit" name="{{ linha.tipo }}-auto_fit"
+                               {% if linha.valores.auto_fit %}checked{% endif %}
+                               {% if not editavel %}disabled{% endif %}>
+                        <label for="{{ linha.tipo }}-auto_fit" class="form-check-label small">
+                          Auto ajustar
+                        </label>
+                      </div>
+                    {% endif %}
+                    <div class="form-check">
+                      <input type="checkbox" class="form-check-input"
+                             id="{{ linha.tipo }}-is_visible" name="{{ linha.tipo }}-is_visible"
+                             {% if linha.valores.is_visible %}checked{% endif %}
+                             {% if not editavel %}disabled{% endif %}>
+                      <label for="{{ linha.tipo }}-is_visible" class="form-check-label small">
+                        Visivel
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {% if linha.tipo == "YEAR" %}
+                <div class="form-text small mt-2">
+                  O modelo oficial imprime o ano na vertical, na lateral
+                  direita. Use rotacao 90 ou -90 conforme o sentido de leitura.
+                </div>
+              {% endif %}
+              {% if linha.tipo == "QR_CODE" %}
+                <div class="form-text small mt-2">
+                  O QR aponta para a pagina publica de validacao do
+                  certificado. Deixe a caixa quadrada: a imagem preserva a
+                  proporcao e sobraria espaco de um dos lados.
+                </div>
+              {% endif %}
+            </div>
+          </details>
+        {% endfor %}
+
+        {% if editavel %}
+          <div class="d-flex flex-wrap gap-2 pt-3">
+            <button type="submit" class="btn btn-primary">Salvar campos</button>
+            <a class="btn btn-outline-secondary"
+               href="{% url 'admin_panel:certificate_template_edit' modelo.pk %}">
+              Descartar alteracoes
+            </a>
+          </div>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ block.super }}
+<script>
+// Arraste das caixas sobre a arte.
+//
+// Melhoria de conforto, e so isso: cada caixa escreve nos MESMOS campos
+// numericos que ja existem no formulario. Sem JavaScript a pagina continua
+// funcionando por completo — digita-se X e Y e salva.
+//
+// As coordenadas sao percentuais da pagina, exatamente como o PDF as usa.
+// Por isso arrastar aqui e mover no documento: nao ha conversao de escala
+// no meio, so a razao entre o ponto do mouse e o tamanho da arte na tela.
+(function () {
+  var palco = document.getElementById('palco');
+  if (!palco) { return; }
+
+  var arrastando = null;
+
+  function limitar(valor) {
+    return Math.min(100, Math.max(0, valor));
+  }
+
+  function escrever(tipo, eixo, valor) {
+    var campo = document.getElementById(tipo + '-' + eixo);
+    if (campo && !campo.disabled) { campo.value = valor.toFixed(2); }
+  }
+
+  palco.addEventListener('pointerdown', function (evento) {
+    var caixa = evento.target.closest('.cpo-palco__campo');
+    if (!caixa) { return; }
+    var area = palco.getBoundingClientRect();
+    var atual = caixa.getBoundingClientRect();
+    arrastando = {
+      caixa: caixa,
+      // Guarda onde dentro da caixa o ponteiro pegou, senao ela saltaria
+      // para ter o canto sob o cursor no primeiro movimento.
+      deslocX: evento.clientX - atual.left,
+      deslocY: evento.clientY - atual.top,
+      area: area
+    };
+    caixa.setPointerCapture(evento.pointerId);
+    caixa.classList.add('cpo-palco__campo--movendo');
+    evento.preventDefault();
+  });
+
+  palco.addEventListener('pointermove', function (evento) {
+    if (!arrastando) { return; }
+    var area = arrastando.area;
+    var x = limitar((evento.clientX - arrastando.deslocX - area.left) / area.width * 100);
+    var y = limitar((evento.clientY - arrastando.deslocY - area.top) / area.height * 100);
+    arrastando.caixa.style.left = x + '%';
+    arrastando.caixa.style.top = y + '%';
+    escrever(arrastando.caixa.dataset.tipo, 'x', x);
+    escrever(arrastando.caixa.dataset.tipo, 'y', y);
+  });
+
+  function soltar() {
+    if (!arrastando) { return; }
+    arrastando.caixa.classList.remove('cpo-palco__campo--movendo');
+    arrastando = null;
+  }
+  palco.addEventListener('pointerup', soltar);
+  palco.addEventListener('pointercancel', soltar);
+
+  // Caminho inverso: digitar nos campos move a caixa, para que as duas
+  // representacoes nunca discordem na tela.
+  document.querySelectorAll('.cpo-coord').forEach(function (campo) {
+    campo.addEventListener('input', function () {
+      var caixa = palco.querySelector('[data-tipo="' + campo.dataset.tipo + '"]');
+      if (!caixa) { return; }
+      var valor = limitar(parseFloat(campo.value) || 0);
+      caixa.style[campo.dataset.eixo === 'x' ? 'left' : 'top'] = valor + '%';
+    });
+  });
+})();
+</script>
+{% endblock %}

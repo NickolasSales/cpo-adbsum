@@ -858,3 +858,115 @@ pre {
   color: #991b1b;
   border-color: #fecaca;
 }
+
+/* ---------------------------------------------------------------
+   Editor de modelos de certificado (Etapa 10)
+
+   Duas superficies distintas, e a distincao e proposital:
+
+     .cpo-preview-pdf   o PDF de verdade, no <embed>. E o que manda.
+     .cpo-palco         a arte com caixas arrastaveis. Ajuda a posicionar,
+                        e nao tenta imitar a tipografia do documento.
+
+   O palco usa percentuais porque as coordenadas do modelo TAMBEM sao
+   percentuais. Nao ha conversao de escala entre a tela e o PDF: a mesma
+   fracao da largura vale nos dois. E o que permite arrastar aqui e o campo
+   aparecer no lugar certo la.
+   --------------------------------------------------------------- */
+
+.cpo-preview-pdf {
+  border: 1px solid var(--cpo-borda);
+  border-radius: .5rem;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.cpo-preview-pdf embed {
+  display: block;
+  /* Altura em vh, e nao fixa em px: num notebook de 768px de altura um
+     preview de 700px empurraria os controles para fora da tela. */
+  height: 58vh;
+  min-height: 260px;
+  border: 0;
+}
+
+.cpo-palco {
+  position: relative;
+  width: 100%;
+  border: 1px solid var(--cpo-borda);
+  border-radius: .5rem;
+  overflow: hidden;
+  /* touch-action: none deixa o arraste funcionar em tablet. Sem isso o
+     navegador interpreta o gesto como rolagem e a caixa nao se move. */
+  touch-action: none;
+  user-select: none;
+}
+
+.cpo-palco__arte {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+}
+
+.cpo-palco__campo {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed #2563eb;
+  background: rgba(37, 99, 235, .12);
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-size: .7rem;
+  line-height: 1.1;
+  color: #1e3a8a;
+  text-align: center;
+  padding: 2px;
+}
+
+.cpo-palco__campo--movendo {
+  cursor: grabbing;
+  background: rgba(37, 99, 235, .28);
+  border-style: solid;
+}
+
+/* O foco de teclado precisa ser visivel tambem sobre a arte, que pode ser
+   clara ou escura. Duplo anel: um branco por dentro, um escuro por fora. */
+.cpo-palco__campo:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 0;
+  box-shadow: 0 0 0 4px #1e3a8a;
+}
+
+.cpo-campo {
+  border-top: 1px solid var(--cpo-borda);
+  padding: .6rem 0;
+}
+
+.cpo-campo:first-of-type {
+  border-top: 0;
+}
+
+.cpo-campo > summary {
+  cursor: pointer;
+  list-style: revert;
+  min-height: 2.25rem;
+  align-items: center;
+}
+
+.cpo-campo > summary:focus-visible {
+  outline: 2px solid var(--cpo-primaria, #2563eb);
+  outline-offset: 2px;
+  border-radius: .25rem;
+}
+
+/* Abaixo de 1200px o editor vira uma coluna so: preview em cima, controles
+   embaixo. O preview encolhe junto, senao ocuparia a tela inteira do
+   celular e os controles ficariam a uma rolagem de distancia. */
+@media (max-width: 1199.98px) {
+  .cpo-preview-pdf embed {
+    height: 42vh;
+  }
+}

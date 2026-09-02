@@ -113,6 +113,31 @@ class Module(models.Model):
         help_text="Ano em destaque na lateral do certificado. Exemplo: 2026.",
     )
 
+    # --- modelo de certificado (Etapa 10) ---------------------------------
+    #
+    # O vinculo mora aqui, e nao em CertificateTemplate.module, de proposito.
+    #
+    # O pedido da etapa sugeria um campo `module` no proprio modelo. Os dois
+    # sentidos expressariam o mesmo fato, e dois lugares para o mesmo fato
+    # divergem: bastaria alguem editar um deles. Alem disso o sentido daqui
+    # permite o que a instituicao de fato tem — uma arte oficial servindo os
+    # tres modulos —, enquanto o sentido inverso amarraria cada arte a um
+    # modulo so.
+    #
+    # Vazio nao significa "sem certificado": significa "usa o modelo padrao".
+    # A resolucao esta em certificates.services.resolver_template.
+    certificate_template = models.ForeignKey(
+        "certificates.CertificateTemplate",
+        verbose_name="modelo de certificado",
+        # SET_NULL: arquivar um modelo nao pode impedir o modulo de existir.
+        # O modulo volta ao padrao global, e a emissao avisa se nao houver.
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="modules",
+        help_text="Em branco, o modulo usa o modelo padrao ativo.",
+    )
+
     created_at = models.DateTimeField("criado em", auto_now_add=True)
     updated_at = models.DateTimeField("atualizado em", auto_now=True)
 

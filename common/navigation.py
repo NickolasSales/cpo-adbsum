@@ -45,6 +45,14 @@ MENU_ADMIN = [
         "url": "admin_panel:certificate_list",
         "secao": "certificados",
     },
+    # Entrada propria, e nao um submenu. O menu administrativo e uma lista
+    # plana desde a Etapa 1, e abrir um nivel so para dois itens custaria
+    # mais na navegacao por teclado e no celular do que economiza em espaco.
+    {
+        "nome": "Modelos de certificado",
+        "url": "admin_panel:certificate_template_list",
+        "secao": "modelos_certificado",
+    },
     {"nome": "Logs", "url": "admin_panel:audit_log_list", "secao": "logs"},
 ]
 

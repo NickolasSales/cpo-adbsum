@@ -637,9 +637,35 @@ def render_certificate_pdf(certificado):
     nao o que o banco diz hoje. Nota nao aparece de proposito — o certificado
     atesta conclusao, e a nota pertence ao resultado academico.
 
-    O desenho e escolhido por template_version. Uma versao desconhecida cai no
-    modelo atual: e o que um certificado gravado por codigo mais novo teria.
+    Dois caminhos, e a ordem entre eles importa:
+
+        template_snapshot preenchido
+            Certificado emitido da Etapa 10 em diante. O desenho vem da
+            configuracao congelada na emissao: arte oficial no fundo, campos
+            posicionados por cima. Nada aqui decide estetica.
+
+        template_snapshot vazio
+            Certificado emitido ate a Etapa 9, quando o layout era codigo.
+            Continua sendo desenhado por _desenhar_v1 ou _desenhar_v2, pela
+            template_version.
+
+    O segundo caminho nao e um fallback para quando falta configuracao — a
+    emissao recusa nesse caso. Ele existe porque os documentos ja emitidos
+    nao tem snapshot e nao ha de onde tirar um: inventar posicoes para eles
+    seria afirmar uma configuracao que nunca existiu.
     """
+    if certificado.template_snapshot:
+        from certificates.render import render_from_snapshot
+        from certificates.snapshot import valores_do_certificado
+
+        snapshot = dict(certificado.template_snapshot)
+        snapshot.setdefault(
+            "title", "Certificado - {}".format(certificado.student_name_snapshot)
+        )
+        snapshot.setdefault("author", certificado.institution_name_snapshot)
+        snapshot.setdefault("creator", settings.APP_NAME)
+        return render_from_snapshot(snapshot, valores_do_certificado(certificado))
+
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=landscape(A4))
     c.setTitle("Certificado - {}".format(certificado.student_name_snapshot))

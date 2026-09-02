@@ -1,0 +1,50 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}Operacao nao permitida - {{ APP_NAME }}{% endblock %}
+
+{% comment %}
+HTTP 409 para uma escrita que o estado do modelo nao permite.
+
+O caso mais comum e tentar editar um modelo que ja emitiu certificado. Nao e
+um redirect com mensagem: quem montou o POST a mao, ou clicou num formulario
+de uma aba antiga, precisa saber que a alteracao nao aconteceu.
+{% endcomment %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none"
+     href="{% url 'admin_panel:certificate_template_list' %}">&larr; Modelos de certificado</a>
+</nav>
+
+<div class="row">
+  <div class="col-12 col-lg-8">
+    <div class="cpo-cartao p-3 p-md-4">
+      <h1 class="h5 mb-3">Nao foi possivel concluir a operacao</h1>
+
+      {% if modelo %}
+        <p class="text-body-secondary small mb-3">
+          {{ modelo.name }} &middot; v{{ modelo.version }}
+        </p>
+      {% endif %}
+
+      <ul class="mb-4 ps-3">
+        {% for mensagem in mensagens %}<li class="mb-1">{{ mensagem }}</li>{% endfor %}
+      </ul>
+
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-primary"
+           href="{% url 'admin_panel:certificate_template_list' %}">Voltar para os modelos</a>
+        {% if modelo %}
+          <form method="post"
+                action="{% url 'admin_panel:certificate_template_duplicate' modelo.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-primary">
+              Duplicar para editar
+            </button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
