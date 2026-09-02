@@ -339,9 +339,13 @@ def provas_do_modulo_para_aluno(module, student, *, agora):
     """
     from exams.models import AttemptStatus, ExamAttempt, ExamStatus
 
+    # is_archived=False: prova arquivada saiu da operacao e nao aparece para o
+    # aluno, mesmo continuando PUBLISHED e mesmo que ele ja tenha tentado.
     provas = list(
         Exam.objects.filter(
-            module=module, status__in=(ExamStatus.PUBLISHED, ExamStatus.CLOSED)
+            module=module,
+            status__in=(ExamStatus.PUBLISHED, ExamStatus.CLOSED),
+            is_archived=False,
         ).order_by("title", "-version")
     )
     if not provas:

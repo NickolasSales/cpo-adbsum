@@ -148,6 +148,10 @@ def prova_visivel_ou_none(student, exam_id):
     Uma prova fechada continua visivel: o aluno que ja fez precisa poder abrir
     a tela e ver a situacao da tentativa dele. O que a prova fechada nao
     permite e iniciar, e esse portao esta em start_attempt.
+
+    Uma prova ARQUIVADA, ao contrario da fechada, some por completo. Arquivar
+    e dizer "isto saiu da operacao"; deixar a prova ainda abrivel pela URL
+    contradiria a unica coisa que o arquivamento promete.
     """
     from exams.models import Exam
 
@@ -156,6 +160,7 @@ def prova_visivel_ou_none(student, exam_id):
         .filter(
             pk=exam_id,
             status__in=(ExamStatus.PUBLISHED, ExamStatus.CLOSED),
+            is_archived=False,
             module__enrollments__student=student,
             module__enrollments__status="ACTIVE",
             module__enrollments__access_enabled=True,
@@ -230,6 +235,8 @@ def start_attempt(student, exam, *, supplied_password=None, request=None):
     dois cliques simultaneos entram em fila e o segundo enxerga a tentativa
     que o primeiro acabou de criar.
     """
+    from exams.models import Exam
+
     agora = timezone.now()
 
     # Antes de tudo, e em transacao propria: se havia uma tentativa aberta com
@@ -249,6 +256,18 @@ def start_attempt(student, exam, *, supplied_password=None, request=None):
 
         if matricula_liberada(student, exam) is None:
             raise SemAcessoAProva("Prova indisponivel.")
+
+        # Arquivamento vem antes do status porque e independente dele: uma
+        # prova arquivada continua PUBLISHED, e sem este portao ela passaria
+        # direto pelas duas linhas de baixo e aceitaria tentativa nova.
+        #
+        # Relido do banco, e nao do objeto recebido: entre a montagem da tela
+        # e este POST alguem pode ter arquivado a prova, e a instancia que a
+        # view carregou ainda diria is_archived=False.
+        if Exam.objects.filter(pk=exam.pk, is_archived=True).exists():
+            raise DomainError(
+                "Esta prova foi arquivada e nao aceita novas tentativas."
+            )
 
         if exam.status == ExamStatus.CLOSED:
             raise DomainError("Esta prova foi encerrada e nao aceita novas tentativas.")

@@ -48,4 +48,38 @@ urlpatterns = [
         views.enrollment_complete,
         name="enrollment_complete",
     ),
+    # Revogacao, exclusao e restauracao (Etapa 9).
+    #
+    # Cada operacao tem duas rotas: a confirmacao, que e GET e nao altera
+    # nada, e a escrita, que e POST e recusa GET com 405.
+    path(
+        "matriculas/<int:pk>/revogar/confirmar/",
+        views.EnrollmentRevokeConfirmView.as_view(),
+        name="enrollment_revoke_confirm",
+    ),
+    path(
+        "matriculas/<int:pk>/revogar/",
+        views.enrollment_revoke,
+        name="enrollment_revoke",
+    ),
+    path(
+        "matriculas/<int:pk>/excluir/confirmar/",
+        views.EnrollmentDeleteConfirmView.as_view(),
+        name="enrollment_delete_confirm",
+    ),
+    path(
+        "matriculas/<int:pk>/excluir/",
+        views.enrollment_delete,
+        name="enrollment_delete",
+    ),
+    path(
+        "matriculas/<int:pk>/restaurar/confirmar/",
+        views.EnrollmentRestoreConfirmView.as_view(),
+        name="enrollment_restore_confirm",
+    ),
+    path(
+        "matriculas/<int:pk>/restaurar/",
+        views.enrollment_restore,
+        name="enrollment_restore",
+    ),
 ]

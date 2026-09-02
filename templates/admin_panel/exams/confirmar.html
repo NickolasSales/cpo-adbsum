@@ -1,0 +1,86 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}{{ titulo }} - {{ APP_NAME }}{% endblock %}
+
+{% comment %}
+Confirmacao de excluir ou arquivar uma prova.
+
+E uma tela, e nao um modal. Modal depende de Bootstrap e de JavaScript; a
+pagina que decide apagar uma prova em definitivo nao pode ser a mais fragil
+do sistema. Esta view e GET e nao altera nada — a escrita continua sendo um
+POST separado, que recusa GET com 405.
+
+Quando existe impedimento, o formulario nem e desenhado. O servico recusaria
+de todo modo, mas mostrar um botao que so serve para produzir um 409 seria
+convidar o administrador a errar.
+
+Espera no contexto: prova, titulo, url_da_acao, rotulo_do_botao,
+classe_do_botao, impedimentos, avisos, exige_motivo e, quando exige,
+rotulo_do_motivo e exemplo_do_motivo.
+{% endcomment %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:exam_detail' prova.pk %}">
+    &larr; {{ prova.title }}
+  </a>
+</nav>
+
+<div class="row">
+  <div class="col-12 col-lg-8">
+    <div class="cpo-cartao p-3 p-md-4">
+      <h1 class="h5 mb-1">{{ titulo }}</h1>
+      <p class="text-body-secondary small mb-3">
+        {{ prova.title }} &middot; v{{ prova.version }} &middot;
+        <code>{{ prova.module.code }}</code>
+      </p>
+
+      {% if impedimentos %}
+        <div class="alert alert-warning" role="alert">
+          <p class="fw-medium mb-2">Esta operacao nao esta disponivel:</p>
+          <ul class="mb-0 ps-3">
+            {% for impedimento in impedimentos %}
+              <li>{{ impedimento }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <a class="btn btn-primary" href="{% url 'admin_panel:exam_detail' prova.pk %}">
+          Voltar para a prova
+        </a>
+      {% else %}
+        <ul class="mb-4 ps-3">
+          {% for aviso in avisos %}
+            <li class="mb-1">{{ aviso }}</li>
+          {% endfor %}
+        </ul>
+
+        <form method="post" action="{% url url_da_acao prova.pk %}">
+          {% csrf_token %}
+
+          {% if exige_motivo %}
+            <div class="mb-3">
+              <label for="motivo" class="form-label small fw-medium">
+                {{ rotulo_do_motivo }}
+              </label>
+              <textarea id="motivo" name="motivo" rows="3" maxlength="1000" required
+                        class="form-control" placeholder="{{ exemplo_do_motivo }}"></textarea>
+              <div class="form-text small">
+                Fica registrado na propria prova e pode ser consultado depois.
+              </div>
+            </div>
+          {% endif %}
+
+          <div class="d-flex flex-wrap gap-2">
+            <button type="submit" class="btn {{ classe_do_botao }}">
+              {{ rotulo_do_botao }}
+            </button>
+            <a class="btn btn-outline-secondary"
+               href="{% url 'admin_panel:exam_detail' prova.pk %}">Cancelar</a>
+          </div>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

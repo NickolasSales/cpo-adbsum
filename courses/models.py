@@ -4,7 +4,10 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.db.models import Count, F, Q
 from django.db.models.functions import Upper
+
+from common.texto import LIMITE_DO_MOTIVO
 
 # Faixa aceita para o ano impresso no certificado. Nao e uma regra de negocio
 # profunda: e um cerco contra o erro de digitacao que produziria um documento
@@ -227,6 +230,19 @@ class EnrollmentStatus(models.TextChoices):
     ACTIVE = "ACTIVE", "Ativa"
     INACTIVE = "INACTIVE", "Inativa"
     COMPLETED = "COMPLETED", "Concluida"
+    # Etapa 9. Nao confundir com INACTIVE.
+    #
+    #   INACTIVE  pausa operacional, reversivel com um clique, sem motivo
+    #             escrito. "Este aluno nao esta cursando agora."
+    #
+    #   REVOKED   ato administrativo que encerra o vinculo academico, exige
+    #             motivo, grava quem e quando, e sai da lista padrao. "A
+    #             instituicao revogou esta matricula."
+    #
+    # Dois valores porque sao duas decisoes de peso diferente, e apagar essa
+    # diferenca faria a trilha nao conseguir distinguir um remanejamento de
+    # turma de uma revogacao disciplinar.
+    REVOKED = "REVOKED", "Revogada"
 
 
 class EnrollmentQuerySet(models.QuerySet):
@@ -246,6 +262,38 @@ class EnrollmentQuerySet(models.QuerySet):
 
     def do_aluno(self, user):
         return self.filter(student=user)
+
+    def operacionais(self):
+        """
+        Matriculas que a lista administrativa mostra por padrao.
+
+        Tudo menos as revogadas. Revogar e o ato que retira a matricula da
+        visao do dia a dia; ela continua existindo e continua consultavel pelo
+        filtro "Revogadas", que e onde se responde "quem foi revogado, quando
+        e por que".
+        """
+        return self.exclude(status=EnrollmentStatus.REVOKED)
+
+    def com_contagem_de_historico(self):
+        """
+        Anota total_tentativas: as tentativas deste aluno no modulo desta
+        matricula.
+
+        Existe para que a lista consiga decidir entre oferecer "Excluir" e
+        oferecer "Revogar" sem uma consulta por linha.
+
+        Uma contagem so basta para os dois criterios. Certificate.attempt e
+        OneToOne com PROTECT, entao nao existe certificado sem tentativa: zero
+        tentativas implica zero certificados. can_delete_enrollment ainda
+        confere os dois separadamente — a tela otimiza, o servico decide.
+        """
+        return self.annotate(
+            total_tentativas=Count(
+                "student__exam_attempts",
+                filter=Q(student__exam_attempts__exam__module=F("module")),
+                distinct=True,
+            )
+        )
 
 
 class Enrollment(models.Model):
@@ -292,6 +340,34 @@ class Enrollment(models.Model):
     enrolled_at = models.DateTimeField("matriculado em", auto_now_add=True)
     notes = models.TextField("observacoes", blank=True)
 
+    # --- revogacao administrativa (Etapa 9) --------------------------------
+    #
+    # Revogar NAO apaga nada e NAO mexe em certificado. A matricula passa a
+    # REVOKED, perde o acesso e sai da lista operacional; tentativas, notas e
+    # certificados continuam exatamente onde estavam.
+    #
+    # Um certificado ACTIVE com a matricula REVOKED e um estado legitimo: o
+    # aluno concluiu o modulo e tem o documento, e a instituicao encerrou o
+    # vinculo depois. Revogar o documento e outro ato, com outro fluxo e
+    # outro evento na trilha.
+    revoked_at = models.DateTimeField("revogada em", null=True, blank=True)
+    revoked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="revogada por",
+        # SET_NULL: o registro de que houve revogacao, quando e por que
+        # precisa sobreviver a remocao da conta administrativa que a executou.
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="enrollments_revogadas",
+    )
+    revocation_reason = models.TextField(
+        "motivo da revogacao",
+        blank=True,
+        max_length=LIMITE_DO_MOTIVO,
+        help_text="Obrigatorio ao revogar. Fica na propria matricula.",
+    )
+
     created_at = models.DateTimeField("criado em", auto_now_add=True)
     updated_at = models.DateTimeField("atualizado em", auto_now=True)
 
@@ -305,6 +381,31 @@ class Enrollment(models.Model):
             models.UniqueConstraint(
                 fields=["student", "module"],
                 name="matricula_unica_por_aluno_e_modulo",
+            ),
+            # Revogada tem data; nao revogada nao tem. Impede as duas
+            # mentiras simetricas: uma matricula ativa carregando "revogada em
+            # 12/03", e uma matricula REVOKED sem dizer quando.
+            #
+            # revoked_by fica fora da regra porque e SET_NULL, e a linha
+            # precisa continuar valida quando aquela conta for removida.
+            models.CheckConstraint(
+                condition=(
+                    Q(status=EnrollmentStatus.REVOKED, revoked_at__isnull=False)
+                    | (
+                        ~Q(status=EnrollmentStatus.REVOKED)
+                        & Q(revoked_at__isnull=True)
+                    )
+                ),
+                name="matricula_revogacao_coerente",
+            ),
+            # Uma matricula revogada nunca da acesso. A regra ja esta em
+            # liberadas() e em revoke_enrollment, mas essas sao camadas de
+            # aplicacao: esta e a que sobrevive a um UPDATE direto no banco.
+            models.CheckConstraint(
+                condition=(
+                    ~Q(status=EnrollmentStatus.REVOKED) | Q(access_enabled=False)
+                ),
+                name="matricula_revogada_sem_acesso",
             ),
         ]
         indexes = [
@@ -332,9 +433,32 @@ class Enrollment(models.Model):
 
     @property
     def libera_acesso(self):
-        """Se esta matricula, hoje, da acesso ao modulo."""
+        """
+        Se esta matricula, hoje, da acesso ao modulo.
+
+        REVOKED nao precisa de clausula propria: a regra exige ACTIVE, e
+        revogada nao e ativa. Foi por isso que a Etapa 2 separou situacao
+        academica de chave de acesso — o status novo perdeu o acesso sem que
+        nenhuma consulta de disponibilidade precisasse ser reescrita.
+        """
         return (
             self.status == EnrollmentStatus.ACTIVE
             and self.access_enabled
             and self.module.is_active
         )
+
+    @property
+    def e_revogada(self):
+        return self.status == EnrollmentStatus.REVOKED
+
+    @property
+    def sem_historico_academico(self):
+        """
+        Se a lista trouxe a contagem de historico e ela e zero.
+
+        Depende da anotacao de com_contagem_de_historico(). Sem ela devolve
+        False e a tela nao oferece a exclusao — errar para o lado de esconder
+        um botao e inofensivo, e quem decide de fato e can_delete_enrollment,
+        que reconta com a linha travada.
+        """
+        return getattr(self, "total_tentativas", None) == 0

@@ -7,11 +7,13 @@ existente — vive aqui, em um unico ponto de execucao.
 """
 
 from django.db import transaction
+from django.utils import timezone
 
 from accounts.models import UserRole
 from audit.models import AuditEvent
 from audit.services import record
 from common.exceptions import DomainError, campos_alterados
+from common.texto import validar_motivo
 from courses.models import (
     ANO_MAXIMO_DO_CERTIFICADO,
     ANO_MINIMO_DO_CERTIFICADO,
@@ -278,11 +280,20 @@ def create_enrollment(*, student, module, notes="", actor=None, request=None, au
             raise DomainError(
                 "{} ja esta matriculado em {}.".format(student.full_name, module.code)
             )
+        # A orientacao muda com o status: uma matricula revogada nao volta
+        # pelo "Reativar", e mandar o administrador para o botao errado o faria
+        # bater numa recusa sem entender o motivo.
+        acao = (
+            "restaurar matricula"
+            if existente.status == EnrollmentStatus.REVOKED
+            else "reativar"
+        )
         raise DomainError(
-            "{} ja possui uma matricula {} em {}. Use a acao de reativar.".format(
+            "{} ja possui uma matricula {} em {}. Use a acao de {}.".format(
                 student.full_name,
                 existente.get_status_display().lower(),
                 module.code,
+                acao,
             )
         )
 
@@ -342,7 +353,33 @@ def disable_enrollment(matricula, *, actor=None, request=None):
 
 
 def reactivate_enrollment(matricula, *, actor=None, request=None):
-    """Devolve a matricula ao estado ativo e com acesso liberado."""
+    """
+    Devolve a matricula ao estado ativo e com acesso liberado.
+
+    NAO serve para matricula revogada, e a recusa e o ponto central desta
+    funcao desde a Etapa 9.
+
+    Se ela aceitasse REVOKED, o botao generico "Reativar" desfaria um ato
+    administrativo formal sem motivo, sem trilha propria e — o que importa
+    mais — sem a checagem de certificado ativo que restore_revoked_enrollment
+    faz. Um aluno ja certificado voltaria ao curso por um clique de rotina.
+    """
+    # Lido do banco, e nao do objeto recebido. Entre a montagem da tela e este
+    # POST alguem pode ter revogado a matricula, e a instancia em memoria
+    # ainda diria ACTIVE — que e exatamente o caminho pelo qual a revogacao
+    # seria desfeita sem passar por restore_revoked_enrollment.
+    status_atual = (
+        Enrollment.objects.filter(pk=matricula.pk)
+        .values_list("status", flat=True)
+        .first()
+    )
+    if status_atual == EnrollmentStatus.REVOKED:
+        raise DomainError(
+            "Esta matricula foi revogada. Use a acao de restaurar matricula, "
+            "que confere se existe certificado ativo antes de devolver o "
+            "acesso."
+        )
+
     validar_aluno(matricula.student)
 
     if not matricula.module.is_active:
@@ -438,6 +475,247 @@ def complete_enrollment(
             matricula, AuditEvent.ENROLLMENT_COMPLETED, actor=actor, request=request
         )
     return matricula
+
+
+# ---------------------------------------------------------------------------
+# Revogacao, exclusao e restauracao (Etapa 9)
+#
+# Tres operacoes que a Etapa 2 nao tinha, e a diferenca entre elas e o que
+# este bloco existe para manter clara:
+#
+#   desativar   pausa operacional. Reversivel com um clique, sem motivo.
+#   revogar     ato administrativo. Exige motivo, grava autor e data, e tira
+#               a matricula da lista padrao. O historico fica.
+#   excluir     apaga a linha. So quando NAO existe historico academico
+#               nenhum daquele aluno naquele modulo.
+#
+# Nenhuma das tres toca em certificado. Um certificado ACTIVE com a matricula
+# REVOKED e um estado legitimo: o aluno concluiu e tem o documento, e o
+# vinculo foi encerrado depois. Revogar o documento e outro ato, com outro
+# fluxo e outro evento.
+# ---------------------------------------------------------------------------
+
+
+class MatriculaJaRevogada(DomainError):
+    """A matricula ja esta revogada; nada a fazer."""
+
+
+class MatriculaNaoRevogada(DomainError):
+    """A matricula nao esta revogada; nada a restaurar."""
+
+
+def tem_certificado_ativo(matricula):
+    """
+    Se resta certificado ACTIVE deste aluno neste modulo.
+
+    Import local: courses nao depende de certificates em tempo de importacao,
+    e inverter isso criaria um ciclo — certificates ja importa courses.
+    """
+    from certificates.models import Certificate, CertificateStatus
+
+    return Certificate.objects.filter(
+        attempt__student=matricula.student,
+        attempt__exam__module=matricula.module,
+        status=CertificateStatus.ACTIVE,
+    ).exists()
+
+
+def revoke_enrollment(matricula, *, actor=None, reason="", request=None):
+    """
+    Revoga a matricula: encerra o vinculo academico e o acesso.
+
+    Preserva tudo que ja aconteceu. Tentativas, notas e certificados continuam
+    exatamente onde estavam — revogar responde "este aluno nao cursa mais este
+    modulo", e nao "este aluno nunca cursou".
+
+    O acesso cai junto e nao e opcional: a constraint
+    matricula_revogada_sem_acesso recusa a linha se alguem tentar gravar
+    REVOKED com acesso liberado.
+
+    A matricula e travada antes de qualquer escrita. Se o aluno estiver
+    iniciando uma prova no mesmo instante, um dos dois chega primeiro: ou o
+    start le a matricula ainda liberada e cria a tentativa, ou ele espera esta
+    transacao e encontra a matricula ja revogada. O que nao pode acontecer e
+    acesso ativo DEPOIS que a revogacao foi confirmada, e e isso que o lock
+    garante.
+    """
+    motivo = validar_motivo(reason, vazio="Informe o motivo da revogacao.")
+    agora = timezone.now()
+
+    with transaction.atomic():
+        travada = (
+            Enrollment.objects.select_for_update()
+            .select_related("student", "module")
+            .get(pk=matricula.pk)
+        )
+
+        if travada.status == EnrollmentStatus.REVOKED:
+            # Nao e sucesso silencioso: quem clicou duas vezes precisa saber
+            # que a segunda nao fez nada. A view transforma isto em 409.
+            raise MatriculaJaRevogada("Esta matricula ja foi revogada.")
+
+        travada.status = EnrollmentStatus.REVOKED
+        travada.access_enabled = False
+        travada.revoked_at = agora
+        travada.revoked_by = actor if getattr(actor, "pk", None) else None
+        travada.revocation_reason = motivo
+        travada.save(
+            update_fields=[
+                "status",
+                "access_enabled",
+                "revoked_at",
+                "revoked_by",
+                "revocation_reason",
+                "updated_at",
+            ]
+        )
+
+        # O motivo NAO entra na metadata: ja esta em revocation_reason, e
+        # duplicar texto livre cria duas versoes do mesmo fato.
+        _registrar(travada, AuditEvent.ENROLLMENT_REVOKED, actor=actor, request=request)
+
+    return travada
+
+
+def can_delete_enrollment(matricula):
+    """
+    Impedimentos para apagar a matricula. Lista vazia significa que pode.
+
+    Historico academico e qualquer tentativa daquele aluno em qualquer prova
+    daquele modulo, em qualquer situacao — inclusive RESET. Uma tentativa
+    anulada continua sendo o registro de que o aluno esteve ali.
+
+    Certificados sao contados a parte por clareza. Na pratica sao redundantes
+    (Certificate.attempt e OneToOne com PROTECT, entao nao ha certificado sem
+    tentativa), mas a redundancia sobrevive a uma mudanca futura de desenho.
+    """
+    from certificates.models import Certificate
+    from exams.models import ExamAttempt
+
+    impedimentos = []
+
+    tentativas = ExamAttempt.objects.filter(
+        student=matricula.student, exam__module=matricula.module
+    ).count()
+    if tentativas:
+        impedimentos.append(
+            "Este aluno possui {} tentativa(s) neste modulo. O historico "
+            "academico nao pode ser apagado.".format(tentativas)
+        )
+
+    certificados = Certificate.objects.filter(
+        attempt__student=matricula.student, attempt__exam__module=matricula.module
+    ).count()
+    if certificados:
+        impedimentos.append(
+            "Este aluno possui {} certificado(s) neste modulo.".format(certificados)
+        )
+
+    return impedimentos
+
+
+def delete_enrollment(matricula, *, actor=None, request=None):
+    """
+    Apaga a matricula fisicamente, se nao houver historico academico.
+
+    O evento entra na trilha ANTES do DELETE, na mesma transacao: se a
+    exclusao falhar, o rollback leva o evento junto e a trilha nunca afirma
+    uma exclusao que nao aconteceu.
+
+    Isto NAO substitui disable_enrollment. A Etapa 2 decidiu que "remover
+    matricula" na interface resulta em desativacao, e continua assim. Esta
+    funcao existe para o caso estreito de uma matricula criada por engano,
+    que nunca produziu nada.
+    """
+    with transaction.atomic():
+        travada = (
+            Enrollment.objects.select_for_update()
+            .select_related("student", "module")
+            .get(pk=matricula.pk)
+        )
+
+        # Reconferido DEPOIS do lock: entre a tela e este POST o aluno pode
+        # ter comecado uma prova.
+        impedimentos = can_delete_enrollment(travada)
+        if impedimentos:
+            raise DomainError(impedimentos)
+
+        record(
+            AuditEvent.ENROLLMENT_DELETED,
+            request=request,
+            actor=actor,
+            student=travada.student,
+            entity_type="Enrollment",
+            entity_id=travada.pk,
+            metadata={
+                "module_code": travada.module.code,
+                "previous_status": travada.status,
+            },
+        )
+
+        travada.delete()
+
+    return True
+
+
+def restore_revoked_enrollment(matricula, *, actor=None, request=None):
+    """
+    Devolve uma matricula revogada ao estado ativo.
+
+    Acao administrativa explicita, e nao o "Reativar" generico: reativar serve
+    para uma matricula pausada, e usar o mesmo botao para as duas coisas
+    esconderia que uma delas esta desfazendo um ato formal.
+
+    Recusa quando existe certificado ACTIVE do aluno naquele modulo. O
+    documento afirma que ele concluiu; devolve-lo ao curso contradiria o que a
+    instituicao ja assinou. O caminho, se for mesmo o caso, e revogar o
+    certificado primeiro — que e uma decisao consciente, com trilha propria.
+    """
+    with transaction.atomic():
+        travada = (
+            Enrollment.objects.select_for_update()
+            .select_related("student", "module")
+            .get(pk=matricula.pk)
+        )
+
+        if travada.status != EnrollmentStatus.REVOKED:
+            raise MatriculaNaoRevogada("Esta matricula nao esta revogada.")
+
+        validar_aluno(travada.student)
+
+        if not travada.module.is_active:
+            raise DomainError(
+                "O modulo {} esta inativo. Ative o modulo antes de restaurar "
+                "a matricula.".format(travada.module.code)
+            )
+
+        if tem_certificado_ativo(travada):
+            raise DomainError(
+                "Esta matricula possui certificado ativo de conclusao. "
+                "Revogue o certificado antes de restaurar acesso academico."
+            )
+
+        travada.status = EnrollmentStatus.ACTIVE
+        travada.access_enabled = True
+        travada.revoked_at = None
+        travada.revoked_by = None
+        travada.revocation_reason = ""
+        travada.save(
+            update_fields=[
+                "status",
+                "access_enabled",
+                "revoked_at",
+                "revoked_by",
+                "revocation_reason",
+                "updated_at",
+            ]
+        )
+
+        _registrar(
+            travada, AuditEvent.ENROLLMENT_RESTORED, actor=actor, request=request
+        )
+
+    return travada
 
 
 # ---------------------------------------------------------------------------

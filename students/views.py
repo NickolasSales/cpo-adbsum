@@ -90,7 +90,8 @@ class StudentDetailView(PainelAdminMixin, DetailView):
         contexto["perfil"] = getattr(self.object, "student_profile", None)
         contexto["matriculas"] = (
             Enrollment.objects.filter(student=self.object)
-            .select_related("module")
+            .select_related("module", "revoked_by")
+            .com_contagem_de_historico()
             .order_by("module__order", "module__name")
         )
         return contexto

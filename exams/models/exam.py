@@ -23,6 +23,8 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import F, Q, Sum
 
+from common.texto import LIMITE_DO_MOTIVO
+
 MENSAGEM_REPROVACAO_PADRAO = (
     "Infelizmente voce nao atingiu a nota minima necessaria para aprovacao.\n\n"
     "Procure a coordenacao para mais informacoes."
@@ -95,6 +97,20 @@ class ExamQuerySet(models.QuerySet):
 
     def rascunhos(self):
         return self.filter(status=ExamStatus.DRAFT)
+
+    def ativas(self):
+        """
+        Provas que continuam na operacao: tudo que nao foi arquivado.
+
+        "Ativa" aqui e o oposto de arquivada, e nao de fechada. Uma prova
+        fechada continua ativa neste sentido — ela existe, aparece na lista e
+        guarda historico. O arquivamento e uma dimensao separada do status,
+        exatamente como access_enabled e separado de EnrollmentStatus.
+        """
+        return self.filter(is_archived=False)
+
+    def arquivadas(self):
+        return self.filter(is_archived=True)
 
     def da_linhagem_de(self, exam):
         """
@@ -262,6 +278,43 @@ class Exam(models.Model):
         related_name="exams_criadas",
     )
 
+    # --- arquivamento (Etapa 9) --------------------------------------------
+    #
+    # Dimensao SEPARADA do status, e nao um quarto valor de ExamStatus.
+    #
+    # O status conta a historia academica da prova: ela foi rascunho, foi
+    # publicada, foi fechada. Sobrescrever isso com "ARCHIVED" apagaria o fato
+    # de que a prova chegou a ser publicada e recebeu tentativas — justamente
+    # o que o arquivamento existe para preservar. Uma prova arquivada continua
+    # PUBLISHED ou CLOSED no historico; o que muda e ela sair da operacao.
+    #
+    # E o mesmo desenho de Enrollment.access_enabled em relacao a
+    # EnrollmentStatus, pelo mesmo motivo.
+    is_archived = models.BooleanField(
+        "arquivada",
+        default=False,
+        db_index=True,
+        help_text="Retirada da operacao. Nao altera a situacao historica.",
+    )
+    archived_at = models.DateTimeField("arquivada em", null=True, blank=True)
+    archived_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="arquivada por",
+        # SET_NULL pelo mesmo motivo de ExamAttempt.reset_by: o registro de
+        # QUE a prova foi arquivada e POR QUE precisa sobreviver ao dia em que
+        # aquela conta administrativa deixar de existir.
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="exams_arquivadas",
+    )
+    archive_reason = models.TextField(
+        "motivo do arquivamento",
+        blank=True,
+        max_length=LIMITE_DO_MOTIVO,
+        help_text="Obrigatorio ao arquivar. Fica na propria prova.",
+    )
+
     created_at = models.DateTimeField("criada em", auto_now_add=True)
     updated_at = models.DateTimeField("atualizada em", auto_now=True)
     published_at = models.DateTimeField("publicada em", null=True, blank=True)
@@ -345,6 +398,21 @@ class Exam(models.Model):
                 ),
                 name="exam_linhagem_parent_coerente",
             ),
+            # Arquivada tem data; nao arquivada nao tem. Sem isto o banco
+            # aceitaria uma prova com archived_at preenchido e is_archived
+            # falso — um estado que a tela leria como ativa e o relatorio
+            # leria como arquivada em tal data.
+            #
+            # archived_by fica de fora da regra de proposito: e SET_NULL, e a
+            # linha precisa continuar valida no dia em que aquela conta
+            # administrativa for removida.
+            models.CheckConstraint(
+                condition=(
+                    Q(is_archived=False, archived_at__isnull=True)
+                    | Q(is_archived=True, archived_at__isnull=False)
+                ),
+                name="exam_arquivamento_coerente",
+            ),
         ]
         indexes = [
             models.Index(fields=["module", "status"], name="exam_modulo_situacao_idx"),
@@ -418,6 +486,33 @@ class Exam(models.Model):
     @property
     def linhagem_id(self):
         return self.root_exam_id or self.pk
+
+    # -- Exclusao e arquivamento (Etapa 9) ----------------------------------
+
+    # Nomes das anotacoes que a lista precisa trazer para que a tela consiga
+    # decidir entre oferecer "Excluir" e oferecer "Arquivar". Ficam aqui, e
+    # nao soltos na view, porque quem le sem_dependencias precisa saber de
+    # onde vem a informacao.
+    ANOTACOES_DE_DEPENDENCIA = ("tem_tentativa", "tem_derivada", "tem_versao")
+
+    @property
+    def sem_dependencias(self):
+        """
+        Se nenhuma dependencia conhecida impede a exclusao fisica.
+
+        Le as anotacoes de ANOTACOES_DE_DEPENDENCIA, que a lista adiciona com
+        subconsultas Exists — uma por prova seria uma consulta por linha.
+
+        Sem as anotacoes devolve False, e a tela simplesmente nao oferece a
+        exclusao. Isso e deliberado: errar para o lado de esconder um botao e
+        inofensivo, e quem decide de fato e can_delete_exam, que reconta com a
+        linha travada. Esconder botao nunca foi a protecao aqui.
+        """
+        for nome in self.ANOTACOES_DE_DEPENDENCIA:
+            valor = getattr(self, nome, None)
+            if valor is None or valor:
+                return False
+        return True
 
 
 class QuestionQuerySet(models.QuerySet):

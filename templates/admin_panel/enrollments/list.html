@@ -6,7 +6,12 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
   <div>
     <h1 class="h4 mb-1">Matriculas</h1>
-    <p class="text-body-secondary small mb-0">{{ total_geral }} matricula(s) cadastrada(s).</p>
+    <p class="text-body-secondary small mb-0">
+      {{ total_geral }} matricula(s) cadastrada(s).
+      {% if total_revogadas %}
+        {{ total_revogadas }} revogada(s), fora da lista padrao.
+      {% endif %}
+    </p>
   </div>
   <div class="d-flex gap-2">
     <a class="btn btn-primary btn-sm" href="{% url 'admin_panel:enrollment_create' %}">Nova matricula</a>
@@ -34,10 +39,12 @@
     <div class="col-6 col-sm-3 col-lg-2">
       <label for="situacao" class="form-label small fw-medium mb-1">Situacao</label>
       <select id="situacao" name="situacao" class="form-select form-select-sm">
-        <option value="">Todas</option>
+        {# Vazio nao e "todas": e a visao operacional, que exclui as revogadas. #}
+        <option value="">Todas menos revogadas</option>
         {% for valor, rotulo in situacoes %}
           <option value="{{ valor }}" {% if filtro_situacao == valor %}selected{% endif %}>{{ rotulo }}</option>
         {% endfor %}
+        <option value="todas" {% if filtro_situacao == "todas" %}selected{% endif %}>Todas</option>
       </select>
     </div>
     <div class="col-6 col-sm-3 col-lg-2">
@@ -67,6 +74,9 @@
           <th>Situacao</th>
           <th>Acesso</th>
           <th class="d-none d-lg-table-cell">Data</th>
+          {% if mostrando_revogadas %}
+            <th class="d-none d-lg-table-cell">Revogacao</th>
+          {% endif %}
           <th class="text-end cpo-acoes">Acoes</th>
         </tr>
       </thead>
@@ -92,6 +102,8 @@
                 <span class="cpo-badge cpo-badge--ok">Ativa</span>
               {% elif matricula.status == "COMPLETED" %}
                 <span class="cpo-badge cpo-badge--info">Concluida</span>
+              {% elif matricula.status == "REVOKED" %}
+                <span class="cpo-badge cpo-badge--erro">Revogada</span>
               {% else %}
                 <span class="cpo-badge cpo-badge--neutro">Inativa</span>
               {% endif %}
@@ -106,13 +118,27 @@
             <td class="d-none d-lg-table-cell small text-body-secondary" data-rotulo="Data">
               {{ matricula.enrolled_at|date:"d/m/Y" }}
             </td>
+            {% if mostrando_revogadas %}
+              <td class="d-none d-lg-table-cell small" data-rotulo="Revogacao">
+                {% if matricula.status == "REVOKED" %}
+                  <div class="text-body-secondary">
+                    {{ matricula.revoked_at|date:"d/m/Y H:i" }} por
+                    {{ matricula.revoked_by.full_name|default:"conta removida" }}
+                  </div>
+                  <div class="cpo-quebra">{{ matricula.revocation_reason }}</div>
+                {% else %}
+                  <span class="text-body-secondary">&mdash;</span>
+                {% endif %}
+              </td>
+            {% endif %}
             <td class="text-end cpo-acoes">
               {% include "admin_panel/enrollments/_acoes.html" with matricula=matricula %}
             </td>
           </tr>
         {% empty %}
           <tr>
-            <td colspan="6" class="text-center text-body-secondary py-5 cpo-celula-vazia">
+            <td colspan="{% if mostrando_revogadas %}7{% else %}6{% endif %}"
+                class="text-center text-body-secondary py-5 cpo-celula-vazia">
               {% if busca or filtro_modulo or filtro_situacao or filtro_acesso %}
                 Nenhuma matricula encontrada com esses filtros.
               {% else %}

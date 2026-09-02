@@ -18,6 +18,29 @@ urlpatterns = [
     path("provas/<int:pk>/publicar/", views.exam_publish, name="exam_publish"),
     path("provas/<int:pk>/fechar/", views.exam_close, name="exam_close"),
     path("provas/<int:pk>/duplicar/", views.exam_duplicate, name="exam_duplicate"),
+    # Exclusao e arquivamento (Etapa 9).
+    #
+    # Cada operacao tem duas rotas: a tela de confirmacao, que e GET e nao
+    # altera nada, e a escrita, que e POST e recusa GET com 405. Separar as
+    # duas e o que permite uma confirmacao que funciona sem JavaScript sem
+    # abrir um caminho de leitura para a operacao destrutiva.
+    path(
+        "provas/<int:pk>/excluir/confirmar/",
+        views.ExamDeleteConfirmView.as_view(),
+        name="exam_delete_confirm",
+    ),
+    path("provas/<int:pk>/excluir/", views.exam_delete, name="exam_delete"),
+    path(
+        "provas/<int:pk>/arquivar/confirmar/",
+        views.ExamArchiveConfirmView.as_view(),
+        name="exam_archive_confirm",
+    ),
+    path("provas/<int:pk>/arquivar/", views.exam_archive, name="exam_archive"),
+    path(
+        "provas/<int:pk>/desarquivar/",
+        views.exam_unarchive,
+        name="exam_unarchive",
+    ),
     path(
         "provas/<int:pk>/senha/",
         views.ExamPasswordView.as_view(),

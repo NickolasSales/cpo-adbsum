@@ -9,18 +9,20 @@ Bootstrap 5. Produção em uma instância AWS EC2 com Nginx, Gunicorn e systemd,
 atrás de Nginx Proxy Manager com HTTPS do Let's Encrypt — sem dependência de
 serviços proprietários da AWS na lógica de negócio.
 
-> **Estado atual: Etapa 8 — acabamento do MVP.**
+> **Estado atual: Etapa 9 — gestão operacional.**
 >
 > O ciclo está fechado de ponta a ponta: autenticação e papéis (Etapa 1),
 > alunos, módulos e matrículas (Etapa 2), montagem e publicação de provas
 > (Etapa 3), realização com cronômetro e autosave (Etapa 4), correção, notas e
 > aprovação (Etapa 5), certificado com QR e validação pública sob domínio
 > próprio com HTTPS (Etapa 6), contas administrativas, anulação de tentativa e
-> trilha de auditoria consultável (Etapa 7).
+> trilha de auditoria consultável (Etapa 7), certificado no modelo oficial da
+> AD Brás Sumaré e compartilhamento do endereço de validação (Etapa 8).
 >
-> A Etapa 8 fecha o acabamento: **certificado no modelo oficial da AD Brás
-> Sumaré**, com os dados da turma vindos do módulo, e **compartilhamento** do
-> endereço público de validação por WhatsApp e pela folha nativa do celular.
+> A Etapa 9 dá ao administrador as ferramentas para **limpar a operação sem
+> destruir histórico acadêmico**: excluir prova que nunca foi usada, arquivar
+> prova que já tem histórico, revogar ou excluir matrícula, e um comando de
+> gestão para apagar os dados de teste da homologação.
 >
 > O nome anterior do projeto era "CPO Provas". Ele aparece no histórico do Git
 > e em trechos deste README que contam a história de uma decisão; na interface,
@@ -1975,6 +1977,270 @@ pessoas diferentes é comportamento normal, e agrupá-los esconderia o segundo.
 | certificado revogado | **409** |
 | `url=`, `next=`, `redirect=` no POST | ignorados; o destino é montado no servidor |
 | `verification_code` no POST | ignorado; o documento vem do caminho + dono da sessão |
+
+---
+
+## 9.16 Excluir e arquivar provas
+
+Duas operações diferentes, e a diferença é a única coisa que importa:
+
+| | |
+|---|---|
+| **Excluir** | apaga a linha. Só quando **não existe** histórico acadêmico nem descendência. Não há desfazer. |
+| **Arquivar** | preserva tudo e tira a prova da visão operacional. É o que sobra quando já existe histórico. |
+
+A escolha não é do administrador: é do estado da prova. A lista mostra a ação
+possível, e o serviço recusa a impossível mesmo que o POST chegue montado à
+mão. Esconder o botão nunca foi a proteção.
+
+### O que impede a exclusão
+
+- **Qualquer `ExamAttempt`**, em qualquer situação — inclusive `IN_PROGRESS`,
+  `EXPIRED` e `RESET`. Uma tentativa anulada continua sendo o registro de que
+  aquele aluno fez aquela prova naquele dia, que é justamente o registro que
+  justifica a anulação.
+- **Qualquer certificado.** Na prática redundante, porque `Certificate.attempt`
+  é `OneToOne` com `PROTECT` e certificado sem tentativa não existe. Fica
+  explícito para sobreviver a uma mudança futura desse desenho.
+- **Descendentes** por `parent_exam` **ou** por `root_exam`. São duas consultas
+  separadas de propósito: a v3 nasce da v2 mas aponta a raiz para a v1, então
+  contar só `parent_exam` deixaria a raiz apagável com netos vivos.
+
+O **status não impede**. Uma prova publicada ou fechada que ninguém usou é uma
+prova que não aconteceu, e obrigar arquivo eterno só porque alguém clicou em
+publicar transformaria um clique em cicatriz permanente.
+
+### Por que a exclusão trava a prova
+
+A corrida óbvia é: a checagem diz "0 tentativas" → o aluno inicia uma tentativa
+→ o `DELETE` apaga a prova por baixo dela.
+
+O que fecha a janela é um detalhe do PostgreSQL: inserir uma linha com chave
+estrangeira para a prova toma um lock `FOR KEY SHARE` na linha referenciada, e
+`SELECT ... FOR UPDATE` conflita com ele. Travar a prova e **reconferir depois
+de adquirir o lock** é, portanto, suficiente — ou o start entra antes e a
+recontagem o enxerga, ou ele espera o fim da transação e encontra a prova já
+apagada. O `PROTECT` da FK continua sendo a defesa final.
+
+### Arquivamento é uma dimensão separada do status
+
+`is_archived` não é um quarto valor de `ExamStatus`, pelo mesmo motivo que
+`access_enabled` não é um valor de `EnrollmentStatus`: o status conta a
+história acadêmica da prova, e sobrescrevê-lo com "ARCHIVED" apagaria o fato de
+que ela chegou a ser publicada e recebeu tentativas.
+
+Uma prova arquivada continua `PUBLISHED` ou `CLOSED` no histórico. O que muda:
+
+- some da lista operacional (filtro `Arquivamento`: Ativas / Arquivadas / Todas,
+  padrão **Ativas**);
+- some da área do aluno;
+- **não aceita nova tentativa**, mesmo continuando publicada.
+
+O bloqueio no `start_attempt` relê `is_archived` do banco em vez de confiar no
+objeto recebido: entre a montagem da tela e o POST alguém pode ter arquivado a
+prova, e a instância que a view carregou ainda diria `is_archived=False`.
+
+### Tentativa em andamento recusa o arquivamento
+
+Arquivar no meio de uma prova derrubaria o aluno em silêncio, no único momento
+em que ele não tem como perguntar o que aconteceu. O administrador precisa
+antes finalizar, expirar ou resetar essas tentativas — três ações que ele já
+tem, e que deixam registro de quem decidiu.
+
+O motivo do arquivamento é obrigatório e fica em `Exam.archive_reason`, não na
+auditoria: duplicar texto livre criaria duas versões do mesmo fato para
+divergirem depois.
+
+### Desarquivar
+
+Não estava no pedido da Etapa 9, que só descreveu o caminho de ida. Foi
+incluída porque sem ela um arquivamento por engano vira um beco sem saída — a
+prova sai da lista e só o Django Admin a traz de volta. Não reabre nada
+sozinha: a prova volta com o status que sempre teve, e se a janela já passou
+ela continua sem aceitar tentativa.
+
+---
+
+## 9.17 Matrícula revogada
+
+`REVOKED` **não** é o mesmo que `INACTIVE`:
+
+| | |
+|---|---|
+| `INACTIVE` | pausa operacional. Reversível com um clique, sem motivo escrito. "Este aluno não está cursando agora." |
+| `REVOKED` | ato administrativo que encerra o vínculo. Exige motivo, grava quem e quando, e sai da lista padrão. "A instituição revogou esta matrícula." |
+
+Dois valores porque são duas decisões de peso diferente, e apagar essa
+diferença faria a trilha não conseguir distinguir um remanejamento de turma de
+uma revogação disciplinar.
+
+### O acesso cai sem que nenhuma consulta mude
+
+`liberadas()`, `modulos_do_aluno` e `prova_visivel_ou_none` já exigiam
+`status=ACTIVE`. Revogada não é ativa, então o status novo perdeu o acesso por
+construção — foi exatamente por isso que a Etapa 2 separou situação acadêmica
+de chave de acesso.
+
+Duas `CheckConstraint` fecham o que a aplicação não alcança: revogada tem data
+(`matricula_revogacao_coerente`) e revogada nunca tem acesso
+(`matricula_revogada_sem_acesso`). São a camada que sobrevive a um `UPDATE`
+direto no banco.
+
+### Revogar a matrícula NÃO revoga o certificado
+
+`Certificate ACTIVE` com `Enrollment REVOKED` é um estado **legítimo**: o aluno
+concluiu o módulo e tem o documento, e a instituição encerrou o vínculo depois.
+Revogar o documento é outro ato, com outro fluxo e outro evento na trilha.
+
+### `Reativar` não desfaz uma revogação
+
+O botão genérico recusa `REVOKED` e manda para `Restaurar matrícula`. Se ele
+aceitasse, desfaria um ato formal sem motivo, sem trilha própria e — o que
+importa mais — sem a checagem de certificado ativo. Um aluno já certificado
+voltaria ao curso por um clique de rotina.
+
+A recusa lê o status **do banco**, e não do objeto recebido, pelo mesmo motivo
+do arquivamento de prova.
+
+`restore_revoked_enrollment` recusa quando existe certificado `ACTIVE` do aluno
+naquele módulo:
+
+> Esta matricula possui certificado ativo de conclusao. Revogue o certificado
+> antes de restaurar acesso academico.
+
+### A matriz de ações
+
+Antes da Etapa 9 a tela montava dois grupos independentes — um de acesso e um
+de situação — e o resultado era uma matrícula **"Concluída / Bloqueado"**
+oferecendo **"Liberar acesso"** e **"Reativar"** lado a lado. As duas juntas
+não descrevem nenhuma intenção administrativa real.
+
+| Estado | Ações |
+|---|---|
+| `ACTIVE` + acesso liberado | Bloquear acesso · Concluir · Desativar · Revogar |
+| `ACTIVE` + acesso bloqueado | Liberar acesso · Concluir · Desativar · Revogar |
+| `INACTIVE` | Reativar · Revogar |
+| `COMPLETED` | Ver histórico · Revogar |
+| `REVOKED` | Ver · Restaurar matrícula |
+
+`Excluir` aparece por cima disso quando não há histórico acadêmico nenhum
+daquele aluno naquele módulo.
+
+`COMPLETED` não mostra acesso nem "Reativar". Se a conclusão foi um engano, o
+caminho é **resetar a tentativa** que a produziu — que revoga o certificado e
+reavalia a matrícula junto, num ato só, com trilha.
+
+### `sem_historico_academico` falha fechado
+
+A lista anota `total_tentativas` por `com_contagem_de_historico()`. Sem a
+anotação a propriedade devolve `False` e a tela simplesmente não oferece a
+exclusão. Errar escondendo um botão é inofensivo; quem decide de fato é
+`can_delete_enrollment`, que reconta com a linha travada.
+
+Uma contagem basta para os dois critérios: `Certificate.attempt` é `OneToOne`
+com `PROTECT`, então zero tentativas implica zero certificados.
+
+---
+
+## 9.18 Confirmação sem JavaScript
+
+As cinco operações destrutivas — excluir prova, arquivar prova, excluir
+matrícula, revogar matrícula, restaurar matrícula — confirmam em **tela
+própria**, e não em modal.
+
+Modal depende de Bootstrap e de JavaScript, e a página que decide apagar uma
+prova em definitivo não pode ser a mais frágil do sistema. (A anulação de
+tentativa, da Etapa 7, ainda usa modal; ela não foi reescrita nesta etapa.)
+
+Cada operação tem **duas rotas**:
+
+```
+/provas/<pk>/excluir/confirmar/    GET   tela, não altera nada
+/provas/<pk>/excluir/              POST  escrita; GET devolve 405
+```
+
+Quando existe impedimento, a tela de confirmação **não desenha o formulário**.
+O serviço recusaria de todo modo, mas mostrar um botão que só serve para
+produzir um 409 seria convidar o administrador a errar.
+
+---
+
+## 9.19 `limpar_dados_homologacao`
+
+Todo o resto do sistema preserva histórico acadêmico. Resetar tentativa marca
+`RESET`; revogar matrícula marca `REVOKED`; revogar certificado marca
+`REVOKED`; excluir prova só é permitido quando nunca existiu histórico.
+
+Este comando faz o contrário: **apaga de verdade**. Ele existe porque antes do
+piloto há dados que nunca foram reais — provas de teste feitas pelo próprio
+administrador. Guardar isso como histórico acadêmico seria guardar mentira.
+
+Por isso ele não está na interface, não tem rota, e exige **quatro** coisas
+para apagar qualquer linha.
+
+```bash
+# Dry run — o padrão. Não altera nada.
+python manage.py limpar_dados_homologacao \
+    --student-email aluno@exemplo.com \
+    --module-code MOD1-2026
+
+# Execução real.
+python manage.py limpar_dados_homologacao \
+    --student-email aluno@exemplo.com \
+    --module-code MOD1-2026 \
+    --exam-title "Avaliacao MOD 1 Ano 2026 (Teste1)" \
+    --execute \
+    --confirm "APAGAR-DADOS-DE-HOMOLOGACAO" \
+    --reactivate-enrollment
+```
+
+### As quatro barreiras
+
+1. **Filtro suficiente.** `--student-email` é obrigatório, e junto dele
+   `--module-code` **ou** `--exam-title`. Sem isso o comando recusa antes de
+   tocar no banco. Não é burocracia: `--execute --confirm FRASE` sem alvo
+   apagaria o histórico acadêmico da instituição inteira, e o comando teria
+   funcionado exatamente como pedido.
+2. **`--execute`.** Sem ele, dry run: relata e não altera.
+3. **`--confirm "APAGAR-DADOS-DE-HOMOLOGACAO"`**, exato. Nem minúsculo, nem com
+   espaço a mais.
+4. **`transaction.atomic()`.** Se qualquer passo falhar, nada é removido —
+   inclusive o evento de auditoria, que é gravado lá dentro. A alternativa
+   seria uma trilha afirmando uma limpeza que o banco desfez.
+
+### Ordem de remoção
+
+```
+Certificate      PROTECT sobre a tentativa: sai primeiro
+ExamAttempt      CASCADE cuida do resto:
+    AttemptQuestion  -> AttemptOption -> AnswerOption
+                     -> Answer        -> AnswerOption
+```
+
+**Nota e resultado não são tabela**: moram em `ExamAttempt` (`final_score`,
+`result`, `obtained_points`). Apagar a tentativa é o que faz a linha sumir da
+tela de Notas.
+
+### O que ele nunca apaga
+
+`AuditLog` — a trilha é *append-only*, e os eventos de teste ficam como
+evidência de que os testes aconteceram, inclusive o evento desta própria
+limpeza. Também não apaga o **aluno**, o **módulo** nem a **prova**: depois da
+limpeza a prova pode passar a atender às regras de exclusão, e aí o
+administrador a remove pela interface — que é o caminho auditado.
+
+### A reativação da matrícula
+
+Só com `--reactivate-enrollment`, e só quando as três condições valem: a
+matrícula existe e está `COMPLETED`, a limpeza remove pelo menos um
+certificado, e **não resta** outro certificado `ACTIVE` fora do conjunto alvo.
+A terceira é a que importa — com um segundo certificado válido o aluno continua
+com comprovação de conclusão, e reabrir o módulo contradiria o documento que
+ele tem em mãos.
+
+Sem `--module-code` não há módulo para avaliar e a reativação não acontece:
+adivinhar o módulo pelo título da prova seria decidir sobre acesso acadêmico
+por heurística. O dry run informa `Matricula sera reativada ...... SIM/NAO`.
 
 ---
 

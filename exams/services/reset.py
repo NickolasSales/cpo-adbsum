@@ -43,10 +43,10 @@ from django.utils import timezone
 from audit.models import AuditEvent
 from audit.services import record
 from common.exceptions import DomainError
+from common.texto import LIMITE_DO_MOTIVO  # noqa: F401  (reexportado)
+from common.texto import validar_motivo as validar_motivo_generico
 from courses.models import Enrollment, EnrollmentStatus
 from exams.models import AttemptStatus, ExamAttempt
-
-LIMITE_DO_MOTIVO = 1000
 
 
 class TentativaJaAnulada(DomainError):
@@ -64,15 +64,13 @@ def validar_motivo(motivo):
     Resetar anula o trabalho de um aluno e pode revogar um certificado. Seis
     meses depois, "por que esta tentativa foi anulada?" precisa ter resposta
     no proprio registro — nao na memoria de quem clicou.
+
+    A regra em si vive em common.texto desde a Etapa 9, quando arquivar prova
+    e revogar matricula passaram a exigir o mesmo motivo escrito. Esta funcao
+    continua existindo com o nome que os chamadores ja usam, e o que ela
+    guarda de proprio e a mensagem: "anulacao", e nao "operacao".
     """
-    texto = (motivo or "").strip()
-    if not texto:
-        raise DomainError("Informe o motivo da anulacao.")
-    if len(texto) > LIMITE_DO_MOTIVO:
-        raise DomainError(
-            "O motivo pode ter no maximo {} caracteres.".format(LIMITE_DO_MOTIVO)
-        )
-    return texto
+    return validar_motivo_generico(motivo, vazio="Informe o motivo da anulacao.")
 
 
 def reset_attempt(attempt, *, actor, reason, request=None):

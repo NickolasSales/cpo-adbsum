@@ -512,6 +512,14 @@ pre {
     background: #fff;
     box-shadow: -8px 0 8px -8px rgba(15, 23, 42, .18);
     z-index: 2;
+    /* A Etapa 9 acrescentou Revogar, Excluir, Arquivar e Desarquivar. Uma
+       matricula ativa passou de tres acoes para cinco, e em fila unica a
+       coluna cresceria ate empurrar a tabela para fora da area visivel.
+
+       O teto faz os botoes quebrarem em duas linhas dentro da propria
+       celula. Rolar a tabela seria pior: esta coluna e grudada na direita
+       justamente para nao obrigar ninguem a arrastar para achar o botao. */
+    max-width: 22rem;
   }
 
   .cpo-tabela thead .cpo-acoes {

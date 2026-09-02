@@ -13,6 +13,9 @@
       <h1 class="h4 mb-0">{{ prova.title }}</h1>
       <span class="cpo-badge cpo-badge--neutro">v{{ prova.version }}</span>
       {% include "admin_panel/exams/_status.html" %}
+      {% if prova.is_archived %}
+        <span class="cpo-badge cpo-badge--neutro">Arquivada</span>
+      {% endif %}
     </div>
     <p class="text-body-secondary small mb-0">
       Modulo <code>{{ prova.module.code }}</code> &middot; {{ prova.module.name }}
@@ -32,8 +35,41 @@
     {% endif %}
     <button type="button" class="btn btn-sm btn-outline-primary"
             data-bs-toggle="modal" data-bs-target="#duplicarProva">Duplicar</button>
+    {% comment %}
+      Uma acao so, e sempre a possivel. impedimentos_de_exclusao vem de
+      can_delete_exam: lista vazia significa que a prova nunca foi usada e
+      pode ser apagada; qualquer motivo na lista significa que o caminho e
+      arquivar.
+    {% endcomment %}
+    {% if prova.is_archived %}
+      <form method="post" action="{% url 'admin_panel:exam_unarchive' prova.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-outline-success">Desarquivar</button>
+      </form>
+    {% elif impedimentos_de_exclusao %}
+      <a class="btn btn-sm btn-outline-warning"
+         href="{% url 'admin_panel:exam_archive_confirm' prova.pk %}">Arquivar</a>
+    {% else %}
+      <a class="btn btn-sm btn-outline-danger"
+         href="{% url 'admin_panel:exam_delete_confirm' prova.pk %}">Excluir</a>
+    {% endif %}
   </div>
 </div>
+
+{% if prova.is_archived %}
+  <div class="alert alert-secondary small" role="alert">
+    <p class="fw-medium mb-1">Prova arquivada</p>
+    <p class="mb-1">
+      Arquivada em {{ prova.archived_at|date:"d/m/Y H:i" }} por
+      {{ prova.archived_by.full_name|default:"conta removida" }}.
+    </p>
+    <p class="mb-1 cpo-quebra"><strong>Motivo:</strong> {{ prova.archive_reason }}</p>
+    <p class="mb-0">
+      Ela nao aparece na lista padrao nem para o aluno, e nao aceita novas
+      tentativas. O historico academico foi preservado por completo.
+    </p>
+  </div>
+{% endif %}
 
 {% if not prova.module.is_active %}
   <div class="alert alert-warning small" role="alert">

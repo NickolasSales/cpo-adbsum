@@ -1,0 +1,52 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}Operacao nao permitida - {{ APP_NAME }}{% endblock %}
+
+{% comment %}
+Resposta HTTP 409 a uma escrita que o estado da matricula nao permite.
+
+Uma segunda revogacao, ou uma exclusao de matricula que ja tem historico,
+chega aqui. Nao e um redirect com mensagem: quem clicou duas vezes, ou montou
+o POST a mao, precisa saber que a operacao nao aconteceu.
+{% endcomment %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:enrollment_list' %}">
+    &larr; Matriculas
+  </a>
+</nav>
+
+<div class="row">
+  <div class="col-12 col-lg-8">
+    <div class="cpo-cartao p-3 p-md-4">
+      <h1 class="h5 mb-3">Nao foi possivel concluir a operacao</h1>
+
+      {% if matricula %}
+        <p class="text-body-secondary small mb-3">
+          {{ matricula.student.full_name }} &middot;
+          <code>{{ matricula.module.code }}</code>
+        </p>
+      {% endif %}
+
+      <ul class="mb-4 ps-3">
+        {% for mensagem in mensagens %}
+          <li class="mb-1">{{ mensagem }}</li>
+        {% endfor %}
+      </ul>
+
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-primary" href="{% url 'admin_panel:enrollment_list' %}">
+          Voltar para as matriculas
+        </a>
+        {% if matricula %}
+          <a class="btn btn-outline-secondary"
+             href="{% url 'admin_panel:student_detail' matricula.student.pk %}">
+            Ver o aluno
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

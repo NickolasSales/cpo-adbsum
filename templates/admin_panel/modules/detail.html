@@ -146,6 +146,8 @@ sai do proprio modelo, entao ela e exatamente a mesma que a emissao consulta.
                 <span class="cpo-badge cpo-badge--ok">Ativa</span>
               {% elif matricula.status == "COMPLETED" %}
                 <span class="cpo-badge cpo-badge--info">Concluida</span>
+              {% elif matricula.status == "REVOKED" %}
+                <span class="cpo-badge cpo-badge--erro">Revogada</span>
               {% else %}
                 <span class="cpo-badge cpo-badge--neutro">Inativa</span>
               {% endif %}

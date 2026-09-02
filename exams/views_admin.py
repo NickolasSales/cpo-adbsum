@@ -17,7 +17,7 @@ operacao. Esconder o botao nunca e a protecao; estas duas respostas sao.
 """
 
 from django.contrib import messages
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Exists, OuterRef, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, FormView, ListView, TemplateView
@@ -95,13 +95,40 @@ class ExamListView(PainelAdminMixin, ListView):
     paginate_by = 25
     secao = SECAO
 
+    # Valores aceitos no filtro de arquivamento, e o padrao.
+    #
+    # O padrao e "ativas" porque esta e a tela operacional: quem abre a lista
+    # de provas quer ver o que esta em uso. Arquivar sem que a prova saia da
+    # lista nao resolveria nada.
+    ARQUIVAMENTO = ("ativas", "arquivadas", "todas")
+    ARQUIVAMENTO_PADRAO = "ativas"
+
+    def _arquivamento(self):
+        valor = (self.request.GET.get("arquivamento") or "").strip()
+        return valor if valor in self.ARQUIVAMENTO else self.ARQUIVAMENTO_PADRAO
+
     def get_queryset(self):
+        from exams.models import ExamAttempt
+
         # select_related no modulo e annotate na contagem: sem os dois, uma
         # pagina de 25 provas faria 51 consultas.
         consulta = Exam.objects.select_related("module").annotate(
             total_questoes=Count("questions", filter=Q(questions__active=True), distinct=True),
             soma_pontos=Sum("questions__points", filter=Q(questions__active=True)),
+            # Tres subconsultas Exists, e nao tres Count com join: a tela so
+            # precisa saber SE existe dependencia, e Exists para no primeiro
+            # registro encontrado. Sao as anotacoes que Exam.sem_dependencias
+            # le para decidir entre oferecer "Excluir" e oferecer "Arquivar".
+            tem_tentativa=Exists(ExamAttempt.objects.filter(exam=OuterRef("pk"))),
+            tem_derivada=Exists(Exam.objects.filter(parent_exam=OuterRef("pk"))),
+            tem_versao=Exists(Exam.objects.filter(root_exam=OuterRef("pk"))),
         )
+
+        arquivamento = self._arquivamento()
+        if arquivamento == "ativas":
+            consulta = consulta.ativas()
+        elif arquivamento == "arquivadas":
+            consulta = consulta.arquivadas()
 
         modulo = (self.request.GET.get("modulo") or "").strip()
         if modulo.isdigit():
@@ -125,8 +152,12 @@ class ExamListView(PainelAdminMixin, ListView):
         contexto["situacoes"] = ExamStatus.choices
         contexto["filtro_modulo"] = (self.request.GET.get("modulo") or "").strip()
         contexto["filtro_situacao"] = (self.request.GET.get("situacao") or "").strip()
+        contexto["filtro_arquivamento"] = self._arquivamento()
         contexto["busca"] = (self.request.GET.get("q") or "").strip()
+        # A contagem total continua sendo de tudo, arquivadas incluidas: ela
+        # responde "quantas provas existem", e nao "quantas a tela mostra".
         contexto["total_geral"] = Exam.objects.count()
+        contexto["total_arquivadas"] = Exam.objects.arquivadas().count()
         return contexto
 
 
@@ -136,11 +167,19 @@ class ExamDetailView(PainelAdminMixin, DetailView):
     secao = SECAO
 
     def get_queryset(self):
-        return Exam.objects.select_related("module", "parent_exam", "created_by")
+        return Exam.objects.select_related(
+            "module", "parent_exam", "created_by", "archived_by"
+        )
 
     def get_context_data(self, **kwargs):
         contexto = super().get_context_data(**kwargs)
         prova = self.object
+
+        # Aqui a conta e por objeto, e nao por linha de lista: pode chamar o
+        # servico direto e mostrar os motivos por extenso, que e justamente o
+        # que a tela de detalhe tem espaco para fazer.
+        contexto["impedimentos_de_exclusao"] = services.can_delete_exam(prova)
+        contexto["tentativas_em_andamento"] = services.tentativas_em_andamento(prova)
 
         contexto["questoes_ativas"] = prova.questions.filter(active=True).count()
         contexto["questoes_totais"] = prova.questions.count()
@@ -305,6 +344,165 @@ def exam_close(request, pk):
         return _conflito(request, prova, _mensagens(erro))
 
     messages.success(request, "Prova '{}' fechada.".format(prova.title))
+    return redirect("admin_panel:exam_detail", pk=prova.pk)
+
+
+# ---------------------------------------------------------------------------
+# Exclusao e arquivamento (Etapa 9)
+#
+# As tres rotas sao POST. Um GET que apagasse uma prova poderia ser disparado
+# por um link colado num chat, por um pre-carregador do navegador ou por um
+# robo de indexacao.
+#
+# A confirmacao mora em telas proprias — ExamDeleteConfirmView e
+# ExamArchiveConfirmView — e nao num modal. Modal depende de JavaScript, e a
+# tela que decide apagar uma prova em definitivo nao deveria ser a mais
+# fragil do sistema. Essas telas sao GET e nao alteram nada; as rotas de
+# escrita continuam recusando GET com 405.
+# ---------------------------------------------------------------------------
+
+
+class ExamDeleteConfirmView(PainelAdminMixin, TemplateView):
+    template_name = "admin_panel/exams/confirmar.html"
+    secao = SECAO
+
+    def get_context_data(self, **kwargs):
+        contexto = super().get_context_data(**kwargs)
+        prova = _prova(self.kwargs["pk"])
+        impedimentos = services.can_delete_exam(prova)
+
+        contexto.update(
+            {
+                "prova": prova,
+                "titulo": "Excluir prova permanentemente?",
+                "acao": "excluir",
+                "url_da_acao": "admin_panel:exam_delete",
+                "rotulo_do_botao": "Excluir prova",
+                "classe_do_botao": "btn-danger",
+                "impedimentos": impedimentos,
+                "exige_motivo": False,
+                "avisos": [
+                    "Esta prova nunca foi utilizada por alunos e podera ser "
+                    "removida.",
+                    "As questoes e alternativas dela serao apagadas junto.",
+                    "Esta operacao nao podera ser desfeita.",
+                ],
+            }
+        )
+        return contexto
+
+
+class ExamArchiveConfirmView(PainelAdminMixin, TemplateView):
+    template_name = "admin_panel/exams/confirmar.html"
+    secao = SECAO
+
+    def get_context_data(self, **kwargs):
+        contexto = super().get_context_data(**kwargs)
+        prova = _prova(self.kwargs["pk"])
+        abertas = services.tentativas_em_andamento(prova)
+
+        impedimentos = []
+        if prova.is_archived:
+            impedimentos.append("Esta prova ja esta arquivada.")
+        if abertas:
+            impedimentos.append(
+                "Esta prova possui {} tentativa(s) em andamento. Finalize, "
+                "expire ou resete essas tentativas antes de arquivar.".format(
+                    abertas
+                )
+            )
+
+        contexto.update(
+            {
+                "prova": prova,
+                "titulo": "Arquivar prova?",
+                "acao": "arquivar",
+                "url_da_acao": "admin_panel:exam_archive",
+                "rotulo_do_botao": "Arquivar prova",
+                "classe_do_botao": "btn-warning",
+                "impedimentos": impedimentos,
+                "exige_motivo": True,
+                "rotulo_do_motivo": "Motivo do arquivamento",
+                "exemplo_do_motivo": (
+                    "Exemplo: versao criada durante a homologacao."
+                ),
+                "avisos": [
+                    "O historico academico e preservado por completo: "
+                    "tentativas, respostas, notas e certificados.",
+                    "A prova sai da lista operacional e deixa de aparecer "
+                    "para o aluno.",
+                    "Nenhuma tentativa nova sera aceita, mesmo com a prova "
+                    "publicada.",
+                ],
+            }
+        )
+        return contexto
+
+
+@require_POST
+@admin_required
+def exam_delete(request, pk):
+    prova = _prova(pk)
+    titulo = prova.title
+    versao = prova.version
+
+    try:
+        services.delete_exam(prova, actor=request.user, request=request)
+    except DomainError as erro:
+        # 409: o pedido esta bem formado e o usuario tem permissao, mas a
+        # prova esta num estado que nao aceita a operacao. Vale mesmo que o
+        # POST tenha sido montado a mao contra uma prova com historico — o
+        # botao escondido nunca foi a protecao.
+        return _conflito(request, prova, _mensagens(erro))
+
+    messages.success(
+        request, "Prova '{}' (v{}) excluida.".format(titulo, versao)
+    )
+    return redirect("admin_panel:exam_list")
+
+
+@require_POST
+@admin_required
+def exam_archive(request, pk):
+    prova = _prova(pk)
+    try:
+        services.archive_exam(
+            prova,
+            actor=request.user,
+            reason=request.POST.get("motivo") or "",
+            request=request,
+        )
+    except services.ProvaJaArquivada as erro:
+        return _conflito(request, prova, _mensagens(erro))
+    except DomainError as erro:
+        # Motivo em branco cai aqui. E erro de preenchimento, e nao conflito
+        # de estado: a tela de confirmacao volta com a mensagem, sem 409.
+        messages.error(request, str(erro))
+        return redirect("admin_panel:exam_archive_confirm", pk=prova.pk)
+
+    messages.success(
+        request,
+        "Prova '{}' arquivada. O historico academico foi preservado.".format(
+            prova.title
+        ),
+    )
+    return redirect("admin_panel:exam_detail", pk=prova.pk)
+
+
+@require_POST
+@admin_required
+def exam_unarchive(request, pk):
+    prova = _prova(pk)
+    try:
+        services.unarchive_exam(prova, actor=request.user, request=request)
+    except DomainError as erro:
+        return _conflito(request, prova, _mensagens(erro))
+
+    messages.success(
+        request,
+        "Prova '{}' devolvida a operacao. A janela e o status originais "
+        "continuam valendo.".format(prova.title),
+    )
     return redirect("admin_panel:exam_detail", pk=prova.pk)
 
 

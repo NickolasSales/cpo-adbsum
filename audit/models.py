@@ -143,6 +143,44 @@ class AuditEvent(models.TextChoices):
     # ExamAttempt.reset_reason.
     ATTEMPT_RESET = "ATTEMPT_RESET", "Tentativa anulada"
 
+    # Gestao operacional (Etapa 9)
+    #
+    # EXAM_DELETED e o unico evento da trilha que descreve uma linha que nao
+    # existe mais. Por isso ele e gravado ANTES do DELETE, dentro da mesma
+    # transacao: se a exclusao falhar, o evento tambem desaparece no rollback,
+    # e a trilha nunca afirma uma exclusao que nao aconteceu.
+    #
+    # A metadata leva titulo, versao e modulo — o suficiente para responder
+    # "o que foi apagado". Questoes, alternativas e gabarito ficam de fora: a
+    # trilha existe para registrar o ato, e nao para ser um backup obliquo do
+    # conteudo da prova.
+    EXAM_DELETED = "EXAM_DELETED", "Prova excluida"
+    EXAM_ARCHIVED = "EXAM_ARCHIVED", "Prova arquivada"
+    EXAM_UNARCHIVED = "EXAM_UNARCHIVED", "Prova desarquivada"
+
+    # Matriculas revogadas, apagadas e restauradas.
+    #
+    # ENROLLMENT_REVOKED nao e o mesmo que ENROLLMENT_REMOVED, da Etapa 2.
+    # Desativar e uma pausa operacional; revogar e um ato administrativo que
+    # encerra o vinculo academico e exige motivo escrito.
+    ENROLLMENT_REVOKED = "ENROLLMENT_REVOKED", "Matricula revogada"
+    ENROLLMENT_DELETED = "ENROLLMENT_DELETED", "Matricula excluida"
+    ENROLLMENT_RESTORED = "ENROLLMENT_RESTORED", "Matricula restaurada"
+
+    # Limpeza de dados de homologacao (Etapa 9)
+    #
+    # Excecao declarada, e nao um caminho normal: apaga tentativas, respostas
+    # e certificados de teste antes do piloto. Quem executa e um comando de
+    # gestao, sem sessao web, entao o autor fica nulo — e por isso mesmo a
+    # metadata precisa dizer o que foi removido e de quem.
+    #
+    # O evento e gravado dentro da mesma transacao da remocao. A propria
+    # trilha nunca e tocada pela limpeza.
+    HOMOLOGATION_DATA_PURGED = (
+        "HOMOLOGATION_DATA_PURGED",
+        "Dados de homologacao removidos",
+    )
+
 
 class AuditLog(models.Model):
     """

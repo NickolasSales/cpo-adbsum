@@ -117,6 +117,8 @@ Toda acao que altera estado e POST com CSRF; as destrutivas passam por modal.
                     <span class="cpo-badge cpo-badge--ok">Ativa</span>
                   {% elif matricula.status == "COMPLETED" %}
                     <span class="cpo-badge cpo-badge--info">Concluida</span>
+                  {% elif matricula.status == "REVOKED" %}
+                    <span class="cpo-badge cpo-badge--erro">Revogada</span>
                   {% else %}
                     <span class="cpo-badge cpo-badge--neutro">Inativa</span>
                   {% endif %}

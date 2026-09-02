@@ -49,6 +49,15 @@ from exams.services.exam import (  # noqa: F401
     set_exam_password,
     update_exam,
 )
+from exams.services.removal import (  # noqa: F401
+    ProvaJaArquivada,
+    ProvaNaoArquivada,
+    archive_exam,
+    can_delete_exam,
+    delete_exam,
+    tentativas_em_andamento,
+    unarchive_exam,
+)
 from exams.services.question import (  # noqa: F401
     create_question,
     delete_question,
@@ -107,6 +116,13 @@ __all__ = [
     "remove_exam_password",
     "set_exam_password",
     "update_exam",
+    "ProvaJaArquivada",
+    "ProvaNaoArquivada",
+    "archive_exam",
+    "can_delete_exam",
+    "delete_exam",
+    "tentativas_em_andamento",
+    "unarchive_exam",
     "create_question",
     "delete_question",
     "reorder_questions",

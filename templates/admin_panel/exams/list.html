@@ -6,7 +6,12 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
   <div>
     <h1 class="h4 mb-1">Provas</h1>
-    <p class="text-body-secondary small mb-0">{{ total_geral }} prova(s) cadastrada(s).</p>
+    <p class="text-body-secondary small mb-0">
+      {{ total_geral }} prova(s) cadastrada(s).
+      {% if total_arquivadas %}
+        {{ total_arquivadas }} arquivada(s), fora da lista padrao.
+      {% endif %}
+    </p>
   </div>
   <div class="d-flex gap-2">
     <a class="btn btn-primary btn-sm" href="{% url 'admin_panel:exam_create' %}">Nova prova</a>
@@ -40,9 +45,17 @@
         {% endfor %}
       </select>
     </div>
+    <div class="col-6 col-md-3">
+      <label for="arquivamento" class="form-label small fw-medium mb-1">Arquivamento</label>
+      <select id="arquivamento" name="arquivamento" class="form-select form-select-sm">
+        <option value="ativas" {% if filtro_arquivamento == "ativas" %}selected{% endif %}>Ativas</option>
+        <option value="arquivadas" {% if filtro_arquivamento == "arquivadas" %}selected{% endif %}>Arquivadas</option>
+        <option value="todas" {% if filtro_arquivamento == "todas" %}selected{% endif %}>Todas</option>
+      </select>
+    </div>
     <div class="col-12 col-md-auto d-flex gap-2">
       <button type="submit" class="btn btn-sm btn-primary w-100">Filtrar</button>
-      {% if busca or filtro_modulo or filtro_situacao %}
+      {% if busca or filtro_modulo or filtro_situacao or filtro_arquivamento != "ativas" %}
         <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:exam_list' %}">Limpar</a>
       {% endif %}
     </div>
@@ -79,7 +92,12 @@
             </td>
             <td class="d-none d-md-table-cell" data-rotulo="Modulo"><code>{{ prova.module.code }}</code></td>
             <td class="text-center" data-rotulo="Versao">v{{ prova.version }}</td>
-            <td data-rotulo="Situacao">{% include "admin_panel/exams/_status.html" %}</td>
+            <td data-rotulo="Situacao">
+              {% include "admin_panel/exams/_status.html" %}
+              {% if prova.is_archived %}
+                <span class="cpo-badge cpo-badge--neutro">Arquivada</span>
+              {% endif %}
+            </td>
             <td class="d-none d-lg-table-cell small" data-rotulo="Janela">
               {% if prova.open_at and prova.close_at %}
                 {{ prova.open_at|date:"d/m/Y H:i" }}<br>
@@ -104,13 +122,33 @@
               <div class="d-flex gap-1 justify-content-end flex-wrap">
                 <a class="btn btn-sm btn-outline-secondary"
                    href="{% url 'admin_panel:exam_detail' prova.pk %}">Abrir</a>
+                {% comment %}
+                  Uma acao so, e sempre a possivel. Prova sem historico e sem
+                  descendencia pode ser apagada; com historico, o caminho e
+                  arquivar. Oferecer as duas convidaria a um 409.
+                {% endcomment %}
+                {% if prova.is_archived %}
+                  <form method="post" action="{% url 'admin_panel:exam_unarchive' prova.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-success"
+                            title="Devolve a prova a operacao">Desarquivar</button>
+                  </form>
+                {% elif prova.sem_dependencias %}
+                  <a class="btn btn-sm btn-outline-danger"
+                     href="{% url 'admin_panel:exam_delete_confirm' prova.pk %}"
+                     title="Esta prova nunca foi utilizada e pode ser removida">Excluir</a>
+                {% else %}
+                  <a class="btn btn-sm btn-outline-warning"
+                     href="{% url 'admin_panel:exam_archive_confirm' prova.pk %}"
+                     title="Retira a prova da operacao preservando o historico">Arquivar</a>
+                {% endif %}
               </div>
             </td>
           </tr>
         {% empty %}
           <tr>
             <td colspan="10" class="text-center text-body-secondary py-5 cpo-celula-vazia">
-              {% if busca or filtro_modulo or filtro_situacao %}
+              {% if busca or filtro_modulo or filtro_situacao or filtro_arquivamento != "ativas" %}
                 Nenhuma prova encontrada com esses filtros.
               {% else %}
                 Nenhuma prova cadastrada ainda.

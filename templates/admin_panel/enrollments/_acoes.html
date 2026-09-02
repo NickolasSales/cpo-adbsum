@@ -1,36 +1,80 @@
 {% comment %}
-Acoes de uma matricula.
+Acoes de uma matricula, conforme o estado dela.
 
 Parcial reutilizada pela lista de matriculas, pelo detalhe do aluno e pelo
 detalhe do modulo. Espera a variavel "matricula" no contexto.
 
-Cada acao e um POST proprio com csrf e com o campo "proximo", para que a view
-devolva o administrador exatamente para a tela de onde ele saiu. O acesso
-(access_enabled) e a situacao academica (status) sao chaves independentes, por
-isso aparecem como dois grupos de botoes distintos.
+A matriz, reescrita na Etapa 9
+------------------------------
+    ACTIVE   + acesso liberado   Bloquear acesso | Concluir | Revogar
+    ACTIVE   + acesso bloqueado  Liberar acesso  | Concluir | Revogar
+    INACTIVE                     Reativar        | Revogar
+    COMPLETED                    Ver historico   | Revogar
+    REVOKED                      Ver             | Restaurar matricula
+
+Antes desta etapa a tela montava dois grupos independentes — um de acesso e um
+de situacao — e o resultado era uma matricula "Concluida / Bloqueado"
+oferecendo "Liberar acesso" e "Reativar" lado a lado. As duas juntas nao
+descrevem nenhuma intencao administrativa real: a matricula esta concluida, e
+liberar o acesso dela nao devolve o aluno ao modulo nem desfaz a conclusao.
+
+Por isso COMPLETED nao mostra acesso nem "Reativar". Se a conclusao foi um
+engano, o caminho e resetar a tentativa que a produziu — que revoga o
+certificado e reavalia a matricula junto, num ato so, com trilha.
+
+REVOKED nao usa "Reativar" generico: usa "Restaurar matricula", que confere
+antes se existe certificado ativo de conclusao.
+
+Excluir so aparece quando a lista trouxe a contagem de historico e ela e zero.
+Sem a anotacao de com_contagem_de_historico(), sem_historico_academico devolve
+False e a acao nao e oferecida — errar escondendo um botao e inofensivo, e
+quem decide de fato e can_delete_enrollment.
+
+Cada acao imediata e um POST proprio com csrf e com o campo "proximo", para
+que a view devolva o administrador a tela de onde ele saiu. As acoes que
+pedem confirmacao sao links para uma tela GET; a escrita continua sendo POST.
 {% endcomment %}
 <div class="d-flex gap-1 justify-content-end flex-wrap">
-  {% if matricula.access_enabled %}
-    <form method="post" action="{% url 'admin_panel:enrollment_block' matricula.pk %}">
-      {% csrf_token %}
-      <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
-      <button type="submit" class="btn btn-sm btn-outline-warning"
-              title="Suspende o acesso sem alterar a situacao academica">
-        Bloquear acesso
-      </button>
-    </form>
-  {% else %}
-    <form method="post" action="{% url 'admin_panel:enrollment_unblock' matricula.pk %}">
-      {% csrf_token %}
-      <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
-      <button type="submit" class="btn btn-sm btn-outline-success"
-              title="Devolve o acesso ao modulo">
-        Liberar acesso
-      </button>
-    </form>
-  {% endif %}
 
-  {% if matricula.status == "ACTIVE" %}
+  {% if matricula.status == "REVOKED" %}
+    <a class="btn btn-sm btn-outline-secondary"
+       href="{% url 'admin_panel:student_detail' matricula.student.pk %}">Ver</a>
+    <a class="btn btn-sm btn-outline-success"
+       href="{% url 'admin_panel:enrollment_restore_confirm' matricula.pk %}"
+       title="Devolve a matricula a situacao ativa, se nao houver certificado ativo">
+      Restaurar matricula
+    </a>
+
+  {% elif matricula.status == "COMPLETED" %}
+    <a class="btn btn-sm btn-outline-secondary"
+       href="{% url 'admin_panel:student_detail' matricula.student.pk %}">Ver historico</a>
+    <a class="btn btn-sm btn-outline-danger"
+       href="{% url 'admin_panel:enrollment_revoke_confirm' matricula.pk %}"
+       title="Encerra o vinculo academico; o historico e o certificado permanecem">
+      Revogar
+    </a>
+
+  {% elif matricula.status == "ACTIVE" %}
+    {% if matricula.access_enabled %}
+      <form method="post" action="{% url 'admin_panel:enrollment_block' matricula.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+        <button type="submit" class="btn btn-sm btn-outline-warning"
+                title="Suspende o acesso sem alterar a situacao academica">
+          Bloquear acesso
+        </button>
+      </form>
+    {% else %}
+      <form method="post" action="{% url 'admin_panel:enrollment_unblock' matricula.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
+        <button type="submit" class="btn btn-sm btn-outline-success"
+                title="Devolve o acesso ao modulo">
+          Liberar acesso
+        </button>
+      </form>
+    {% endif %}
+
     <form method="post" action="{% url 'admin_panel:enrollment_complete' matricula.pk %}">
       {% csrf_token %}
       <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
@@ -42,11 +86,17 @@ isso aparecem como dois grupos de botoes distintos.
     <form method="post" action="{% url 'admin_panel:enrollment_disable' matricula.pk %}">
       {% csrf_token %}
       <input type="hidden" name="proximo" value="{{ request.get_full_path }}">
-      <button type="submit" class="btn btn-sm btn-outline-danger"
-              title="Encerra a matricula; o historico e preservado">
+      <button type="submit" class="btn btn-sm btn-outline-secondary"
+              title="Pausa operacional; reversivel pela acao de reativar">
         Desativar
       </button>
     </form>
+    <a class="btn btn-sm btn-outline-danger"
+       href="{% url 'admin_panel:enrollment_revoke_confirm' matricula.pk %}"
+       title="Encerra o vinculo academico; exige motivo e preserva o historico">
+      Revogar
+    </a>
+
   {% else %}
     <form method="post" action="{% url 'admin_panel:enrollment_reactivate' matricula.pk %}">
       {% csrf_token %}
@@ -56,5 +106,18 @@ isso aparecem como dois grupos de botoes distintos.
         Reativar
       </button>
     </form>
+    <a class="btn btn-sm btn-outline-danger"
+       href="{% url 'admin_panel:enrollment_revoke_confirm' matricula.pk %}"
+       title="Encerra o vinculo academico; exige motivo e preserva o historico">
+      Revogar
+    </a>
+  {% endif %}
+
+  {% if matricula.sem_historico_academico and matricula.status != "REVOKED" %}
+    <a class="btn btn-sm btn-outline-danger"
+       href="{% url 'admin_panel:enrollment_delete_confirm' matricula.pk %}"
+       title="Esta matricula nao possui historico academico e pode ser removida">
+      Excluir
+    </a>
   {% endif %}
 </div>
