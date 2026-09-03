@@ -7,6 +7,13 @@
 *.woff binary
 *.woff2 binary
 
+# A logo institucional, pelo mesmo motivo: o arquivo e o asset oficial, e
+# uma normalizacao de fim de linha dentro de um JPEG nao da erro — da uma
+# imagem corrompida que so aparece na tela de alguem.
+*.jpg binary
+*.jpeg binary
+*.png binary
+
 # O CSS gerado e escrito com \n. Sem isto, o autocrlf do Windows faria o
 # arquivo divergir do que `gerar_css_das_fontes --conferir` produz, e a suite
 # recusaria por causa de fim de linha.

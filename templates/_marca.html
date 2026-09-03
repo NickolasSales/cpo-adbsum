@@ -1,0 +1,44 @@
+{% load static %}{% comment %}
+A marca institucional. UM arquivo, incluido por todos os layouts.
+
+    {% include "_marca.html" with tamanho="grande" %}
+
+`tamanho` escolhe DENTRO de uma lista fechada de classes CSS — nao entra
+numero nenhum no markup. Um `style="width:{{ x }}px"` espalhado pelos
+templates seria a identidade voltando a morar em dezenas de arquivos, que e
+exatamente o que o context processor existe para impedir.
+
+    grande   login                       84–120px
+    medio    validacao publica            64px
+    lateral  sidebar e offcanvas do admin 48px
+    barra    topo do aluno e topo mobile  34px
+
+A placa escura
+--------------
+A logo e branca sobre preto. Numa barra branca ela precisa do proprio fundo
+para existir — sem ele, tinta branca sobre papel branco. Entao a imagem fica
+dentro de uma placa da MESMA cor do fundo dela, com um raio pequeno: a borda
+do arquivo some dentro da placa, e o conjunto le como um emblema, e nao como
+um retangulo preto que alguem esqueceu ali.
+
+Na lateral escura a placa quase desaparece contra o azul-marinho, que e o
+efeito desejado.
+
+Alternativa considerada e descartada: `mix-blend-mode: screen` dissolve o
+preto e deixa so o tracado branco. Fica mais leve, mas a logo perde presenca
+e some no trecho claro do gradiente do login. Comparei as duas lado a lado
+antes de decidir.
+
+Acessibilidade
+--------------
+O alt e o nome da INSTITUICAO. O nome do SISTEMA vem escrito ao lado, em
+texto de verdade, em todos os lugares onde esta marca aparece — a logo nunca
+e a unica fonte dele para quem usa leitor de tela.
+{% endcomment %}<span class="cpo-marca-app__emblema cpo-marca-app__emblema--{{ tamanho|default:'barra' }}">
+  <img class="cpo-marca-app__logo"
+       src="{% static APP_LOGO %}"
+       alt="{{ APP_LOGO_ALT }}"
+       width="640" height="640"
+       decoding="async"
+       {% if tamanho != 'grande' %}loading="lazy"{% endif %}>
+</span>

@@ -13,10 +13,25 @@ navegacao precisa caber no topo.
 {% block chrome %}
 <nav class="cpo-topo">
   <div class="container d-flex align-items-center justify-content-between py-3 gap-3">
-    <a class="cpo-marca d-flex flex-column lh-sm text-decoration-none"
-       href="{% url 'student:dashboard' %}">
-      <span>{{ APP_NAME }}</span>
-      <span class="small fw-normal text-body-secondary">Area do aluno</span>
+    {% comment %}
+    Em 360px o nome inteiro ao lado da logo, do nome do aluno e do botao Conta
+    nao cabe. Entao abaixo de sm o VISIVEL encolhe para "CPO" — e so o
+    visivel: o aria-label do link continua carregando o nome completo, e quem
+    usa leitor de tela ouve "CPO AD Bras Sumare - Area do aluno" na largura
+    que for. A logo nunca e a unica fonte do nome.
+
+    APP_NAME nao muda por causa disto. O que muda e o que a barra mostra.
+    {% endcomment %}
+    <a class="cpo-marca cpo-marca-app text-decoration-none"
+       href="{% url 'student:dashboard' %}"
+       title="{{ APP_NAME }}"
+       aria-label="{{ APP_NAME }} - Area do aluno">
+      {% include "_marca.html" with tamanho="barra" %}
+      <span class="cpo-marca-app__nome">
+        <span class="d-none d-sm-inline">{{ APP_NAME }}</span>
+        <span class="d-sm-none" aria-hidden="true">CPO</span>
+        <span class="cpo-marca-app__sub">Area do aluno</span>
+      </span>
     </a>
     <div class="d-flex align-items-center gap-3">
       <span class="small text-body-secondary d-none d-sm-inline">

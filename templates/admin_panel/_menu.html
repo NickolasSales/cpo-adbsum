@@ -1,9 +1,28 @@
-<div class="mb-4 d-none d-lg-block">
-  <a class="text-white text-decoration-none fw-semibold" href="{% url 'admin_panel:dashboard' %}">
-    {{ APP_NAME }}
+{% comment %}
+Este arquivo e incluido DUAS vezes: pela lateral fixa e pelo corpo do
+offcanvas. So a lateral pede a marca.
+
+Antes eu tinha escondido a marca com `d-none d-lg-block`, e o offcanvas
+continuava carregando um bloco de marca que nunca aparecia — markup morto no
+DOM do celular, mais uma segunda marca no cabecalho dele. O parametro resolve
+de verdade: quem nao pede, nao recebe.
+
+Empilhada porque a lateral tem 250px; a logo ao lado do nome deixaria menos de
+190px para "CPO AD Bras Sumare", que quebraria em duas linhas de qualquer
+forma.
+{% endcomment %}
+{% if mostrar_marca %}
+<div class="mb-4">
+  <a class="cpo-marca-app cpo-marca-app--empilhada text-decoration-none"
+     href="{% url 'admin_panel:dashboard' %}">
+    {% include "_marca.html" with tamanho="lateral" %}
+    <span class="cpo-marca-app__nome">
+      {{ APP_NAME }}
+      <span class="cpo-marca-app__sub">Painel administrativo</span>
+    </span>
   </a>
-  <div class="small" style="color:#64748b;">Painel administrativo</div>
 </div>
+{% endif %}
 
 <ul class="nav nav-pills flex-column">
   {% for item in itens_menu %}

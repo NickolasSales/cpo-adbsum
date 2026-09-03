@@ -83,6 +83,21 @@ APP_SUBTITLE = env(
 # mudam quando ele muda.
 INSTITUTION_NAME = env("INSTITUTION_NAME", "CPO AD Brás Sumaré")
 
+# A logo institucional, dentro do static. Caminho RELATIVO, resolvido por
+# {% static %} — e o que faz o arquivo ganhar hash no collectstatic e ser
+# servido pelo Nginx, sem CDN e sem caminho de maquina nenhuma escrito aqui.
+#
+# Nao vem do .env. O nome e o subtitulo vem porque a mesma base pode servir
+# outra congregacao; o ARQUIVO da logo nao: ele e versionado junto com o
+# codigo, e um caminho configuravel apontando para algo que nao existe daria
+# uma imagem quebrada em vez de um erro.
+APP_LOGO = "branding/adbras-sumare-logo.jpg"
+
+# O texto alternativo da logo. E o nome da INSTITUICAO, e nao o do sistema:
+# quem usa leitor de tela ouve "AD Bras Sumare" onde quem enxerga ve o
+# desenho, e o nome do sistema vem escrito ao lado, em texto de verdade.
+APP_LOGO_ALT = "AD Brás Sumaré"
+
 # Textos fixos do certificado. Ficam aqui, e nao dentro do renderizador, pelo
 # mesmo motivo que o nome da instituicao: sao dados institucionais, mudam sem
 # aviso e nao deveriam exigir alteracao de codigo.

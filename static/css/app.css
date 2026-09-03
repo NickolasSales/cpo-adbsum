@@ -1119,3 +1119,97 @@ pre {
     grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
   }
 }
+
+/* ---------------------------------------------------------------
+   Marca institucional
+   ---------------------------------------------------------------
+   Um conjunto de classes, usado por login, lateral, topos e paginas
+   publicas. Nenhum template escreve tamanho de logo em style="".
+
+   A logo e branca sobre preto. Duas consequencias moram aqui:
+
+   1. A PLACA. Numa barra branca a logo precisa do proprio fundo para
+      existir. A placa tem a cor do fundo do arquivo, entao a borda da
+      imagem some dentro dela e o conjunto le como emblema.
+
+   2. O TAMANHO em rem, e nao em px fixo. A logo e quadrada e a placa
+      tambem; largura e altura andam juntas, e nada aqui pode crescer
+      alem do que a barra comporta.
+   --------------------------------------------------------------- */
+
+.cpo-marca-app {
+  display: flex;
+  align-items: center;
+  gap: .625rem;
+  min-width: 0;              /* deixa o texto ao lado truncar em vez de empurrar */
+  text-decoration: none;
+}
+
+.cpo-marca-app--empilhada {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: .875rem;
+}
+
+.cpo-marca-app__emblema {
+  display: block;
+  flex: 0 0 auto;            /* nunca encolhe: o texto ao lado e que cede */
+  background: #000;          /* a mesma cor do fundo do arquivo */
+  border-radius: .5rem;
+  overflow: hidden;
+  line-height: 0;            /* sem a folga que um inline deixa embaixo */
+}
+
+.cpo-marca-app__logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  object-fit: contain;       /* a proporcao do arquivo mandan, nunca a caixa */
+}
+
+/* Os quatro tamanhos. Quadrados, porque o arquivo e quadrado. */
+.cpo-marca-app__emblema--barra   { width: 2.125rem; height: 2.125rem; border-radius: .375rem; }
+.cpo-marca-app__emblema--lateral { width: 3rem;     height: 3rem; }
+.cpo-marca-app__emblema--medio   { width: 4rem;     height: 4rem;   border-radius: .625rem; }
+
+/* No login a logo respira com a viewport, entre 84 e 120px. O clamp evita
+   os dois defeitos opostos: logo gigante empurrando o formulario para fora
+   da tela no celular, e logo miuda perdida no meio de um monitor grande. */
+.cpo-marca-app__emblema--grande {
+  width: clamp(5.25rem, 22vw, 7.5rem);
+  height: clamp(5.25rem, 22vw, 7.5rem);
+  border-radius: 1rem;
+}
+
+.cpo-marca-app__nome {
+  /* Bloco, e nao inline. Duas razoes: o subtitulo abaixo e um bloco, e
+     `text-overflow: ellipsis` simplesmente nao age sobre um inline — o nome
+     transbordaria a barra em vez de reticenciar. */
+  display: block;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  line-height: 1.15;
+  min-width: 0;
+}
+
+.cpo-marca-app__sub {
+  display: block;
+  font-size: .8rem;
+  font-weight: 400;
+  color: var(--cpo-texto-suave);
+  line-height: 1.2;
+}
+
+/* Na lateral escura o cinza padrao do subtitulo nao tem contraste. */
+.cpo-lateral .cpo-marca-app__nome { color: #fff; }
+.cpo-lateral .cpo-marca-app__sub  { color: #94a3b8; }
+
+/* A barra do topo e baixa: o nome do sistema trunca em vez de quebrar em
+   duas linhas e empurrar a altura da barra. */
+.cpo-marca-app__nome--truncado {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -31,21 +31,35 @@ participar do fluxo.
           aria-controls="menuAdmin" aria-label="Abrir menu">
     <span aria-hidden="true">&#9776;</span>
   </button>
-  <a class="cpo-marca text-truncate" href="{% url 'admin_panel:dashboard' %}">{{ APP_NAME }}</a>
+  <a class="cpo-marca cpo-marca-app" href="{% url 'admin_panel:dashboard' %}">
+    {% include "_marca.html" with tamanho="barra" %}
+    <span class="cpo-marca-app__nome cpo-marca-app__nome--truncado">{{ APP_NAME }}</span>
+  </a>
 </nav>
 {% endblock %}
 
 {% block aside %}
 <div class="cpo-lateral cpo-lateral--fixa d-none d-lg-flex flex-column p-3">
-  {% include "admin_panel/_menu.html" %}
+  {% include "admin_panel/_menu.html" with mostrar_marca=True %}
 </div>
 {% endblock %}
 
 {% block fora_shell %}
 <div class="offcanvas offcanvas-start cpo-lateral" tabindex="-1" id="menuAdmin"
      aria-label="Menu administrativo">
+  {% comment %}
+  A marca do menu mobile vive AQUI, e nao dentro de _menu.html: o offcanvas ja
+  tem um cabecalho, e por-la nele evita gastar altura de tela com duas marcas
+  na mesma coluna. Compacta, porque em 360px o que sobra ao lado da logo e do
+  botao de fechar e pouco — o nome trunca em vez de empurrar.
+  {% endcomment %}
   <div class="offcanvas-header">
-    <span class="text-white fw-semibold">Menu</span>
+    <span class="cpo-marca-app">
+      {% include "_marca.html" with tamanho="barra" %}
+      <span class="cpo-marca-app__nome cpo-marca-app__nome--truncado text-white">
+        {{ APP_NAME }}
+      </span>
+    </span>
     <button type="button" class="btn-close btn-close-white"
             data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
   </div>

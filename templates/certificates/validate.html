@@ -22,9 +22,20 @@ objeto do certificado.
 {% block main_class %}container py-4 py-md-5 cpo-form-estreito{% endblock %}
 
 {% block content %}
-<div class="text-center mb-4">
-  <p class="text-body-secondary small text-uppercase mb-1">{{ instituicao }}</p>
-  <h1 class="h5 mb-0">Validacao de certificado</h1>
+{% comment %}
+Quem chega aqui veio pelo QR de um documento impresso e nao conhece o sistema.
+A marca no topo responde, antes de qualquer texto, de quem e esta pagina — e
+e a mesma marca que esta no papel na mao da pessoa.
+
+O nome da instituicao continua escrito abaixo, em texto: a conferencia de um
+documento oficial nao pode depender de a imagem ter carregado.
+{% endcomment %}
+<div class="cpo-marca-app cpo-marca-app--empilhada mb-4">
+  {% include "_marca.html" with tamanho="medio" %}
+  <div>
+    <p class="text-body-secondary small text-uppercase mb-1">{{ instituicao }}</p>
+    <h1 class="h5 mb-0">Validacao de certificado</h1>
+  </div>
 </div>
 
 <div class="cpo-cartao p-4">
