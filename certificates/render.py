@@ -42,16 +42,23 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 
+from certificates.fonts import (
+    FONTES_PERMITIDAS,
+    FonteIndisponivel,
+    exigir_fonte,
+    registrar_fontes,
+    resolver_fonte,
+)
 from certificates.models.template import (
     CORES_ACEITAS,
-    FONTES_PERMITIDAS,
     FieldType,
     TextAlign,
-    resolver_fonte,
 )
 
 FONTE_PADRAO = "Helvetica"
 COR_PADRAO = "#000000"
+
+__all__ = ["FonteIndisponivel", "render_from_snapshot", "ajustar", "qr_para"]
 
 
 # ---------------------------------------------------------------------------
@@ -76,24 +83,39 @@ def _cor(texto):
 
 def _fonte(campo):
     """
-    Nome PostScript do campo, a partir de familia + negrito + italico.
+    Nome de fonte do campo, a partir de familia + peso + italico.
 
-    Funciona para as duas geracoes de snapshot. Os gravados antes desta
-    correcao trazem o nome ja composto em font_family ("Times-BoldItalic") e
-    nao trazem bold/italic; `resolver_fonte` decompoe, soma flags ausentes e
-    devolve o mesmo nome. Um documento antigo continua saindo com a fonte com
-    que foi assinado.
+    Funciona para as TRES geracoes de snapshot, e essa e a razao de a funcao
+    existir em vez de o desenho ler os campos direto:
 
-    A conferencia final contra FONTES_PERMITIDAS fica: o snapshot e JSON no
-    banco, e um UPDATE manual poderia ter posto qualquer coisa ali. O
-    renderizador nao e o lugar onde isso vira excecao no meio de uma emissao.
+        Etapa 10   font_family = "Times-BoldItalic", sem peso e sem italico
+        Etapa 11   font_family = "Times", bold = true
+        agora      font_family = "MONTSERRAT", font_weight = 600
+
+    `resolver_fonte` decompoe o nome composto, soma o que faltar e devolve o
+    mesmo nome de sempre. Um documento antigo continua saindo com a fonte com
+    que foi assinado — inclusive um emitido antes de estas fontes existirem.
+
+    A conferencia contra FONTES_PERMITIDAS fica: o snapshot e JSON no banco, e
+    um UPDATE manual poderia ter posto qualquer coisa ali.
+
+    O que NAO acontece aqui e trocar a fonte em silencio quando o arquivo
+    falta. `exigir_fonte` levanta, e quem chamou decide o que dizer. Um
+    certificado impresso com outra tipografia que nao a configurada e um
+    defeito que so aparece com o documento ja na mao de alguem.
     """
     nome = resolver_fonte(
         campo.get("font_family"),
-        bool(campo.get("bold")),
+        campo.get("font_weight"),
         bool(campo.get("italic")),
+        # Snapshot da Etapa 11. Nao ha um segundo lugar guardando a mesma
+        # verdade: o campo do banco tem so o peso, e isto e um tradutor de
+        # dado antigo na fronteira.
+        negrito=bool(campo.get("bold")),
     )
-    return nome if nome in FONTES_PERMITIDAS else FONTE_PADRAO
+    if nome not in FONTES_PERMITIDAS:
+        nome = FONTE_PADRAO
+    return exigir_fonte(nome)
 
 
 def _caixa(campo, largura_pt, altura_pt):
@@ -484,6 +506,14 @@ def render_from_snapshot(snapshot, valores):
     tem carga horaria; imprimir um espaco em branco onde deveria haver "08
     horas" e melhor do que imprimir "None".
     """
+    # Uma vez por documento, e nao por elemento desenhado: registrar de novo
+    # a cada campo releria dezoito arquivos por pagina. Precisa vir ANTES do
+    # primeiro `ajustar`, porque o auto-ajuste mede o texto com stringWidth,
+    # e stringWidth so conhece as metricas de uma fonte ja registrada. Medir
+    # com Helvetica e desenhar com Bodoni daria uma caixa certa para a fonte
+    # errada.
+    registrar_fontes()
+
     largura_pt = float(snapshot.get("page_width_mm") or 297) * mm
     altura_pt = float(snapshot.get("page_height_mm") or 210) * mm
 

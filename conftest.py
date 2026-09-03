@@ -521,7 +521,7 @@ def modelo_de_certificado(db, admin_user, arte_de_fundo):
     save_fields(
         template,
         {
-            FieldType.STUDENT_NAME: caixa(30, font_size=24, bold=True),
+            FieldType.STUDENT_NAME: caixa(30, font_size=24, font_weight=700),
             FieldType.COMPLETION_DATE: caixa(38),
             FieldType.COURSE_NAME: caixa(45),
             FieldType.MODULE_NAME: caixa(52),

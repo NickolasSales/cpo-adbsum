@@ -28,6 +28,8 @@ Nao escolhe: a mensagem, o endereco de destino, o codigo do certificado por
 POST, nem para onde redirecionar. Os quatro sao montados aqui.
 """
 
+import logging
+
 from django.contrib import messages
 from django.http import Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import redirect
@@ -36,10 +38,13 @@ from django.views.generic import TemplateView
 
 from certificates import services
 from certificates.models import Certificate, CertificateStatus
+from certificates.fonts import FonteIndisponivel
 from certificates.pdf import render_certificate_pdf
 from common.exceptions import DomainError
 from common.mixins import StudentRequiredMixin, student_required
 from exams.services import attempt as attempt_service
+
+logger = logging.getLogger(__name__)
 
 
 def _certificado_do_aluno_ou_404(request, codigo):
@@ -141,7 +146,27 @@ def certificate_download(request, verification_code):
             status=409,
         )
 
-    pdf = render_certificate_pdf(certificado)
+    try:
+        pdf = render_certificate_pdf(certificado)
+    except FonteIndisponivel as erro:
+        # Um arquivo de fonte que nao chegou ao servidor. O documento NAO sai
+        # com outra tipografia: o aluno guardaria e apresentaria um
+        # certificado diferente do que a instituicao aprovou, e ninguem
+        # descobriria.
+        #
+        # O log identifica o certificado para quem for investigar. O aluno
+        # recebe uma frase que ele consegue repetir ao telefone, e nenhum
+        # caminho do disco.
+        logger.error(
+            "Certificado %s sem fonte: %s", certificado.verification_code, erro
+        )
+        return HttpResponse(
+            "Nao foi possivel gerar o PDF agora por um problema tecnico. "
+            "Avise a secretaria e tente novamente mais tarde.",
+            content_type="text/plain; charset=utf-8",
+            status=503,
+        )
+
     resposta = HttpResponse(pdf, content_type="application/pdf")
     resposta["Content-Disposition"] = 'attachment; filename="{}"'.format(
         certificado.nome_do_arquivo

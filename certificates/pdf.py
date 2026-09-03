@@ -10,9 +10,16 @@ desenvolvimento Windows, isso significa dois caminhos de instalacao diferentes
 e frageis para um documento de uma pagina.
 
 ReportLab desenha direto no PDF, instala por wheel nos dois sistemas, e as
-fontes que usamos (Helvetica, Times e Courier) sao as Type 1 padrao embutidas
-no formato: nenhum arquivo de fonte precisa existir no servidor. Tudo que sai
-impresso e vetor ou texto de verdade — nada de captura de tela esticada.
+fontes que ESTE modulo usa (Helvetica, Times e Courier) sao as Type 1 padrao
+embutidas no formato: nenhum arquivo de fonte precisa existir no servidor.
+Tudo que sai impresso e vetor ou texto de verdade — nada de captura de tela
+esticada.
+
+As fontes institucionais — Bodoni Moda, Montserrat, Great Vibes e Allura —
+nao entram aqui. Elas pertencem ao renderizador dirigido por modelo, em
+certificates/render.py, que e por onde todo certificado novo passa. Este
+arquivo desenha as versoes 1 e 2, que sao historico: mudar a tipografia
+delas mudaria a aparencia de documentos ja emitidos.
 
 Duas versoes de desenho, e por que as duas continuam existindo
 --------------------------------------------------------------

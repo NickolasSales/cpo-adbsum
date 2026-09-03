@@ -27,6 +27,7 @@ identidade visual da instituicao em alta resolucao.
 """
 
 import json
+import logging
 
 from django.contrib import messages
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
@@ -43,8 +44,14 @@ from certificates.models import (
     PageOrientation,
     TemplateStatus,
 )
+from certificates.fonts import (
+    NEGRITO,
+    REGULAR,
+    SEMIBOLD,
+    FonteIndisponivel,
+    catalogo_para_o_editor,
+)
 from certificates.models.template import (
-    FAMILIAS_PERMITIDAS,
     LIMITE_DA_FONTE,
     TIPOS_COM_REPETICAO,
     TIPOS_DA_PALETA,
@@ -61,6 +68,8 @@ from common.exceptions import DomainError
 from common.mixins import admin_required
 from common.navigation import MENU_ADMIN, MENU_ADMIN_FUTURO
 from common.views import PainelAdminMixin
+
+logger = logging.getLogger(__name__)
 
 SECAO = "modelos_certificado"
 
@@ -95,8 +104,13 @@ PADRAO_DO_CAMPO = {
     "y": 45,
     "width": 70,
     "height": 10,
-    "font_family": "Helvetica",
-    "bold": False,
+    # Montserrat, e nao Helvetica: e a fonte institucional do texto corrido, e
+    # deixar o elemento nascer nela poupa uma troca em cada elemento criado.
+    # O PADRAO do MODELO continua sendo Helvetica — aquele e o que sobrevive a
+    # ausencia de qualquer arquivo de fonte no servidor; este e uma cortesia
+    # da tela.
+    "font_family": "MONTSERRAT",
+    "font_weight": REGULAR,
     "italic": False,
     "font_size": 16,
     "min_font_size": 10,
@@ -115,15 +129,45 @@ PADRAO_DO_CAMPO = {
 # — a posicao vem de onde o administrador soltou —, sao proporcoes que
 # poupam o primeiro redimensionamento: um QR nasce quadrado, o ano nasce
 # estreito e alto, um bloco de texto nasce largo.
+#
+# A tipografia de cada tipo tambem nasce aqui, e nao no renderizador: sao
+# DEFAULTS DO MODELO, e o administrador troca qualquer um deles no painel de
+# propriedades. Seguem a configuracao sugerida para a arte oficial — serifada
+# de contraste alto no que e classico, sem serifa no texto corrido,
+# caligrafica na assinatura.
 PADRAO_POR_TIPO = {
-    FieldType.STUDENT_NAME: {"width": 60, "height": 8, "font_size": 30, "bold": True},
+    FieldType.STUDENT_NAME: {
+        "width": 60,
+        "height": 8,
+        "font_size": 30,
+        "font_family": "BODONI_MODA",
+    },
     FieldType.QR_CODE: {"width": 9, "height": 12.7},
-    FieldType.YEAR: {"width": 6, "height": 20, "rotation": 90, "font_size": 30},
+    FieldType.YEAR: {
+        "width": 6,
+        "height": 20,
+        "rotation": 90,
+        "font_size": 30,
+        "font_family": "BODONI_MODA",
+    },
+    FieldType.MODULE_NAME: {"font_weight": NEGRITO},
+    FieldType.INSTITUTION: {"font_weight": SEMIBOLD},
+    # A assinatura manuscrita. Great Vibes e a primeira sugestao; Allura esta
+    # ao lado dela no seletor, para a comparacao ser feita olhando.
+    FieldType.SIGNATORY_NAME: {
+        "width": 34,
+        "height": 8,
+        "font_size": 34,
+        "font_family": "GREAT_VIBES",
+    },
+    FieldType.SIGNATORY_TITLE: {"width": 34, "height": 3, "font_size": 10},
     FieldType.VERIFICATION_CODE: {
         "width": 24,
         "height": 3,
         "font_size": 7,
         "min_font_size": 6,
+        # Monoespacada de proposito: um codigo lido em voz alta ou digitado a
+        # mao precisa que 0 e O nao se pareçam.
         "font_family": "Courier",
     },
     FieldType.CUSTOM_TEXT: {
@@ -160,7 +204,7 @@ def _elemento_para_a_tela(campo):
         "width": float(campo.width),
         "height": float(campo.height),
         "font_family": campo.font_family,
-        "bold": campo.bold,
+        "font_weight": campo.font_weight,
         "italic": campo.italic,
         "font_size": campo.font_size,
         "min_font_size": campo.min_font_size,
@@ -382,7 +426,11 @@ class TemplateEditView(PainelAdminMixin, TemplateView):
                     {"chave": chave, "rotulo": rotulo, "exemplo": exemplo}
                     for chave, rotulo, exemplo in opcoes_para_o_editor(exemplos)
                 ],
-                "familias": list(FAMILIAS_PERMITIDAS),
+                # O catalogo inteiro, e nao so os nomes: o editor precisa
+                # saber a pilha CSS de cada familia para pintar a caixa, e
+                # quais pesos ela tem para nao oferecer um Semibold que a
+                # Great Vibes nao possui.
+                "familias": catalogo_para_o_editor(),
                 "alinhamentos": [list(par) for par in TextAlign.choices],
                 "orientacoes": PageOrientation.choices,
                 # Rotulos e exemplos num mapa so, para o editor nao precisar
@@ -503,6 +551,7 @@ def template_save_fields(request, pk):
             "width": request.POST.get("{}-width".format(tipo)),
             "height": request.POST.get("{}-height".format(tipo)),
             "font_family": request.POST.get("{}-font_family".format(tipo)),
+            "font_weight": request.POST.get("{}-font_weight".format(tipo)),
             "bold": bool(request.POST.get("{}-bold".format(tipo))),
             "italic": bool(request.POST.get("{}-italic".format(tipo))),
             "font_size": request.POST.get("{}-font_size".format(tipo)),
@@ -603,7 +652,25 @@ class TemplatePreviewView(PainelAdminMixin, TemplateView):
         snapshot["author"] = "Preview"
         snapshot["creator"] = "Preview"
 
-        pdf = render_from_snapshot(snapshot, self._valores(request))
+        try:
+            pdf = render_from_snapshot(snapshot, self._valores(request))
+        except FonteIndisponivel as erro:
+            # Um arquivo de fonte que nao subiu no deploy. A alternativa
+            # seria devolver o PDF com outra tipografia — e o administrador
+            # aprovaria um layout que nao e o que vai ser impresso.
+            #
+            # O log guarda o modelo para quem for investigar; a tela recebe
+            # so o nome da familia. O caminho do disco nao entra em nenhum
+            # dos dois.
+            logger.error(
+                "Preview do modelo %s sem fonte: %s", modelo.pk, erro,
+            )
+            return HttpResponse(
+                "{} Avise o responsavel tecnico: o arquivo da fonte nao esta "
+                "no servidor.".format(erro),
+                content_type="text/plain; charset=utf-8",
+                status=503,
+            )
 
         resposta = HttpResponse(pdf, content_type="application/pdf")
         baixar = request.GET.get("baixar") == "1"

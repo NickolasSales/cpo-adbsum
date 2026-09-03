@@ -47,105 +47,27 @@ from django.db.models import F, Q
 # Tudo que o navegador escolhe e escolhido DENTRO destas listas. Nenhuma
 # string vinda do formulario vira nome de fonte, caminho de arquivo ou
 # propriedade CSS por conta propria.
+#
+# A tipografia mora em certificates.fonts, e nao aqui. Ali estao as familias,
+# os pesos, os arquivos e os nomes que o ReportLab recebe; o modelo so
+# reexporta o que os outros modulos ja importavam deste arquivo, para nao
+# quebrar quem le daqui. A seta aponta num sentido so: fonts nao importa
+# modelo nenhum.
 # ---------------------------------------------------------------------------
 
-# As Type 1 embutidas no proprio formato PDF. Nenhum arquivo de fonte precisa
-# existir no servidor, e por isso mesmo a lista nao pode crescer sozinha: um
-# nome fora dela faria o ReportLab procurar um arquivo que nao existe.
-#
-# Esta tupla e o que o RENDERIZADOR aceita. Nao e o que a tela oferece: ali o
-# administrador escolhe familia + negrito + italico, e a combinacao e
-# resolvida para um destes nomes por resolver_fonte(). Ver FAMILIAS_DE_FONTE.
-FONTES_PERMITIDAS = (
-    "Helvetica",
-    "Helvetica-Bold",
-    "Helvetica-Oblique",
-    "Helvetica-BoldOblique",
-    "Times-Roman",
-    "Times-Bold",
-    "Times-Italic",
-    "Times-BoldItalic",
-    "Courier",
-    "Courier-Bold",
-    "Courier-Oblique",
-    "Courier-BoldOblique",
+from certificates.fonts import (
+    FAMILIA_PADRAO,
+    FAMILIAS_PERMITIDAS,
+    FONTES_PERMITIDAS,
+    PESO_PADRAO,
+    PESOS,
+    ROTULOS_DOS_PESOS,
+    decompor_fonte,
+    pesos_suportados,
+    resolver_fonte,
+    tem_italico,
 )
-
-# Familia + negrito + italico -> nome PostScript.
-#
-# O campo guarda a FAMILIA e dois booleanos, e nao o nome composto. A
-# alternativa — guardar "Times-BoldItalic" e mais duas caixas de selecao —
-# criaria dois lugares para o mesmo fato, e dois lugares divergem: bastaria
-# gravar "Times-Bold" com italico marcado para ninguem saber qual dos dois
-# manda.
-#
-# Repare que a regular do Times chama "Times-Roman" e a inclinada da
-# Helvetica chama "Oblique". Sao os nomes reais do formato, nao ha padrao
-# entre as familias, e e exatamente por isso que a composicao precisa de uma
-# tabela em vez de concatenacao de strings.
-FAMILIAS_DE_FONTE = {
-    "Helvetica": {
-        (False, False): "Helvetica",
-        (True, False): "Helvetica-Bold",
-        (False, True): "Helvetica-Oblique",
-        (True, True): "Helvetica-BoldOblique",
-    },
-    "Times": {
-        (False, False): "Times-Roman",
-        (True, False): "Times-Bold",
-        (False, True): "Times-Italic",
-        (True, True): "Times-BoldItalic",
-    },
-    "Courier": {
-        (False, False): "Courier",
-        (True, False): "Courier-Bold",
-        (False, True): "Courier-Oblique",
-        (True, True): "Courier-BoldOblique",
-    },
-}
-
-FAMILIAS_PERMITIDAS = tuple(FAMILIAS_DE_FONTE)
-FAMILIA_PADRAO = "Helvetica"
-
-# Nome PostScript -> (familia, negrito, italico). Construido a partir da
-# tabela acima para que as duas nunca discordem.
-_DECOMPOSICAO = {
-    nome: (familia, negrito, italico)
-    for familia, variantes in FAMILIAS_DE_FONTE.items()
-    for (negrito, italico), nome in variantes.items()
-}
-
-
-def decompor_fonte(valor):
-    """
-    (familia, negrito, italico) a partir de familia OU de nome composto.
-
-    Aceita os dois porque os dois existem no historico: os campos gravados
-    ate agora guardavam "Times-BoldItalic", e os snapshots ja emitidos
-    continuam guardando. Um documento antigo precisa continuar saindo com a
-    fonte com que foi assinado.
-    """
-    texto = (valor or "").strip()
-    if texto in _DECOMPOSICAO:
-        return _DECOMPOSICAO[texto]
-    if texto in FAMILIAS_DE_FONTE:
-        return texto, False, False
-    return FAMILIA_PADRAO, False, False
-
-
-def resolver_fonte(valor, negrito=False, italico=False):
-    """
-    Nome PostScript de uma familia com os atributos pedidos.
-
-    Os atributos do nome recebido e os booleanos se SOMAM: pedir negrito
-    sobre "Times-Italic" da "Times-BoldItalic". E o que torna a funcao
-    idempotente — resolver duas vezes devolve o mesmo nome — e o que permite
-    aplica-la sobre um snapshot antigo sem alterar o resultado.
-    """
-    familia, ja_negrito, ja_italico = decompor_fonte(valor)
-    variantes = FAMILIAS_DE_FONTE.get(familia) or FAMILIAS_DE_FONTE[FAMILIA_PADRAO]
-    return variantes[(bool(ja_negrito or negrito), bool(ja_italico or italico))]
-
+from certificates.fonts import rotulo as rotulo_da_familia
 
 # Somente #RRGGBB. Nao e "validacao de cor": e a recusa de qualquer coisa que
 # pareca CSS. `red; background: url(...)` nao passa por aqui.
@@ -555,15 +477,28 @@ class CertificateTemplateField(models.Model):
         validators=[MinValueValidator(0.1), MaxValueValidator(100)],
     )
 
-    # A FAMILIA, nao o nome composto: "Times", e nao "Times-BoldItalic". O
-    # peso e a inclinacao moram em bold/italic, e resolver_fonte junta os
-    # tres num nome PostScript na hora de renderizar.
+    # A FAMILIA, nao o nome composto: "MONTSERRAT", e nao
+    # "Montserrat-SemiBold". O peso e a inclinacao moram em font_weight e
+    # italic, e resolver_fonte junta os tres num nome de fonte na hora de
+    # renderizar.
     font_family = models.CharField(
         "fonte", max_length=32, default=FAMILIA_PADRAO, choices=[
-            (familia, familia) for familia in FAMILIAS_PERMITIDAS
+            (familia, rotulo_da_familia(familia))
+            for familia in FAMILIAS_PERMITIDAS
         ]
     )
-    bold = models.BooleanField("negrito", default=False)
+    # O peso em numero de CSS, e nao um booleano "negrito".
+    #
+    # Montserrat e Bodoni Moda tem quatro desenhos de peso cada uma, com
+    # arquivo proprio para cada um. Um booleano so alcancaria dois deles, e o
+    # Semibold — que e o que aproxima o titulo da arte oficial — ficaria sem
+    # como ser escolhido. 400 e 700 continuam significando exatamente o que o
+    # "negrito" significava antes.
+    font_weight = models.PositiveSmallIntegerField(
+        "peso",
+        default=PESO_PADRAO,
+        choices=[(peso, ROTULOS_DOS_PESOS[peso]) for peso in PESOS],
+    )
     italic = models.BooleanField("italico", default=False)
     font_size = models.PositiveSmallIntegerField(
         "tamanho",
@@ -705,9 +640,16 @@ class CertificateTemplateField(models.Model):
             # A familia tambem: um valor fora da tabela faria o ReportLab
             # procurar um arquivo de fonte que nao existe no servidor, e a
             # falha apareceria no meio de uma emissao.
+            #
+            # E aqui que um `font_family=../../malicious.ttf` morre mesmo que
+            # todas as camadas acima falhem: o banco nao aceita gravar.
             models.CheckConstraint(
                 condition=Q(font_family__in=FAMILIAS_PERMITIDAS),
                 name="campo_familia_de_fonte_conhecida",
+            ),
+            models.CheckConstraint(
+                condition=Q(font_weight__in=PESOS),
+                name="campo_peso_de_fonte_conhecido",
             ),
             # Imagem fixa exige arquivo; os demais tipos nao carregam
             # arquivo nenhum. Sem isto, um campo de texto poderia guardar um
@@ -746,13 +688,24 @@ class CertificateTemplateField(models.Model):
 
     @property
     def fonte_resolvida(self):
-        """Nome PostScript que o ReportLab vai receber."""
-        return resolver_fonte(self.font_family, self.bold, self.italic)
+        """Nome de fonte que o ReportLab vai receber."""
+        return resolver_fonte(self.font_family, self.font_weight, self.italic)
+
+    @property
+    def pesos_disponiveis(self):
+        """Os pesos que ESTA familia tem arquivo para desenhar."""
+        return pesos_suportados(self.font_family)
+
+    @property
+    def aceita_italico(self):
+        return tem_italico(self.font_family)
 
     def clean(self):
         super().clean()
         if self.font_family not in FAMILIAS_PERMITIDAS:
             raise ValidationError({"font_family": "Fonte nao permitida."})
+        if self.font_weight not in PESOS:
+            raise ValidationError({"font_weight": "Peso de fonte nao permitido."})
         if not CORES_ACEITAS.match(self.text_color or ""):
             raise ValidationError(
                 {"text_color": "Informe a cor no formato #RRGGBB."}

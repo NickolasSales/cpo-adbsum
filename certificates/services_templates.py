@@ -17,6 +17,7 @@ from django.db.models import Max
 
 from audit.models import AuditEvent
 from audit.services import record
+from certificates.fonts import NEGRITO, PESOS, pesos_suportados, tem_italico
 from certificates.models.template import (
     CORES_ACEITAS,
     FAMILIAS_PERMITIDAS,
@@ -113,9 +114,45 @@ def normalizar_campo(dados):
             "Fonte nao permitida: {}.".format(nome_da_fonte or "vazia")
         )
 
-    familia, negrito_do_nome, italico_do_nome = decompor_fonte(nome_da_fonte)
-    negrito = bool(dados.get("bold")) or negrito_do_nome
-    italico = bool(dados.get("italic")) or italico_do_nome
+    familia, peso_do_nome, italico_do_nome = decompor_fonte(nome_da_fonte)
+
+    # O peso pedido pela tela. Ausente vale o do nome — que e o caminho por
+    # onde um campo antigo, gravado como "Times-Bold", conserva o peso ao
+    # passar por aqui.
+    #
+    # `bold` ainda e aceito porque a tela anterior mandava um booleano, e um
+    # POST de uma aba aberta antes do deploy nao deve virar erro. True vale
+    # 700; o que fica gravado e so o peso.
+    peso = peso_do_nome
+    if dados.get("bold"):
+        peso = max(peso, NEGRITO)
+
+    pedido = dados.get("font_weight")
+    if pedido not in (None, ""):
+        try:
+            pedido = int(pedido)
+        except (TypeError, ValueError):
+            raise DomainError("O peso da fonte precisa ser um numero.")
+        if pedido not in PESOS:
+            # Recusa, e nao arredondamento. Um 12345 que virasse 700 em
+            # silencio esconderia um erro de quem chamou; a lista de pesos e
+            # curta e a tela so oferece o que existe.
+            raise DomainError(
+                "Peso de fonte nao permitido: {}. Use um de {}.".format(
+                    pedido, ", ".join(str(valor) for valor in PESOS)
+                )
+            )
+        peso = max(peso, pedido)
+
+    # O peso e a inclinacao caem no que a familia REALMENTE tem. Great Vibes
+    # com semibold pedido sai em regular, porque o arquivo semibold dela nao
+    # existe — e inventa-lo engordando os tracos destruiria justamente o
+    # desenho que faz ela servir para assinatura. A tela tambem nao oferece a
+    # combinacao; isto e a rede embaixo.
+    italico = (bool(dados.get("italic")) or italico_do_nome) and tem_italico(familia)
+    disponiveis = pesos_suportados(familia)
+    if peso not in disponiveis:
+        peso = min(disponiveis, key=lambda existente: (abs(existente - peso), existente))
 
     alinhamento = str(dados.get("text_align") or "").strip().upper()
     if alinhamento not in TextAlign.values:
@@ -152,7 +189,7 @@ def normalizar_campo(dados):
         "width": largura,
         "height": altura,
         "font_family": familia,
-        "bold": negrito,
+        "font_weight": peso,
         "italic": italico,
         "font_size": tamanho,
         "min_font_size": minimo,
@@ -652,7 +689,7 @@ def duplicate_template(template, *, actor=None, request=None):
                 width=campo.width,
                 height=campo.height,
                 font_family=campo.font_family,
-                bold=campo.bold,
+                font_weight=campo.font_weight,
                 italic=campo.italic,
                 content=campo.content,
                 wrap=campo.wrap,

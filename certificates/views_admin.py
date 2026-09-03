@@ -14,6 +14,8 @@ Revogar e POST com CSRF e exige motivo. Um GET que revogasse transformaria
 qualquer link colado num chat em uma revogacao acidental.
 """
 
+import logging
+
 from django.contrib import messages
 from django.db.models import Q
 from django.http import Http404, HttpResponse
@@ -23,10 +25,13 @@ from django.views.generic import ListView, TemplateView
 
 from certificates import services
 from certificates.models import Certificate, CertificateStatus
+from certificates.fonts import FonteIndisponivel
 from certificates.pdf import render_certificate_pdf, url_de_validacao
 from common.mixins import admin_required
 from common.views import PainelAdminMixin
 from courses.models import Module
+
+logger = logging.getLogger(__name__)
 
 POR_PAGINA = 25
 
@@ -141,7 +146,24 @@ def certificate_download_admin(request, certificate_id):
         )
         return redirect("admin_panel:certificate_detail", certificate_id=certificado.pk)
 
-    pdf = render_certificate_pdf(certificado)
+    try:
+        pdf = render_certificate_pdf(certificado)
+    except FonteIndisponivel as erro:
+        # Mesmo raciocinio do lado do aluno: nao entregar o documento com
+        # outra tipografia. Aqui quem le e o administrador, entao a mensagem
+        # nomeia a familia — mas o caminho do disco continua so no log.
+        logger.error(
+            "Certificado %s sem fonte: %s", certificado.verification_code, erro
+        )
+        messages.error(
+            request,
+            "{} O arquivo da fonte nao esta no servidor; avise o "
+            "responsavel tecnico.".format(erro),
+        )
+        return redirect(
+            "admin_panel:certificate_detail", certificate_id=certificado.pk
+        )
+
     resposta = HttpResponse(pdf, content_type="application/pdf")
     resposta["Content-Disposition"] = 'attachment; filename="{}"'.format(
         certificado.nome_do_arquivo

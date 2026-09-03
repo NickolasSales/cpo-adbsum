@@ -24,7 +24,6 @@ from certificates.models.certificate import (  # noqa: F401
 from certificates.models.template import (  # noqa: F401
     ALINHAMENTOS,
     CORES_ACEITAS,
-    FAMILIAS_DE_FONTE,
     FAMILIAS_PERMITIDAS,
     FONTES_PERMITIDAS,
     LIMITE_DA_FONTE,
@@ -43,8 +42,13 @@ from certificates.models.template import (  # noqa: F401
     aceita_repeticao,
     caminho_do_fundo,
     caminho_do_asset,
+    PESO_PADRAO,
+    PESOS,
+    ROTULOS_DOS_PESOS,
     decompor_fonte,
+    pesos_suportados,
     resolver_fonte,
+    tem_italico,
 )
 
 __all__ = [
@@ -54,7 +58,6 @@ __all__ = [
     "CertificateStatus",
     "ALINHAMENTOS",
     "CORES_ACEITAS",
-    "FAMILIAS_DE_FONTE",
     "FAMILIAS_PERMITIDAS",
     "FONTES_PERMITIDAS",
     "LIMITE_DA_FONTE",
@@ -73,6 +76,11 @@ __all__ = [
     "aceita_repeticao",
     "caminho_do_fundo",
     "caminho_do_asset",
+    "PESO_PADRAO",
+    "PESOS",
+    "ROTULOS_DOS_PESOS",
     "decompor_fonte",
+    "pesos_suportados",
     "resolver_fonte",
+    "tem_italico",
 ]

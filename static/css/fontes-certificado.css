@@ -1,0 +1,175 @@
+/*
+ * Fontes do certificado — ARQUIVO GERADO. Nao edite a mao.
+ *
+ *     python manage.py gerar_css_das_fontes
+ *
+ * A fonte da verdade e certificates/fonts.py. Um teste refaz esta geracao e
+ * compara com o que esta aqui, entao editar este arquivo direto e recusado
+ * pela suite.
+ *
+ * Tudo local. Nenhuma linha aponta para fonts.googleapis.com nem para
+ * fonts.gstatic.com: o editor precisa abrir com a internet da instituicao
+ * fora do ar, e uma fonte que so existe num CDN e uma fonte que um dia nao
+ * carrega.
+ *
+ * Os caminhos sao relativos a este arquivo. O ManifestStaticFilesStorage
+ * reescreve cada url() para o nome com hash no collectstatic — e por isso
+ * que eles precisam continuar relativos.
+ *
+ * font-display: swap — o texto aparece na hora com a fonte generica e troca
+ * quando o arquivo chega. Num editor de posicionamento, texto invisivel por
+ * meio segundo e pior que texto que troca de forma: o administrador esta
+ * arrastando caixas, e caixa vazia nao se arrasta.
+ */
+
+/* Bodoni Moda — Regular, Medio, Semibold, Negrito */
+
+@font-face {
+  font-family: "Bodoni Moda";
+  src: url("../fonts/certificates/bodoni-moda/BodoniModa-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bodoni Moda";
+  src: url("../fonts/certificates/bodoni-moda/BodoniModa-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bodoni Moda";
+  src: url("../fonts/certificates/bodoni-moda/BodoniModa-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bodoni Moda";
+  src: url("../fonts/certificates/bodoni-moda/BodoniModa-MediumItalic.ttf") format("truetype");
+  font-weight: 500;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bodoni Moda";
+  src: url("../fonts/certificates/bodoni-moda/BodoniModa-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bodoni Moda";
+  src: url("../fonts/certificates/bodoni-moda/BodoniModa-SemiBoldItalic.ttf") format("truetype");
+  font-weight: 600;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bodoni Moda";
+  src: url("../fonts/certificates/bodoni-moda/BodoniModa-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bodoni Moda";
+  src: url("../fonts/certificates/bodoni-moda/BodoniModa-BoldItalic.ttf") format("truetype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Montserrat — Regular, Medio, Semibold, Negrito */
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("../fonts/certificates/montserrat/Montserrat-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("../fonts/certificates/montserrat/Montserrat-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("../fonts/certificates/montserrat/Montserrat-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("../fonts/certificates/montserrat/Montserrat-MediumItalic.ttf") format("truetype");
+  font-weight: 500;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("../fonts/certificates/montserrat/Montserrat-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("../fonts/certificates/montserrat/Montserrat-SemiBoldItalic.ttf") format("truetype");
+  font-weight: 600;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("../fonts/certificates/montserrat/Montserrat-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Montserrat";
+  src: url("../fonts/certificates/montserrat/Montserrat-BoldItalic.ttf") format("truetype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Great Vibes — Regular */
+
+@font-face {
+  font-family: "Great Vibes";
+  src: url("../fonts/certificates/great-vibes/GreatVibes-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Allura — Regular */
+
+@font-face {
+  font-family: "Allura";
+  src: url("../fonts/certificates/allura/Allura-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}

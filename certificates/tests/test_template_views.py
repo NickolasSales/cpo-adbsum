@@ -616,7 +616,10 @@ def test_a_tela_entrega_as_familias_e_nao_nomes_compostos(
         ).group(1)
     )
 
-    assert familias == ["Helvetica", "Times", "Courier"]
+    assert [f["valor"] for f in familias] == [
+        "BODONI_MODA", "MONTSERRAT", "GREAT_VIBES", "ALLURA",
+        "Helvetica", "Times", "Courier",
+    ]
     assert "Times-BoldItalic" not in corpo
 
 
@@ -632,7 +635,7 @@ def test_salvar_com_negrito_e_italico(admin_client_logado, rascunho):
 
     assert resposta.status_code == 302
     assert campo.font_family == "Times"
-    assert campo.bold is True
+    assert campo.font_weight == 700
     assert campo.italic is True
     assert campo.fonte_resolvida == "Times-BoldItalic"
 
@@ -653,5 +656,5 @@ def test_desmarcar_negrito_volta_para_a_regular(admin_client_logado, rascunho):
 
     campo = CertificateTemplateField.objects.get(template=rascunho)
 
-    assert campo.bold is False
+    assert campo.font_weight == 400
     assert campo.fonte_resolvida == "Times-Roman"

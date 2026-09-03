@@ -104,6 +104,41 @@
     return CONFIG.imagens.indexOf(tipo) !== -1;
   }
 
+  // --- fontes -------------------------------------------------------------
+  //
+  // O catalogo vem inteiro do servidor: rotulo, pilha CSS, pesos com arquivo
+  // e se a familia tem italico. O editor NAO decide nada disso — ele so
+  // pergunta. E o que garante que a tela nunca oferece um Semibold que o PDF
+  // nao tem, nem deixa de oferecer um que tem.
+  var FONTE_PADRAO = { valor: 'Helvetica', rotulo: 'Helvetica',
+                       css: 'Helvetica, Arial, sans-serif',
+                       pesos: [{ valor: 400, rotulo: 'Regular' },
+                               { valor: 700, rotulo: 'Negrito' }],
+                       italico: true };
+
+  function fonte(familia) {
+    for (var i = 0; i < CONFIG.familias.length; i += 1) {
+      if (CONFIG.familias[i].valor === familia) { return CONFIG.familias[i]; }
+    }
+    return CONFIG.familias[0] || FONTE_PADRAO;
+  }
+
+  // O peso existente mais perto do pedido. Trocar para Great Vibes com
+  // Semibold selecionado nao pode deixar o campo num peso sem arquivo: o
+  // servidor cairia no mais proximo e a tela mostraria outro numero, que e a
+  // divergencia silenciosa de sempre. Aqui a queda acontece a vista.
+  function pesoValido(familia, pedido) {
+    var pesos = fonte(familia).pesos;
+    var melhor = pesos[0].valor;
+    for (var i = 0; i < pesos.length; i += 1) {
+      if (pesos[i].valor === pedido) { return pedido; }
+      if (Math.abs(pesos[i].valor - pedido) < Math.abs(melhor - pedido)) {
+        melhor = pesos[i].valor;
+      }
+    }
+    return melhor;
+  }
+
   // O CSS gira no sentido horario; o ReportLab, no anti-horario. Sem o sinal
   // trocado, um ano configurado com rotation=90 apareceria de cabeca para
   // baixo aqui em relacao ao PDF — e o administrador corrigiria na tela um
@@ -178,12 +213,17 @@
     }
 
     var escala = area().width / LARGURA_EM_PONTOS;
-    var familia = { Times: '"Times New Roman", Times, serif',
-                    Courier: '"Courier New", Courier, monospace' }[elemento.font_family]
-                    || 'Helvetica, Arial, sans-serif';
-    corpo.style.fontFamily = familia;
+    // A pilha CSS vem do servidor, do MESMO registro que escolhe o arquivo
+    // .ttf que o ReportLab abre. Uma tabela de familias aqui divergiria da de
+    // la no primeiro peso acrescentado, e a divergencia so apareceria
+    // comparando a tela com o papel impresso.
+    corpo.style.fontFamily = fonte(elemento.font_family).css;
     corpo.style.fontSize = (elemento.font_size * escala) + 'px';
-    corpo.style.fontWeight = elemento.bold ? '700' : '400';
+    // O peso e o numero gravado. O navegador so encontra o arquivo daquele
+    // peso porque cada @font-face declara o seu — sem isso ele engordaria os
+    // tracos da Regular por conta propria, e a tela mostraria um negrito que
+    // o PDF nao tem.
+    corpo.style.fontWeight = String(elemento.font_weight || 400);
     corpo.style.fontStyle = elemento.italic ? 'italic' : 'normal';
     corpo.style.lineHeight = String(elemento.line_height);
     corpo.style.color = elemento.text_color;
@@ -414,18 +454,52 @@
 
     // --- tipografia -------------------------------------------------------
     if (!ehImagem(elemento.type)) {
-      painel.appendChild(campo('Fonte', selecao('prop-font', CONFIG.familias.map(function (f) {
-        return [f, f];
-      }), elemento.font_family, function (valor) { alterar('font_family', valor); })));
+      var familiaAtual = fonte(elemento.font_family);
 
-      var estilos = linha();
-      estilos.appendChild(marcador('prop-bold', 'Negrito', elemento.bold, function (v) {
-        alterar('bold', v);
-      }));
-      estilos.appendChild(marcador('prop-italic', 'Italico', elemento.italic, function (v) {
-        alterar('italic', v);
-      }));
-      painel.appendChild(estilos);
+      var seletorDeFonte = selecao('prop-font', CONFIG.familias.map(function (f) {
+        return [f.valor, f.rotulo];
+      }), elemento.font_family, function (valor) {
+        alterar('font_family', valor);
+        // Trocar de familia pode invalidar o peso e o italico: Great Vibes
+        // tem um desenho so. Ajusta os dois e remonta o painel, para que os
+        // controles passem a mostrar o que a familia nova oferece.
+        var nova = fonte(valor);
+        alterar('font_weight', pesoValido(valor, elemento.font_weight || 400));
+        if (!nova.italico && elemento.italic) { alterar('italic', false); }
+        montarPainel();
+      });
+      // Cada opcao desenhada na propria fonte. Comparar Great Vibes com
+      // Allura para uma assinatura e uma decisao visual, e ler os dois nomes
+      // em Helvetica nao ajuda a tomar.
+      Array.prototype.forEach.call(seletorDeFonte.options, function (opcao) {
+        var dados = fonte(opcao.value);
+        opcao.style.fontFamily = dados.css;
+      });
+      painel.appendChild(campo('Fonte', seletorDeFonte));
+
+      // So os pesos que a familia REALMENTE tem arquivo. Uma familia de um
+      // desenho so nao ganha um seletor de um item: ganha uma linha dizendo
+      // que ela tem um desenho so.
+      if (familiaAtual.pesos.length > 1) {
+        painel.appendChild(campo('Peso', selecao('prop-weight', familiaAtual.pesos.map(function (p) {
+          return [String(p.valor), p.rotulo];
+        }), String(elemento.font_weight || 400), function (valor) {
+          alterar('font_weight', parseInt(valor, 10));
+        })));
+      } else {
+        var unico = document.createElement('p');
+        unico.className = 'form-text mb-2';
+        unico.textContent = familiaAtual.rotulo + ' tem um desenho so, sem negrito.';
+        painel.appendChild(unico);
+      }
+
+      if (familiaAtual.italico) {
+        var estilos = linha();
+        estilos.appendChild(marcador('prop-italic', 'Italico', elemento.italic, function (v) {
+          alterar('italic', v);
+        }));
+        painel.appendChild(estilos);
+      }
 
       var tamanhos = document.createElement('div');
       tamanhos.className = 'row g-2 mb-2';

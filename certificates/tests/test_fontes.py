@@ -19,6 +19,7 @@ import pytest
 from django.db import IntegrityError, transaction
 
 from certificates import services_templates as servicos
+from certificates.fonts import NEGRITO, REGULAR
 from certificates.models import (
     FAMILIAS_PERMITIDAS,
     FONTES_PERMITIDAS,
@@ -110,9 +111,24 @@ def test_resolver_e_idempotente():
 
 
 def test_decompor_entende_o_nome_composto():
-    assert decompor_fonte("Times-BoldItalic") == ("Times", True, True)
-    assert decompor_fonte("Helvetica-Oblique") == ("Helvetica", False, True)
-    assert decompor_fonte("Courier") == ("Courier", False, False)
+    """Devolve (familia, PESO, italico) — o negrito e o peso 700."""
+    assert decompor_fonte("Times-BoldItalic") == ("Times", NEGRITO, True)
+    assert decompor_fonte("Helvetica-Oblique") == ("Helvetica", REGULAR, True)
+    assert decompor_fonte("Courier") == ("Courier", REGULAR, False)
+    assert decompor_fonte("Montserrat-SemiBold") == ("MONTSERRAT", 600, False)
+
+
+def test_o_marcador_booleano_no_lugar_do_peso_continua_valendo():
+    """
+    `True` E um int de valor 1 em Python. Sem a guarda de normalizar_peso,
+    resolver_fonte("Times", True) pediria peso 1, cairia no mais proximo —
+    400 — e devolveria a Regular. O negrito sumiria em silencio em todo
+    chamador que ainda passe um marcador: snapshot antigo, script, aba
+    aberta antes do deploy.
+    """
+    assert resolver_fonte("Times", True, True) == "Times-BoldItalic"
+    assert resolver_fonte("Times", False, False) == "Times-Roman"
+    assert resolver_fonte("MONTSERRAT", True) == "Montserrat-Bold"
 
 
 def test_decompor_cai_no_padrao_para_o_desconhecido():
@@ -145,7 +161,7 @@ def test_grava_familia_e_marcadores(rascunho, admin_user):
     gravado = CertificateTemplateField.objects.get(template=rascunho)
 
     assert gravado.font_family == "Times"
-    assert gravado.bold is True
+    assert gravado.font_weight == NEGRITO
     assert gravado.italic is False
     assert gravado.fonte_resolvida == "Times-Bold"
 
@@ -166,7 +182,7 @@ def test_o_nome_composto_antigo_continua_sendo_aceito(rascunho, admin_user):
     gravado = CertificateTemplateField.objects.get(template=rascunho)
 
     assert gravado.font_family == "Times"
-    assert gravado.bold is True
+    assert gravado.font_weight == NEGRITO
     assert gravado.italic is True
     assert gravado.fonte_resolvida == "Times-BoldItalic"
 
@@ -343,5 +359,5 @@ def test_duplicar_preserva_negrito_e_italico(rascunho, admin_user, arte_de_fundo
 
     assert copia.version == rascunho.version + 1
     assert copiado.font_family == "Times"
-    assert copiado.bold is True
+    assert copiado.font_weight == NEGRITO
     assert copiado.italic is True

@@ -42,7 +42,10 @@ ATRIBUTOS_DO_CAMPO = (
     "width",
     "height",
     "font_family",
-    "bold",
+    # O peso em numero de CSS. Os snapshots ja emitidos gravaram `bold`
+    # booleano, e continuam gravados assim — quem le e certificates.render,
+    # que entende as duas formas. Aqui so se escreve a nova.
+    "font_weight",
     "italic",
     "font_size",
     "min_font_size",

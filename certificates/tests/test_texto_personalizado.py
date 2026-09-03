@@ -51,7 +51,7 @@ def elemento(**extras):
         "width": 76,
         "height": 12,
         "font_family": "Helvetica",
-        "bold": False,
+        "font_weight": 400,
         "italic": False,
         "font_size": 13,
         "min_font_size": 8,

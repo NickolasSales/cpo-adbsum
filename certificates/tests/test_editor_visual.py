@@ -38,7 +38,7 @@ def elemento(tipo=FieldType.STUDENT_NAME, **extras):
         "width": 60,
         "height": 8,
         "font_family": "Times",
-        "bold": True,
+        "font_weight": 700,
         "italic": False,
         "font_size": 30,
         "min_font_size": 14,
@@ -124,7 +124,7 @@ def test_o_estilo_sobrevive_ao_reload(admin_client_logado, rascunho):
         [
             elemento(
                 font_family="Courier",
-                bold=False,
+                font_weight=400,
                 italic=True,
                 rotation=-90,
                 wrap=False,
@@ -139,7 +139,7 @@ def test_o_estilo_sobrevive_ao_reload(admin_client_logado, rascunho):
 
     assert lido["font_family"] == "Courier"
     assert lido["italic"] is True
-    assert lido["bold"] is False
+    assert lido["font_weight"] == 400
     assert lido["rotation"] == -90
     assert lido["wrap"] is False
     assert lido["is_visible"] is False

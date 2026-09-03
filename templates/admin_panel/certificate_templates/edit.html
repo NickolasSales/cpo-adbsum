@@ -386,6 +386,23 @@ Quatro decisoes que a estrutura desta pagina carrega:
 </div>
 {% endblock %}
 
+{% block extra_head %}
+{{ block.super }}
+{% comment %}
+As fontes institucionais, servidas por este dominio.
+
+O arquivo e gerado a partir de certificates/fonts.py — o mesmo registro que
+escolhe o .ttf que o ReportLab abre para desenhar o PDF. Nao ha link para
+fonts.googleapis.com nem para fonts.gstatic.com: o editor precisa abrir com
+a internet da instituicao fora do ar.
+
+So nesta pagina. O preview e um PDF, e la as fontes vao EMBUTIDAS no
+documento — nao ha CSS envolvido. Carregar dezoito faces em toda tela do
+sistema seria pagar por algo que so o editor usa.
+{% endcomment %}
+<link rel="stylesheet" href="{% static 'css/fontes-certificado.css' %}">
+{% endblock %}
+
 {% block extra_scripts %}
 {{ block.super }}
 <script src="{% static 'js/certificate-editor.js' %}" defer></script>
