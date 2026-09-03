@@ -26,7 +26,9 @@ serviços proprietários da AWS na lógica de negócio.
 > sobre ela; o renderizador não inventa mais estética nenhuma. O ajuste
 > seguinte acrescentou a **data de conclusão congelada** — a da correção, não a
 > do download —, negrito e itálico como opções próprias, e o aviso de arte com
-> texto já gravado.
+> texto já gravado. A versão 2 do editor trocou a lista de coordenadas
+> digitadas por um **editor visual**: arrastar, redimensionar e escrever
+> **textos personalizados com variáveis** direto sobre o certificado.
 >
 > O nome anterior do projeto era "CPO Provas". Ele aparece no histórico do Git
 > e em trechos deste README que contam a história de uma decisão; na interface,
@@ -2303,6 +2305,115 @@ em `certificates/snapshot.py`. Com `getattr(certificado, nome_do_navegador)`, a
 tela de edição viraria um leitor de atributos arbitrários — e dali para
 `attempt.student.password` é um passo.
 
+### Editor visual
+
+`/admin-panel/certificados/modelos/<id>/editar/`
+
+```
+paleta  |  o certificado, com os elementos por cima  |  propriedades
+```
+
+Clicar ou arrastar um item da paleta cria o elemento sobre a arte. Arrastar
+move; as alças dos cantos redimensionam; as setas do teclado movem 0,1% e com
+`Shift` 1%. Zoom de 50% a 150%, grade opcional e encaixe opcional em 1%.
+Linhas-guia aparecem quando o centro do elemento alinha com o centro da página
+ou com a borda de outro elemento.
+
+O salvamento é **explícito**: as alterações ficam na tela até o clique em
+*Salvar modelo*, e sair da página com pendências pede confirmação. Autosave
+gravaria no banco cada pixel arrastado — e o modelo é o layout de um documento
+oficial, não um rascunho de texto.
+
+#### Sem biblioteca de drag
+
+O pedido admitia algo pequeno no estilo do `interact.js`. Não foi preciso:
+Pointer Events resolvem arrastar e redimensionar em cerca de cem linhas, com o
+mesmo código para mouse, toque e caneta. Uma dependência que economiza cem
+linhas e custa um pacote para versionar, servir e manter atualizado não se
+paga. Nada é carregado de CDN — [certificate-editor.js](static/js/certificate-editor.js)
+é servido pelo próprio `collectstatic`.
+
+#### O palco não é o preview
+
+O palco mostra a arte real, na posição real, com o tamanho de fonte real em
+pontos — a razão entre a largura dele em pixels e a largura da página em pontos
+é o fator de escala. Mas quem decide onde a linha quebra é o ReportLab, no
+servidor. Por isso o PDF fica logo abaixo, e a tela diz qual dos dois manda.
+
+Um detalhe que precisou de atenção: o CSS gira no sentido horário e o ReportLab
+no anti-horário. O palco aplica `rotate(-N)` para que um ano configurado com
+`rotation=90` apareça na tela do mesmo jeito que sai no papel.
+
+### Texto personalizado
+
+O elemento `CUSTOM_TEXT` é o único que carrega texto próprio. Vários por
+modelo — um parágrafo no corpo, uma observação no rodapé.
+
+```
+Concluiu com êxito o Curso de Preparação de Obreiros
+em {{data_conclusao}}, na {{local_curso}},
+com carga horária de {{carga_horaria}} horas.
+```
+
+Variáveis disponíveis:
+
+`{{nome_aluno}}` · `{{data_conclusao}}` · `{{nome_curso}}` · `{{nome_modulo}}` ·
+`{{datas_curso}}` · `{{local_curso}}` · `{{carga_horaria}}` · `{{ano}}` ·
+`{{data_emissao}}` · `{{instituicao}}` · `{{signatario_nome}}` ·
+`{{signatario_cargo}}` · `{{codigo_validacao}}`
+
+O QR não é variável de texto: uma imagem não cabe no meio de uma frase. Ele
+continua sendo elemento próprio, arrastável e redimensionável.
+
+O seletor **Inserir variável** escreve o placeholder na posição do cursor e
+mostra, ao lado de cada nome, o valor que ele produz — ninguém precisa decorar.
+
+#### Nenhum motor de template
+
+`{{...}}` aqui **não** é Django Template, não é Jinja, não é `eval` e não é
+`str.format`. É uma expressão regular e um dicionário fechado, em
+[certificates/placeholders.py](certificates/placeholders.py).
+
+O motivo é concreto. Um texto administrativo entregue a um motor de template
+deixa de ser texto e vira código: `{{ settings.SECRET_KEY }}` resolve no Django
+Template, e `{x.__class__.__init__.__globals__}` alcança o módulo inteiro pelo
+`str.format`. Bastaria uma conta ADMIN comprometida para o campo de texto do
+certificado virar um leitor do processo.
+
+O que não está no dicionário não existe — e nem chega a ser gravado:
+
+```
+O texto contém variáveis não permitidas: {{senha}}
+```
+
+Duas consequências do desenho, ambas testadas: o resultado da substituição
+**não é reprocessado** (um aluno chamado literalmente `{{ano}}` sai com as
+chaves visíveis, porque dado do aluno é dado), e `{{carga_horaria}}` entrega
+`08` enquanto o elemento solto imprime `08 horas` — a frase que usa a variável
+já escreve a palavra.
+
+#### O que o navegador consegue gravar
+
+Nada além do que a lista permite. O editor envia JSON, e o servidor revalida
+elemento por elemento: tipo, coordenadas, dimensões, fonte, cor, rotação,
+tamanhos e variáveis. Nenhum HTML produzido pela tela é gravado — o bloco de
+texto guarda **texto puro**.
+
+Não há id de elemento atravessando a fronteira: salvar **substitui o conjunto
+inteiro** deste modelo. Casar elemento por id exigiria aceitar ids do navegador
+e conferir, um a um, se cada um pertence a este modelo — e o dia em que essa
+conferência falhasse, um POST montado à mão moveria o campo de outro modelo.
+
+Na tela, os dados chegam ao JavaScript por `json_script`, que escapa `<`, `>` e
+`&`; o editor monta os elementos com `textContent`, nunca `innerHTML`.
+
+### Dados do preview
+
+O painel *Dados do preview* troca nome, módulo, data e o resto por valores de
+teste — para conferir se um nome comprido cabe antes de emitir de verdade.
+Cada parâmetro só alcança o campo que a lista fechada permite, e nada disso
+cria `Certificate`, conclui matrícula ou registra evento acadêmico.
+
 ### A data de conclusão
 
 `COMPLETION_DATE` sai **por extenso**:
@@ -2556,10 +2667,25 @@ tela de upload avisa isso.
 
 ### Backup
 
-`MEDIA_ROOT` passa a ser dado operacional: sem a arte, um certificado histórico
-é gerado sem fundo. O backup automático de hoje cobre **apenas o PostgreSQL** —
-incluir `media/certificate_templates/` continua pendente e está registrado como
-tal.
+`MEDIA_ROOT` é dado operacional: sem a arte, um certificado histórico é gerado
+sem fundo. O dump do PostgreSQL guarda o **caminho e o checksum** do arquivo,
+não o arquivo — e um caminho sem o arquivo não reconstrói documento nenhum.
+
+Por isso existem **dois** backups locais, em unidades separadas:
+
+| | | |
+|---|---|---|
+| `cpo-db-backup` | 03:00 | `pg_dump -Fc` → `pg_restore --list` → SHA-256 |
+| `cpo-media-backup` | 03:20 | `tar -czf` → `tar -tzf` → SHA-256 |
+
+Cada um roda como o dono do que copia — `postgres` e `cpo` — e nenhum dos dois
+tem rede (`PrivateNetwork=true`). Os dois leem de volta o que acabaram de
+escrever antes de considerar o backup pronto: um arquivo truncado por disco
+cheio não acusa erro na escrita, acusa na leitura.
+
+Retenção de 30 dias nos dois. **Continuam no mesmo volume EBS da aplicação** —
+isso cobre exclusão acidental e erro administrativo, e não cobre perda do
+disco. Cópia externa segue sendo o próximo passo de verdade.
 
 ---
 

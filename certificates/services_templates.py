@@ -23,6 +23,8 @@ from certificates.models.template import (
     FONTES_PERMITIDAS,
     LIMITE_DA_FONTE,
     LIMITE_DA_ROTACAO,
+    TIPOS_COM_REPETICAO,
+    TIPOS_DE_IMAGEM,
     CertificateTemplate,
     CertificateTemplateField,
     FieldType,
@@ -31,6 +33,7 @@ from certificates.models.template import (
     TextAlign,
     decompor_fonte,
 )
+from certificates.placeholders import PlaceholderInvalido, validar_texto
 from certificates.uploads import proporcao_compativel, validar_imagem_enviada
 from common.exceptions import DomainError
 
@@ -38,6 +41,24 @@ from common.exceptions import DomainError
 # devolver mensagem legivel em vez de IntegrityError.
 LIMITE_PERCENTUAL = (0, 100)
 LIMITE_ENTRELINHA = (0.8, 3.0)
+
+# Teto de elementos por modelo. Um certificado tem meia duzia; quarenta e
+# folga larga. O teto existe porque o editor manda JSON, e um JSON montado a
+# mao com dez mil elementos viraria dez mil linhas no banco e um PDF que nao
+# termina de desenhar.
+MAXIMO_DE_ELEMENTOS = 40
+
+# Propriedades que so fazem sentido em texto. Um QR nao tem fonte nem
+# alinhamento; preenche-las com o padrao evita recusar um elemento de imagem
+# por falta de um dado que nada usa.
+PADRAO_DE_IMAGEM = {
+    "font_family": "Helvetica",
+    "font_size": 12,
+    "min_font_size": 8,
+    "line_height": 1.2,
+    "text_align": TextAlign.CENTER,
+    "text_color": "#000000",
+}
 
 
 class ModeloNaoEditavel(DomainError):
@@ -83,7 +104,10 @@ def normalizar_campo(dados):
     # familia padrao para o que nao reconhece — comportamento certo para
     # renderizar um snapshot antigo, e errado aqui: "Arial" viraria
     # Helvetica em silencio em vez de dizer que nao existe.
-    nome_da_fonte = (dados.get("font_family") or "").strip()
+    # str() em toda leitura de texto: o corpo do editor e JSON, e JSON tem
+    # numeros, listas e nulos. Sem a coercao, `{"font_family": 5}` chamaria
+    # .strip() num inteiro e devolveria 500 no lugar de uma recusa legivel.
+    nome_da_fonte = str(dados.get("font_family") or "").strip()
     if nome_da_fonte not in FAMILIAS_PERMITIDAS and nome_da_fonte not in FONTES_PERMITIDAS:
         raise DomainError(
             "Fonte nao permitida: {}.".format(nome_da_fonte or "vazia")
@@ -93,11 +117,11 @@ def normalizar_campo(dados):
     negrito = bool(dados.get("bold")) or negrito_do_nome
     italico = bool(dados.get("italic")) or italico_do_nome
 
-    alinhamento = (dados.get("text_align") or "").strip().upper()
+    alinhamento = str(dados.get("text_align") or "").strip().upper()
     if alinhamento not in TextAlign.values:
         raise DomainError("Alinhamento invalido.")
 
-    cor = (dados.get("text_color") or "").strip()
+    cor = str(dados.get("text_color") or "").strip()
     if not CORES_ACEITAS.match(cor):
         raise DomainError(
             "Informe a cor no formato #RRGGBB. Recebido: {}".format(cor or "vazio")
@@ -141,9 +165,67 @@ def normalizar_campo(dados):
         "rotation": _numero(
             dados.get("rotation"), "A rotacao", *LIMITE_DA_ROTACAO, inteiro=True
         ),
+        "wrap": bool(dados.get("wrap", True)),
         "is_visible": bool(dados.get("is_visible")),
         "z_index": _numero(dados.get("z_index"), "A ordem de desenho", 0, 999, inteiro=True),
     }
+
+
+def normalizar_elemento(dados):
+    """
+    Valida um elemento vindo do editor visual.
+
+    O editor manda JSON, e JSON e texto que o navegador escreveu. Nada aqui
+    confia nele: o tipo e conferido contra a lista fechada, a geometria e o
+    estilo passam por normalizar_campo, e o texto personalizado passa pelo
+    validador de variaveis. O que sobra e um dicionario com exatamente as
+    chaves que o modelo aceita.
+    """
+    # str() antes de strip(): o corpo e JSON, e JSON tem numeros, listas e
+    # nulos. `{"type": 5}` chamaria .strip() num inteiro e derrubaria a
+    # requisicao com 500 — um payload invalido merece 400, e nao um erro de
+    # servidor.
+    tipo = str(dados.get("type") or dados.get("field_type") or "").strip()
+    if tipo not in FieldType.values:
+        raise DomainError("Elemento desconhecido: {}.".format(tipo or "vazio"))
+    if tipo == FieldType.STATIC_IMAGE:
+        # Imagem fixa tem arquivo proprio e fluxo de upload proprio; ela nao
+        # entra pelo editor de posicoes.
+        raise DomainError("A imagem fixa nao e editada por aqui.")
+
+    if tipo in TIPOS_DE_IMAGEM:
+        dados = {**PADRAO_DE_IMAGEM, **dados}
+
+    limpo = normalizar_campo(dados)
+    limpo["field_type"] = tipo
+
+    if tipo == FieldType.CUSTOM_TEXT:
+        bruto = dados.get("content")
+        # Recusa em vez de converter. `{"content": 5}` viraria o texto "5" em
+        # silencio, e um numero no lugar de uma frase e erro de quem chamou —
+        # nao um pedido para imprimir "5" no certificado.
+        if bruto is not None and not isinstance(bruto, str):
+            raise DomainError(
+                "O texto do bloco personalizado precisa ser texto."
+            )
+        try:
+            texto = validar_texto(bruto)
+        except PlaceholderInvalido as erro:
+            raise DomainError(
+                "O texto contem variaveis nao permitidas: {}".format(
+                    ", ".join(erro.invalidos)
+                )
+            )
+        except ValueError as erro:
+            raise DomainError(str(erro))
+        if not texto.strip():
+            raise DomainError("Escreva o texto do bloco personalizado.")
+        limpo["content"] = texto
+    else:
+        # Texto proprio so no bloco personalizado. O banco tambem impoe.
+        limpo["content"] = ""
+
+    return limpo
 
 
 def exigir_editavel(template):
@@ -341,66 +423,93 @@ def set_background(template, arquivo, *, actor=None, request=None):
     return template, avisos
 
 
-def save_fields(template, campos, *, actor=None, request=None):
+def save_elements(template, elementos, *, actor=None, request=None):
     """
-    Grava a configuracao de todos os campos de uma vez.
+    Grava a lista inteira de elementos do modelo, de uma vez.
 
-    `campos` e {field_type: dicionario cru do formulario}. Tudo passa por
-    normalizar_campo antes de qualquer escrita, e a transacao e uma so: um
-    valor invalido no ultimo campo nao deixa os primeiros gravados.
+    `elementos` e uma lista de dicionarios crus do editor. Tudo passa por
+    normalizar_elemento antes de qualquer escrita, e a transacao e uma so: um
+    valor invalido no ultimo elemento nao deixa os primeiros gravados.
 
-    Um tipo ausente do dicionario e REMOVIDO do modelo. A tela envia sempre a
-    lista inteira, e essa e a forma de desconfigurar um campo — mais direta
-    do que uma acao separada de exclusao.
+    Por que substituir tudo em vez de casar por id
+    ----------------------------------------------
+    O editor manda o estado final da tela. Casar elemento por id exigiria
+    aceitar ids vindos do navegador e conferir, um a um, se cada id pertence
+    a ESTE modelo — e o dia em que essa conferencia falhasse, um POST
+    montado a mao moveria o campo de outro modelo.
+
+    Substituir o conjunto inteiro dispensa a pergunta: nenhum id atravessa a
+    fronteira. O preco e a chave primaria dos elementos mudar a cada
+    gravacao, e ela nao e referenciada por nada — o certificado guarda uma
+    COPIA da configuracao, e nao um ponteiro para estas linhas.
+
+    A imagem fixa e preservada: ela tem arquivo em disco e nao vem no
+    payload, entao apaga-la aqui destruiria um upload que a tela nem
+    ofereceu.
     """
     exigir_editavel(template)
 
-    limpos = {}
-    for tipo, dados in campos.items():
-        if tipo not in FieldType.values:
-            raise DomainError("Campo desconhecido: {}.".format(tipo))
-        if tipo == FieldType.STATIC_IMAGE:
-            # Imagem fixa tem arquivo proprio e fluxo de upload proprio; ela
-            # nao entra pelo formulario de posicoes.
-            continue
-        limpos[tipo] = normalizar_campo(dados)
+    if len(elementos) > MAXIMO_DE_ELEMENTOS:
+        raise DomainError(
+            "Um modelo aceita no maximo {} elementos.".format(MAXIMO_DE_ELEMENTOS)
+        )
+
+    limpos = [normalizar_elemento(dados) for dados in elementos]
+
+    # Um "Nome do aluno" duplicado e sempre engano: o segundo ficaria
+    # escondido atras do primeiro, ou visivel em outro canto sem ninguem ter
+    # pedido. Texto personalizado e imagem fixa se repetem por natureza.
+    vistos = {}
+    for elemento in limpos:
+        tipo = elemento["field_type"]
+        vistos[tipo] = vistos.get(tipo, 0) + 1
+        if vistos[tipo] > 1 and tipo not in TIPOS_COM_REPETICAO:
+            raise DomainError(
+                "O elemento '{}' so pode aparecer uma vez no modelo.".format(
+                    FieldType(tipo).label
+                )
+            )
 
     with transaction.atomic():
-        existentes = {
-            campo.field_type: campo
-            for campo in CertificateTemplateField.objects.select_for_update().filter(
-                template=template
-            )
-        }
+        CertificateTemplateField.objects.select_for_update().filter(
+            template=template
+        ).exclude(field_type=FieldType.STATIC_IMAGE).delete()
 
-        for tipo, valores in limpos.items():
-            campo = existentes.get(tipo)
-            if campo is None:
-                CertificateTemplateField.objects.create(
-                    template=template, field_type=tipo, **valores
-                )
-                continue
-            for atributo, valor in valores.items():
-                setattr(campo, atributo, valor)
-            campo.save(update_fields=[*valores.keys(), "updated_at"])
+        for elemento in limpos:
+            CertificateTemplateField.objects.create(template=template, **elemento)
 
-        sobrando = [
-            campo
-            for tipo, campo in existentes.items()
-            if tipo not in limpos and tipo != FieldType.STATIC_IMAGE
-        ]
-        for campo in sobrando:
-            campo.delete()
-
+        # Uma linha na trilha por SAVE, e nao por pixel movido. Arrastar uma
+        # caixa nao e um ato administrativo; publicar o resultado e.
         record(
             AuditEvent.CERTIFICATE_TEMPLATE_UPDATED,
             request=request,
             actor=actor,
             entity_type="CertificateTemplate",
             entity_id=template.pk,
-            metadata={"fields": sorted(limpos.keys())},
+            metadata={
+                "elements": len(limpos),
+                "types": sorted({e["field_type"] for e in limpos}),
+            },
         )
     return template
+
+
+def save_fields(template, campos, *, actor=None, request=None):
+    """
+    Mesma gravacao, a partir de {field_type: dados}.
+
+    Continua existindo porque o formulario antigo — e os scripts que o
+    imitam — falam nesse formato. Um dicionario nao consegue expressar dois
+    blocos de texto personalizado; para isso existe save_elements.
+    """
+    elementos = []
+    for tipo, dados in campos.items():
+        if tipo == FieldType.STATIC_IMAGE:
+            continue
+        if tipo not in FieldType.values:
+            raise DomainError("Campo desconhecido: {}.".format(tipo))
+        elementos.append({**dados, "type": tipo})
+    return save_elements(template, elementos, actor=actor, request=request)
 
 
 def activate_template(template, *, actor=None, request=None):
@@ -545,6 +654,8 @@ def duplicate_template(template, *, actor=None, request=None):
                 font_family=campo.font_family,
                 bold=campo.bold,
                 italic=campo.italic,
+                content=campo.content,
+                wrap=campo.wrap,
                 font_size=campo.font_size,
                 min_font_size=campo.min_font_size,
                 auto_fit=campo.auto_fit,

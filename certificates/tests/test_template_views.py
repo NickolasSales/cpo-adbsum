@@ -9,6 +9,9 @@ Concentrado no que a interface promete e no que ela recusa:
     o browser nao escolhe status, versao nem autor
 """
 
+import json
+import re
+
 import pytest
 from django.test import Client
 from django.urls import reverse
@@ -427,12 +430,22 @@ def test_o_editor_avisa_sobre_arte_com_campos_impressos(
     O aviso do §28: se a arte ja trouxer os textos variaveis, os dados serao
     desenhados por cima e o documento sai duplicado.
     """
-    conteudo = admin_client_logado.get(
-        url("certificate_template_edit", rascunho.pk)
-    ).content.decode()
+    servicos.set_background(rascunho, upload(), actor=rascunho.created_by)
 
-    assert "sem os campos variaveis" in conteudo
-    assert "duplicada" in conteudo
+    # O HTML quebra as linhas onde couber; comparar frase por frase exigiria
+    # adivinhar onde. Achatar os espacos compara o TEXTO, que e o que a
+    # pessoa le.
+    conteudo = re.sub(
+        r"\s+",
+        " ",
+        admin_client_logado.get(
+            url("certificate_template_edit", rascunho.pk)
+        ).content.decode(),
+    )
+
+    assert "o fundo pode conter textos fixos" in conteudo
+    assert "nao podem ser alterados pelo editor" in conteudo
+    assert "arte base sem informacoes variaveis" in conteudo
 
 
 def test_o_editor_de_modelo_usado_explica_o_caminho(
@@ -446,15 +459,25 @@ def test_o_editor_de_modelo_usado_explica_o_caminho(
     assert "duplique" in conteudo.lower()
 
 
-def test_o_editor_lista_todos_os_tipos_de_campo(admin_client_logado, rascunho):
+def test_a_paleta_lista_todos_os_tipos_menos_a_imagem_fixa(
+    admin_client_logado, rascunho
+):
+    """
+    A paleta e o unico caminho para adicionar um elemento. Um tipo ausente
+    dela e um tipo que ninguem consegue usar.
+
+    STATIC_IMAGE fica de fora enquanto nao houver upload por elemento: uma
+    imagem fixa sem arquivo nao desenha nada.
+    """
     conteudo = admin_client_logado.get(
         url("certificate_template_edit", rascunho.pk)
     ).content.decode()
 
     for tipo in FieldType.values:
         if tipo == FieldType.STATIC_IMAGE:
+            assert 'data-tipo="{}"'.format(tipo) not in conteudo
             continue
-        assert '{}-x'.format(tipo) in conteudo
+        assert 'data-tipo="{}"'.format(tipo) in conteudo
 
 
 def test_a_arte_nao_e_cacheada_por_intermediario(
@@ -562,56 +585,39 @@ def test_modulo_nao_aceita_modelo_em_rascunho(
 # ---------------------------------------------------------------------------
 
 
-def test_a_tela_oferece_a_data_de_conclusao(admin_client_logado, rascunho):
+def test_a_paleta_oferece_a_data_de_conclusao(admin_client_logado, rascunho):
     """
-    O campo precisa aparecer na lista, senao nao ha como configura-lo — e o
-    certificado oficial imprime a data de conclusao.
+    Sem o elemento na paleta nao ha como configura-lo — e o certificado
+    oficial imprime a data de conclusao.
     """
     resposta = admin_client_logado.get(url("certificate_template_edit", rascunho.pk))
     corpo = resposta.content.decode()
 
     assert resposta.status_code == 200
-    assert "COMPLETION_DATE-x" in corpo
+    assert 'data-tipo="COMPLETION_DATE"' in corpo
     assert "Data de conclusao" in corpo
 
 
-def test_a_tela_oferece_negrito_e_italico(admin_client_logado, rascunho):
-    resposta = admin_client_logado.get(url("certificate_template_edit", rascunho.pk))
-    corpo = resposta.content.decode()
-
-    assert 'name="STUDENT_NAME-bold"' in corpo
-    assert 'name="STUDENT_NAME-italic"' in corpo
-
-
-def test_a_tela_oferece_familias_e_nao_nomes_compostos(admin_client_logado, rascunho):
-    """
-    O select passou a listar familias. Oferecer "Times-BoldItalic" junto com
-    as caixas de negrito e italico deixaria duas formas de dizer a mesma
-    coisa na mesma tela.
-    """
-    corpo = admin_client_logado.get(
-        url("certificate_template_edit", rascunho.pk)
-    ).content.decode()
-
-    assert 'value="Times"' in corpo
-    assert 'value="Times-BoldItalic"' not in corpo
-
-
-def test_a_tela_avisa_sobre_arte_com_texto_gravado(
-    admin_client_logado, rascunho, admin_user, arte_de_fundo
+def test_a_tela_entrega_as_familias_e_nao_nomes_compostos(
+    admin_client_logado, rascunho
 ):
     """
-    O sistema nao apaga texto da imagem em runtime — isso produziria borrao
-    num documento oficial. O que ele faz e dizer o que procurar no preview.
+    O painel monta o seletor de fonte a partir desta lista. Oferecer
+    "Times-BoldItalic" junto com as caixas de negrito e italico deixaria duas
+    formas de dizer a mesma coisa na mesma tela.
     """
-    servicos.set_background(rascunho, arte_de_fundo, actor=admin_user)
-
     corpo = admin_client_logado.get(
         url("certificate_template_edit", rascunho.pk)
     ).content.decode()
 
-    assert "duas vezes" in corpo
-    assert "sem os campos variaveis" in corpo
+    familias = json.loads(
+        re.search(
+            r'id="dados-familias"[^>]*>(.*?)</script>', corpo, re.S
+        ).group(1)
+    )
+
+    assert familias == ["Helvetica", "Times", "Courier"]
+    assert "Times-BoldItalic" not in corpo
 
 
 def test_salvar_com_negrito_e_italico(admin_client_logado, rascunho):

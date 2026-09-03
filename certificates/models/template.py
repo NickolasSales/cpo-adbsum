@@ -248,11 +248,34 @@ class FieldType(models.TextChoices):
     VERIFICATION_CODE = "VERIFICATION_CODE", "Codigo de validacao"
     QR_CODE = "QR_CODE", "QR Code"
     STATIC_IMAGE = "STATIC_IMAGE", "Imagem fixa"
+    # O unico tipo que carrega texto proprio. Os demais dizem QUAL dado
+    # imprimir; este diz O QUE escrever, com variaveis da lista branca de
+    # certificates.placeholders.
+    CUSTOM_TEXT = "CUSTOM_TEXT", "Texto personalizado"
 
 
 # Campos que nao sao texto. Nao usam fonte, tamanho nem alinhamento, e a tela
 # de edicao esconde esses controles em vez de oferecer algo sem efeito.
 TIPOS_DE_IMAGEM = frozenset({FieldType.QR_CODE, FieldType.STATIC_IMAGE})
+
+# Tipos que podem aparecer mais de uma vez no mesmo modelo.
+#
+# Dois "Nome do aluno" no mesmo certificado sao sempre engano — o segundo
+# ficaria escondido atras do primeiro, ou pior, visivel em outro canto. Dois
+# blocos de texto personalizado, ao contrario, sao o uso normal: um paragrafo
+# no corpo e uma observacao no rodape.
+TIPOS_COM_REPETICAO = frozenset({FieldType.CUSTOM_TEXT, FieldType.STATIC_IMAGE})
+
+# Tipos que o editor visual oferece na paleta. STATIC_IMAGE fica de fora
+# enquanto nao houver fluxo de upload por elemento: uma imagem fixa sem
+# arquivo nao desenha nada, e oferece-la seria oferecer um elemento vazio.
+TIPOS_DA_PALETA = tuple(
+    tipo for tipo in FieldType.values if tipo != FieldType.STATIC_IMAGE
+)
+
+
+def aceita_repeticao(field_type):
+    return field_type in TIPOS_COM_REPETICAO
 
 
 class CertificateTemplateQuerySet(models.QuerySet):
@@ -597,6 +620,17 @@ class CertificateTemplateField(models.Model):
         "imagem", upload_to=caminho_do_asset, blank=True
     )
 
+    # Texto do CUSTOM_TEXT, com as variaveis ainda por resolver. Guarda
+    # TEXTO PURO, nunca HTML: o que sai daqui vai para um PDF, e um
+    # <div style="..."> gravado aqui seria marcacao vinda do navegador
+    # atravessando o servidor inteira ate o documento.
+    content = models.TextField("texto", blank=True)
+
+    # Quebra automatica de linha. Desligada, o texto so encolhe — util para
+    # uma linha que precisa caber inteira num espaco estreito da arte, como
+    # o ano na lateral.
+    wrap = models.BooleanField("quebrar linha", default=True)
+
     is_visible = models.BooleanField("visivel", default=True)
     z_index = models.PositiveSmallIntegerField(
         "ordem de desenho",
@@ -617,7 +651,12 @@ class CertificateTemplateField(models.Model):
             # todas sao STATIC_IMAGE.
             models.UniqueConstraint(
                 fields=["template", "field_type"],
-                condition=~Q(field_type=FieldType.STATIC_IMAGE),
+                condition=~Q(
+                    field_type__in=[
+                        FieldType.STATIC_IMAGE,
+                        FieldType.CUSTOM_TEXT,
+                    ]
+                ),
                 name="campo_unico_por_modelo",
             ),
             models.CheckConstraint(
@@ -680,6 +719,18 @@ class CertificateTemplateField(models.Model):
                 ),
                 name="campo_imagem_so_em_imagem_fixa",
             ),
+            # Mesmo raciocinio para o texto: so o CUSTOM_TEXT carrega texto
+            # proprio. Um "Nome do aluno" com content preenchido seria uma
+            # instrucao que nada le — e um dia alguem faria o renderizador
+            # ler, e o certificado passaria a imprimir texto que ninguem
+            # esperava naquele campo.
+            models.CheckConstraint(
+                condition=(
+                    Q(field_type=FieldType.CUSTOM_TEXT)
+                    | Q(content="")
+                ),
+                name="campo_texto_so_em_texto_personalizado",
+            ),
         ]
 
     def __str__(self):
@@ -688,6 +739,10 @@ class CertificateTemplateField(models.Model):
     @property
     def e_imagem(self):
         return self.field_type in TIPOS_DE_IMAGEM
+
+    @property
+    def e_texto_livre(self):
+        return self.field_type == FieldType.CUSTOM_TEXT
 
     @property
     def fonte_resolvida(self):
@@ -709,4 +764,14 @@ class CertificateTemplateField(models.Model):
                         "O tamanho minimo nao pode ser maior que o tamanho."
                     )
                 }
+            )
+        if self.field_type == FieldType.CUSTOM_TEXT and not (
+            self.content or ""
+        ).strip():
+            raise ValidationError(
+                {"content": "Escreva o texto deste bloco."}
+            )
+        if self.field_type != FieldType.CUSTOM_TEXT and (self.content or ""):
+            raise ValidationError(
+                {"content": "Somente o texto personalizado guarda texto proprio."}
             )

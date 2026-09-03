@@ -890,6 +890,15 @@ pre {
   border: 0;
 }
 
+.cpo-palco-rolagem {
+  /* O zoom troca a LARGURA do palco, e nao um transform: assim as
+     coordenadas do ponteiro continuam batendo com getBoundingClientRect sem
+     nenhuma conta a mais, e o arraste nao precisa saber que existe zoom. O
+     preco e este contêiner, que rola quando o palco passa da coluna. */
+  overflow: auto;
+  max-width: 100%;
+}
+
 .cpo-palco {
   position: relative;
   width: 100%;
@@ -909,35 +918,166 @@ pre {
   pointer-events: none;
 }
 
-.cpo-palco__campo {
+/* Camada dos elementos, sobre a arte. Existe separada para que o clique no
+   fundo — que desmarca a selecao — chegue ao palco sem passar pelos
+   elementos. */
+.cpo-palco__camada {
+  position: absolute;
+  inset: 0;
+}
+
+.cpo-palco--grade {
+  background-image:
+    repeating-linear-gradient(to right, rgba(37, 99, 235, .16) 0 1px, transparent 1px 10%),
+    repeating-linear-gradient(to bottom, rgba(37, 99, 235, .16) 0 1px, transparent 1px 10%);
+}
+
+.cpo-palco--grade .cpo-palco__arte {
+  opacity: .92;
+}
+
+/* --- elementos --------------------------------------------------------- */
+
+.cpo-el {
   position: absolute;
   box-sizing: border-box;
-  border: 1px dashed #2563eb;
-  background: rgba(37, 99, 235, .12);
+  border: 1px dashed rgba(37, 99, 235, .55);
+  background: rgba(37, 99, 235, .06);
   cursor: grab;
   display: flex;
   align-items: center;
-  justify-content: center;
   overflow: hidden;
-  font-size: .7rem;
-  line-height: 1.1;
-  color: #1e3a8a;
-  text-align: center;
-  padding: 2px;
+  padding: 0;
 }
 
-.cpo-palco__campo--movendo {
-  cursor: grabbing;
-  background: rgba(37, 99, 235, .28);
+.cpo-el__texto {
+  display: block;
+  width: 100%;
+  /* pre-wrap preserva as quebras que o administrador escreveu no texto
+     personalizado. Sem isso o palco juntaria as linhas e o PDF as
+     separaria. */
+  white-space: pre-wrap;
+  overflow: hidden;
+}
+
+.cpo-el--imagem {
   border-style: solid;
+  background: rgba(15, 23, 42, .1);
+  justify-content: center;
+  font-size: .7rem;
+  letter-spacing: .08em;
+  color: #0f172a;
+}
+
+.cpo-el--oculto {
+  opacity: .35;
+  border-style: dotted;
+}
+
+.cpo-el--movendo {
+  cursor: grabbing;
+}
+
+.cpo-el--selecionado {
+  border: 1px solid #1d4ed8;
+  box-shadow: 0 0 0 1px #fff, 0 0 0 2px #1d4ed8;
 }
 
 /* O foco de teclado precisa ser visivel tambem sobre a arte, que pode ser
    clara ou escura. Duplo anel: um branco por dentro, um escuro por fora. */
-.cpo-palco__campo:focus-visible {
+.cpo-el:focus-visible {
   outline: 2px solid #fff;
   outline-offset: 0;
   box-shadow: 0 0 0 4px #1e3a8a;
+}
+
+/* --- alcas de redimensionamento --------------------------------------- */
+
+.cpo-el__alca {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  background: #fff;
+  border: 1px solid #1d4ed8;
+  border-radius: 2px;
+  display: none;
+}
+
+.cpo-el--selecionado .cpo-el__alca {
+  display: block;
+}
+
+.cpo-el__alca--nw { top: -6px; left: -6px; cursor: nwse-resize; }
+.cpo-el__alca--ne { top: -6px; right: -6px; cursor: nesw-resize; }
+.cpo-el__alca--se { bottom: -6px; right: -6px; cursor: nwse-resize; }
+.cpo-el__alca--sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
+
+/* --- guias de alinhamento --------------------------------------------- */
+
+.cpo-guia {
+  position: absolute;
+  background: #db2777;
+  pointer-events: none;
+  z-index: 900;
+}
+
+.cpo-guia--h { left: 0; right: 0; height: 1px; }
+.cpo-guia--v { top: 0; bottom: 0; width: 1px; }
+
+/* --- paleta ----------------------------------------------------------- */
+
+.cpo-paleta {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+
+.cpo-paleta__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--cpo-borda);
+  border-radius: .375rem;
+  background: #fff;
+  padding: .35rem .5rem;
+  font-size: .82rem;
+  cursor: grab;
+}
+
+.cpo-paleta__item:hover:not(:disabled) {
+  border-color: #1d4ed8;
+  background: rgba(37, 99, 235, .06);
+}
+
+.cpo-paleta__item:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.cpo-paleta__nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cpo-paleta__marca {
+  flex: none;
+  font-size: .68rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #475569;
+  border: 1px solid var(--cpo-borda);
+  border-radius: .25rem;
+  padding: 0 .25rem;
+}
+
+/* --- painel de propriedades ------------------------------------------- */
+
+.cpo-prop {
+  margin-bottom: .6rem;
 }
 
 .cpo-campo {
@@ -968,5 +1108,14 @@ pre {
 @media (max-width: 1199.98px) {
   .cpo-preview-pdf embed {
     height: 42vh;
+  }
+}
+
+/* O editor em telas estreitas. A paleta deixa de ser coluna e vira grade:
+   quinze botoes empilhados empurrariam o resto da pagina para muito longe. */
+@media (max-width: 1199.98px) {
+  .cpo-paleta {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
   }
 }

@@ -742,7 +742,14 @@ def test_todos_os_tipos_de_texto_tem_resolvedor():
     Um tipo novo no enum sem resolvedor sairia em branco no documento, em
     silencio. Este teste faz a ausencia aparecer aqui.
     """
-    sem_resolvedor = {FieldType.QR_CODE, FieldType.STATIC_IMAGE}
+    # QR e imagem fixa nao sao texto. CUSTOM_TEXT tambem nao tem resolvedor,
+    # e por um motivo diferente: ele carrega o proprio texto, e o que ele
+    # resolve sao as variaveis dentro dele — contra este mesmo mapa.
+    sem_resolvedor = {
+        FieldType.QR_CODE,
+        FieldType.STATIC_IMAGE,
+        FieldType.CUSTOM_TEXT,
+    }
     esperados = set(FieldType.values) - sem_resolvedor
 
     assert set(RESOLVEDORES.keys()) == esperados

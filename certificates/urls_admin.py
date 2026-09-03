@@ -52,6 +52,13 @@ urlpatterns = [
         views_modelos.template_save_fields,
         name="certificate_template_save_fields",
     ),
+    # O editor visual salva por aqui, em JSON. A rota de cima continua
+    # existindo para o formulario classico e para os scripts que o imitam.
+    path(
+        "certificados/modelos/<int:pk>/elementos/",
+        views_modelos.template_save_elements,
+        name="certificate_template_save_elements",
+    ),
     path(
         "certificados/modelos/<int:pk>/arte/enviar/",
         views_modelos.template_background,

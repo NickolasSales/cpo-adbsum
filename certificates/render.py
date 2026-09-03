@@ -185,7 +185,48 @@ def _equilibrar(linhas, fonte, tamanho, largura):
     return melhor[1] if melhor else linhas
 
 
-def ajustar(texto, *, fonte, tamanho, minimo, auto_fit, largura, altura, entrelinha):
+def _montar_linhas(texto, fonte, tamanho, largura, quebrar):
+    """
+    Linhas do texto num tamanho de fonte, respeitando as quebras escritas.
+
+    As quebras explicitas vem primeiro: um texto personalizado escrito em
+    tres linhas sai em tres linhas, e a quebra automatica age DENTRO de cada
+    uma. Tratar o texto como um paragrafo unico juntaria as frases que o
+    administrador separou de proposito.
+
+    Com `quebrar` desligado nao ha quebra automatica — so encolhimento. Serve
+    para uma linha que precisa caber inteira num espaco estreito da arte.
+    """
+    linhas = []
+    for paragrafo in texto.split("\n"):
+        if not paragrafo.strip():
+            # Linha em branco escrita de proposito: vale como espaco
+            # vertical, e nao some.
+            linhas.append("")
+            continue
+        if quebrar:
+            linhas.extend(_quebrar(paragrafo, fonte, tamanho, largura))
+        else:
+            linhas.append(paragrafo)
+    return linhas or [""]
+
+
+def _cabe_na_largura(linhas, fonte, tamanho, largura):
+    return all(stringWidth(linha, fonte, tamanho) <= largura for linha in linhas)
+
+
+def ajustar(
+    texto,
+    *,
+    fonte,
+    tamanho,
+    minimo,
+    auto_fit,
+    largura,
+    altura,
+    entrelinha,
+    quebrar=True,
+):
     """
     Decide as linhas e o tamanho de fonte que cabem na caixa.
 
@@ -202,6 +243,12 @@ def ajustar(texto, *, fonte, tamanho, minimo, auto_fit, largura, altura, entreli
 
     Sem auto_fit o tamanho e respeitado como pedido e so a quebra acontece.
     Quem desligou o ajuste quer a fonte daquele tamanho.
+
+    Com `quebrar` desligado e auto_fit ligado, o criterio de parada passa a
+    ser a LARGURA — nao ha quebra que resolva, so encolhimento. Se nem no
+    minimo couber, o texto transborda a caixa, visivelmente. Transbordar e
+    melhor que cortar: o desalinho aparece no preview e se corrige; um nome
+    truncado passa despercebido ate estar impresso.
     """
     texto = "" if texto is None else str(texto)
     if not texto.strip():
@@ -211,22 +258,30 @@ def ajustar(texto, *, fonte, tamanho, minimo, auto_fit, largura, altura, entreli
     minimo = max(min(int(minimo), tamanho), 1)
     largura = max(largura, 1)
 
+    def acabar(linhas, corpo):
+        # O equilibrio so faz sentido num paragrafo unico partido em duas:
+        # com quebras escritas, repartir palavras entre linhas desmontaria o
+        # que o administrador escreveu.
+        if "\n" in texto or not quebrar:
+            return linhas, corpo
+        return _equilibrar(linhas, fonte, corpo, largura), corpo
+
     if not auto_fit:
-        return _equilibrar(
-            _quebrar(texto, fonte, tamanho, largura), fonte, tamanho, largura
-        ), tamanho
+        return acabar(
+            _montar_linhas(texto, fonte, tamanho, largura, quebrar), tamanho
+        )
 
     atual = tamanho
     while atual >= minimo:
-        linhas = _quebrar(texto, fonte, atual, largura)
+        linhas = _montar_linhas(texto, fonte, atual, largura, quebrar)
         alto = len(linhas) * atual * entrelinha
-        if alto <= altura or len(linhas) == 1:
-            if alto <= altura:
-                return _equilibrar(linhas, fonte, atual, largura), atual
+        if alto <= altura and (
+            quebrar or _cabe_na_largura(linhas, fonte, atual, largura)
+        ):
+            return acabar(linhas, atual)
         atual -= 1
 
-    linhas = _quebrar(texto, fonte, minimo, largura)
-    return _equilibrar(linhas, fonte, minimo, largura), minimo
+    return acabar(_montar_linhas(texto, fonte, minimo, largura, quebrar), minimo)
 
 
 # ---------------------------------------------------------------------------
@@ -325,6 +380,7 @@ def _desenhar_texto(c, campo, texto, largura_pt, altura_pt):
         largura=largura_do_texto,
         altura=altura_do_texto,
         entrelinha=entrelinha,
+        quebrar=bool(campo.get("wrap", True)),
     )
     if not linhas:
         return
@@ -420,7 +476,9 @@ def render_from_snapshot(snapshot, valores):
         {"page_width_mm", "page_height_mm", "background_path", "fields": [...]}
 
     `valores` e {field_type: texto}. QR_CODE espera a URL em
-    valores["QR_CODE"]; STATIC_IMAGE traz o caminho no proprio campo.
+    valores["QR_CODE"]; STATIC_IMAGE traz o caminho no proprio campo;
+    CUSTOM_TEXT traz a frase em `content`, com as variaveis resolvidas
+    contra o mesmo `valores`.
 
     Campos sem valor sao ignorados em silencio. Um certificado da versao 1 nao
     tem carga horaria; imprimir um espaco em branco onde deveria haver "08
@@ -460,7 +518,17 @@ def render_from_snapshot(snapshot, valores):
                 _desenhar_imagem(c, campo, caminho, largura_pt, altura_pt)
             continue
 
-        texto = valores.get(tipo)
+        if tipo == FieldType.CUSTOM_TEXT:
+            # O texto vem do proprio campo; as variaveis sao resolvidas
+            # agora, contra os mesmos valores que os campos soltos usam.
+            # Import local para nao amarrar o renderizador a um modulo que
+            # so importa por causa de um tipo entre quinze.
+            from certificates.placeholders import aplicar
+
+            texto = aplicar(campo.get("content") or "", valores)
+        else:
+            texto = valores.get(tipo)
+
         if texto is None or str(texto).strip() == "":
             continue
         _desenhar_texto(c, campo, str(texto), largura_pt, altura_pt)

@@ -51,8 +51,15 @@ ATRIBUTOS_DO_CAMPO = (
     "text_align",
     "text_color",
     "rotation",
+    "wrap",
     "is_visible",
     "z_index",
+    # O texto do bloco personalizado, com as variaveis AINDA por resolver.
+    # Congelar a frase e nao o resultado e o que faz o snapshot cumprir o
+    # papel dele: reeditar o modelo depois nao muda o documento, e a
+    # resolucao continua acontecendo contra os dados congelados do proprio
+    # certificado.
+    "content",
 )
 
 NUMERICOS = {"x", "y", "width", "height", "line_height"}
