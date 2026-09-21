@@ -1,0 +1,96 @@
+ROTEIRO — VÍDEO 2
+Resultado reprovado: o que acontece e o que fazer
+
+Arquivo: 02-resultado-reprovado.webm
+Resolução: 1366x768
+
+Este vídeo é mais curto. Ele existe para que o aluno saiba, ANTES de fazer a
+prova, o que acontece se não atingir a nota mínima — e para que não fique
+perdido se isso acontecer.
+
+O caminho até a finalização é o mesmo do vídeo 1. Se você já assistiu ao
+primeiro vídeo, pode acompanhar a partir do item 4.
+
+-----------------------------------------------------------------------------
+1. ACESSO
+-----------------------------------------------------------------------------
+
+   Entre em cpoadsum.nexeeo.com com seu e-mail e senha.
+
+-----------------------------------------------------------------------------
+2. MÓDULO E AVALIAÇÃO
+-----------------------------------------------------------------------------
+
+   Acesse o módulo, abra a avaliação e leia as instruções.
+
+   Clique em "Iniciar prova".
+
+-----------------------------------------------------------------------------
+3. RESPONDENDO
+-----------------------------------------------------------------------------
+
+   Responda as questões, sempre conferindo o aviso "Salvo" depois de cada
+   alternativa marcada.
+
+   Finalize a prova e confirme o envio.
+
+-----------------------------------------------------------------------------
+4. RESULTADO ABAIXO DA NOTA MÍNIMA
+-----------------------------------------------------------------------------
+
+   Depois de finalizar a avaliação, o resultado é exibido.
+
+   Nesta demonstração, o aluno acertou 2 das 4 questões: nota 5,00, quando a
+   nota mínima é 8,00.
+
+   Na tela aparecem:
+
+      - a sua nota
+      - a nota mínima exigida
+      - o status: Reprovado
+
+   Ponto para narrar: a nota aparece porque esta avaliação está configurada
+   para mostrar o resultado logo após o envio. Nem toda avaliação precisa
+   ser assim — a coordenação define isso por prova.
+
+-----------------------------------------------------------------------------
+5. A ORIENTAÇÃO
+-----------------------------------------------------------------------------
+
+   Junto do resultado aparece a mensagem da coordenação:
+
+      "Você não atingiu a nota mínima necessária nesta avaliação.
+       Procure a coordenação do CPO para orientações."
+
+   Essa mensagem é definida pela coordenação e pode ser diferente em cada
+   avaliação. Leia com atenção: é ali que está a orientação sobre o que
+   fazer em seguida.
+
+-----------------------------------------------------------------------------
+6. SEM CERTIFICADO
+-----------------------------------------------------------------------------
+
+   Repare na tela: não existe botão "Emitir certificado".
+
+   Quando a nota fica abaixo da mínima, não é emitido certificado. Isso não
+   é um erro do sistema nem uma falha de carregamento — é o comportamento
+   esperado.
+
+   Em "Meus certificados" também não aparece nenhum certificado desta
+   avaliação.
+
+-----------------------------------------------------------------------------
+7. E AGORA?
+-----------------------------------------------------------------------------
+
+   Procure a coordenação do CPO.
+
+   Se a avaliação permitir mais de uma tentativa, a coordenação orienta como
+   proceder. Se não permitir, é a coordenação que avalia o caso.
+
+   Não fique tentando entrar de novo na prova: o número de tentativas é
+   definido pela coordenação e o sistema não libera sozinho.
+
+-----------------------------------------------------------------------------
+FIM DO VÍDEO 2
+-----------------------------------------------------------------------------

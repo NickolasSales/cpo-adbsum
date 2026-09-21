@@ -58,6 +58,17 @@ backups/
 *.png
 !static/**/*.png
 
+# Videos de treinamento. Sao artefatos de midia, nao codigo: pesam dezenas de
+# MB, mudam inteiros a cada regravacao e o Git nao sabe versionar isso. O que
+# fica sob versionamento e como PRODUZI-LOS (tools/training_video/ e os
+# roteiros); os arquivos saem do comando e vao para onde forem publicados.
+artifacts/
+
+# Chromium do Playwright e o venv isolado da ferramenta de gravacao. O
+# Playwright e ferramenta de desenvolvimento e nao pode chegar ao runtime de
+# producao — por isso mora num venv proprio, fora de requirements.txt.
+tools/training_video/.venv/
+
 # IDE / editores
 .vscode/
 .idea/

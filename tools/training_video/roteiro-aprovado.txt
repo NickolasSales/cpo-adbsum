@@ -1,0 +1,161 @@
+ROTEIRO — VÍDEO 1
+Como realizar a avaliação (aluno aprovado)
+
+Arquivo: 01-como-realizar-a-prova-aprovado.webm
+Resolução: 1366x768
+
+Este roteiro acompanha o vídeo na ordem em que as telas aparecem. Cada item
+corresponde a um momento da gravação, para você narrar por cima ou usar como
+legenda.
+
+-----------------------------------------------------------------------------
+1. ACESSO
+-----------------------------------------------------------------------------
+
+   Acesse cpoadsum.nexeeo.com pelo navegador do computador ou do celular.
+
+   Informe o e-mail cadastrado e a senha que você recebeu da coordenação.
+
+   Clique em "Entrar".
+
+   Observação para narrar: a senha nunca aparece na tela — o campo mostra
+   pontinhos. Se você errar, o sistema avisa e permite tentar de novo.
+
+-----------------------------------------------------------------------------
+2. ÁREA DO ALUNO
+-----------------------------------------------------------------------------
+
+   Depois de entrar, você vê os módulos em que está matriculado.
+
+   Cada módulo aparece em um cartão, com o nome e o código.
+
+   Clique em "Acessar módulo" no módulo que você quer cursar.
+
+-----------------------------------------------------------------------------
+3. DENTRO DO MÓDULO
+-----------------------------------------------------------------------------
+
+   Aqui ficam as avaliações daquele módulo.
+
+   Clique em "Ver instruções" na avaliação que você vai fazer.
+
+-----------------------------------------------------------------------------
+4. TELA DE INSTRUÇÕES
+-----------------------------------------------------------------------------
+
+   Esta é a tela mais importante antes de começar. LEIA COM CALMA.
+
+   Aqui você encontra:
+
+      - quanto tempo terá para responder
+      - quantas questões a avaliação tem
+      - quantas tentativas você pode usar
+      - a nota mínima para ser aprovado
+
+   Ponto para narrar: o cronômetro começa a correr no momento em que você
+   clicar em "Iniciar prova". Antes disso, você pode ficar nesta tela o
+   tempo que quiser.
+
+   Quando estiver pronto, clique em "Iniciar prova".
+
+-----------------------------------------------------------------------------
+5. O CRONÔMETRO
+-----------------------------------------------------------------------------
+
+   No alto da tela, à direita, aparece o tempo restante.
+
+   Ele corre sozinho e não pode ser pausado. Fique de olho.
+
+-----------------------------------------------------------------------------
+6. RESPONDENDO
+-----------------------------------------------------------------------------
+
+   Leia o enunciado da questão.
+
+   Clique na alternativa que você escolher.
+
+   IMPORTANTE: logo depois de marcar, observe o aviso "Salvo" aparecer no
+   alto da tela, ao lado do cronômetro.
+
+   Esse aviso é a confirmação de que sua resposta foi registrada no sistema.
+   Você NÃO precisa clicar em nenhum botão de salvar — o sistema salva
+   sozinho, a cada resposta.
+
+   Ponto para narrar: se a sua internet cair no meio da prova, as respostas
+   que já mostraram "Salvo" estão guardadas.
+
+-----------------------------------------------------------------------------
+7. TROCANDO UMA RESPOSTA
+-----------------------------------------------------------------------------
+
+   Mudou de ideia? Basta clicar na outra alternativa.
+
+   O aviso "Salvo" aparece de novo, confirmando a troca.
+
+   Você pode trocar quantas vezes quiser ENQUANTO NÃO FINALIZAR.
+
+-----------------------------------------------------------------------------
+8. QUESTÕES COM MAIS DE UMA RESPOSTA
+-----------------------------------------------------------------------------
+
+   Algumas questões pedem mais de uma alternativa. Nelas, o enunciado avisa:
+   "Marque todas as alternativas corretas."
+
+   Nesse caso, as caixinhas são quadradas e você pode marcar várias.
+
+-----------------------------------------------------------------------------
+9. FINALIZANDO
+-----------------------------------------------------------------------------
+
+   Respondeu tudo? Confira o tempo restante e clique em "Finalizar prova".
+
+   O sistema abre um aviso perguntando se você tem certeza, e lembrando:
+
+      "Depois do envio não será possível alterar suas respostas."
+
+   Leia com atenção. Se ainda quiser revisar, clique em "Voltar".
+
+   Se estiver tudo certo, confirme o envio.
+
+-----------------------------------------------------------------------------
+10. CONFIRMAÇÃO
+-----------------------------------------------------------------------------
+
+   Aparece a tela "Prova enviada com sucesso."
+
+   Clique em "Ver resultado".
+
+-----------------------------------------------------------------------------
+11. RESULTADO
+-----------------------------------------------------------------------------
+
+   O resultado das questões objetivas sai na hora.
+
+   Você vê:
+
+      - sua nota
+      - a nota mínima necessária
+      - o status: Aprovado
+
+-----------------------------------------------------------------------------
+12. CERTIFICADO
+-----------------------------------------------------------------------------
+
+   Quando o resultado é Aprovado, aparece o botão "Emitir certificado".
+
+   Ponto importante para narrar: ao emitir o certificado, o módulo é
+   concluído e o acesso a ele é encerrado. Seus resultados e o certificado
+   continuam disponíveis.
+
+   Depois de emitir, você vai para "Meus certificados", onde encontra:
+
+      - "Baixar PDF", para salvar o documento
+      - "Página de validação", o endereço público que comprova a
+        autenticidade do certificado
+
+   A página de validação pode ser aberta por qualquer pessoa, sem senha, e
+   é ela que confirma que o certificado é verdadeiro.
+
+-----------------------------------------------------------------------------
+FIM DO VÍDEO 1
+-----------------------------------------------------------------------------
