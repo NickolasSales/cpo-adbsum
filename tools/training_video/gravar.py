@@ -70,6 +70,17 @@ MODAL = 2500        # o aviso de "nao podera alterar" precisa ser lido
 # sozinhos.
 LENTIDAO = 450
 
+# Janela VISIVEL, e nao headless.
+#
+# Nao e preferencia: o Chromium headless nao carrega o visualizador de PDF.
+# Pedir o arquivo por file:// em headless devolve "Download is starting" e o
+# certificado nunca aparece na tela. Com janela visivel o visualizador abre
+# normalmente, com miniatura, zoom e os botoes de baixar e imprimir — que e o
+# que o aluno vai ver quando abrir o documento.
+#
+# Uma janela do Chromium abre durante a gravacao. Nao interaja com ela.
+HEADLESS = os.environ.get("DEMO_VIDEO_HEADLESS", "").strip() == "1"
+
 
 def _pausar(page, ms, motivo=""):
     """Pausa didatica. O motivo aparece no log para auditar o ritmo depois."""
@@ -285,13 +296,45 @@ def emitir_certificado(page):
         return False
 
     _pausar(page, LEITURA, "lista de certificados")
+    endereco_da_lista = page.url
 
-    # Secao 24: mostrar ONDE fica o botao de baixar, sem baixar — o download
-    # abriria um dialogo do sistema operacional no meio do video.
+    # --- baixar e ABRIR o documento ---------------------------------------
+    #
+    # Mostrar so onde fica o botao deixava a parte mais importante de fora: o
+    # aluno quer ver o certificado. Entao baixamos de verdade e abrimos o
+    # arquivo, que e exatamente o que ele fara.
+    #
+    # A view manda Content-Disposition: attachment, entao o navegador baixa em
+    # vez de exibir. Abrir o arquivo salvo depois nao e um truque de gravacao:
+    # e o segundo passo real de quem clicou em baixar.
     baixar = page.get_by_role("link", name="Baixar PDF").first
     baixar.scroll_into_view_if_needed()
     baixar.hover()
-    _pausar(page, LEITURA, "apontar o botao Baixar PDF")
+    _pausar(page, PAUSA, "apontar o botao Baixar PDF")
+
+    with page.expect_download(timeout=60000) as captura:
+        baixar.click()
+    arquivo = captura.value
+
+    destino = PASTA_DE_SAIDA / "certificado-demonstracao.pdf"
+    arquivo.save_as(str(destino))
+    print("    PDF salvo: {}".format(destino))
+    _pausar(page, PAUSA, "download concluido")
+
+    # Mesma aba, e nao uma nova: o Playwright grava um video POR PAGINA, e
+    # abrir outra aba partiria a gravacao em dois arquivos.
+    page.goto(destino.as_uri())
+
+    # Parada longa, e nao zoom. Tentei Control+= aqui: o visualizador de PDF
+    # e uma extensao do proprio Chromium e nao responde ao atalho enviado
+    # pela pagina — o video ficava com quatro segundos em que nada acontecia.
+    # A 93% o documento ja cabe inteiro na tela, entao o que falta e tempo
+    # para ler, nao aproximacao.
+    _pausar(page, LEITURA * 2 + 2000, "o certificado na tela, para leitura")
+
+    # --- de volta ao sistema ----------------------------------------------
+    page.goto(endereco_da_lista, wait_until="networkidle")
+    _pausar(page, PAUSA, "de volta a lista")
 
     page.get_by_role("link", name="Pagina de validacao").first.click()
     page.wait_for_load_state("networkidle")
@@ -320,13 +363,14 @@ def gravar(*, aprovado, arquivo, com_certificado):
     print("  alvo: {}".format(URL_BASE))
 
     with sync_playwright() as p:
-        navegador = p.chromium.launch(headless=True, slow_mo=LENTIDAO)
+        navegador = p.chromium.launch(headless=HEADLESS, slow_mo=LENTIDAO)
         contexto = navegador.new_context(
             viewport=VIEWPORT,
             record_video_dir=str(PASTA_DE_SAIDA),
             record_video_size=VIEWPORT,
             locale="pt-BR",
             timezone_id="America/Sao_Paulo",
+            accept_downloads=True,
         )
         page = contexto.new_page()
         try:

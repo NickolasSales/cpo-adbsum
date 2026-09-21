@@ -147,14 +147,46 @@ legenda.
    concluído e o acesso a ele é encerrado. Seus resultados e o certificado
    continuam disponíveis.
 
-   Depois de emitir, você vai para "Meus certificados", onde encontra:
+   Depois de emitir, você vai direto para "Meus certificados".
 
-      - "Baixar PDF", para salvar o documento
-      - "Página de validação", o endereço público que comprova a
-        autenticidade do certificado
+   O certificado aparece em um cartão, com a etiqueta "Válido" e quatro
+   botões:
 
-   A página de validação pode ser aberta por qualquer pessoa, sem senha, e
-   é ela que confirma que o certificado é verdadeiro.
+      - "Baixar PDF"
+      - "Página de validação"
+      - "Compartilhar no WhatsApp"
+      - "Compartilhar"
+
+-----------------------------------------------------------------------------
+13. BAIXANDO O CERTIFICADO
+-----------------------------------------------------------------------------
+
+   Clique em "Baixar PDF".
+
+   O arquivo é salvo na pasta de downloads do seu aparelho. No computador,
+   costuma aparecer uma barra embaixo ou um aviso no canto do navegador; no
+   celular, uma notificação.
+
+   Abra o arquivo baixado. O certificado é exibido na tela inteira.
+
+   Ponto para narrar: repare no documento — seu nome, o módulo, a data de
+   conclusão e o QR Code. É esse arquivo que você guarda, imprime ou envia.
+
+   No visualizador, os ícones no alto à direita permitem salvar o arquivo em
+   outra pasta e imprimir direto.
+
+-----------------------------------------------------------------------------
+14. PÁGINA DE VALIDAÇÃO
+-----------------------------------------------------------------------------
+
+   De volta a "Meus certificados", clique em "Página de validação".
+
+   Esse é o endereço público que comprova a autenticidade do certificado.
+   Pode ser aberto por qualquer pessoa, sem senha — é o mesmo endereço do
+   QR Code impresso no documento.
+
+   Guarde o link: é ele que confirma, para quem receber seu certificado,
+   que o documento é verdadeiro.
 
 -----------------------------------------------------------------------------
 FIM DO VÍDEO 1
