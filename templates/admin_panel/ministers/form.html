@@ -1,0 +1,96 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Cadastro e edicao de ministro. A diferenca entre as duas telas e a presenca
+de `ministro` (so na edicao) e dos campos de acesso (so na criacao).
+
+Os campos de senha voltam vazios depois de um erro: a senha nunca e
+devolvida no HTML da resposta.
+{% endcomment %}
+
+{% block title %}{{ titulo }} - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<div class="cpo-form-estreito">
+  <nav aria-label="Trilha" class="mb-3">
+    {% if ministro %}
+      <a class="small text-decoration-none" href="{% url 'admin_panel:minister_detail' ministro.pk %}">&larr; {{ ministro.full_name }}</a>
+    {% else %}
+      <a class="small text-decoration-none" href="{% url 'admin_panel:minister_list' %}">&larr; Ministros</a>
+    {% endif %}
+  </nav>
+
+  <h1 class="h4 mb-1">{{ titulo }}</h1>
+  <p class="text-body-secondary small mb-3">
+    {% if ministro %}
+      Dados ministeriais. A senha e o acesso ao portal têm telas próprias, na ficha do ministro.
+    {% else %}
+      A inscrição CONAMAD identifica o ministro e é o login dele no portal.
+    {% endif %}
+  </p>
+
+  <div class="cpo-cartao p-3 p-md-4">
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger py-2 small" role="alert">
+        {% for erro in form.non_field_errors %}<div>{{ erro }}</div>{% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <div class="row g-3">
+        {% for campo in form %}
+          {% if campo.name != "create_access" and campo.name != "password1" and campo.name != "password2" %}
+            <div class="{% if campo.name == 'full_name' or campo.name == 'notes' %}col-12{% else %}col-12 col-md-6{% endif %}">
+              <label for="{{ campo.id_for_label }}" class="form-label small fw-medium mb-1">
+                {{ campo.label }}{% if campo.field.required %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
+              </label>
+              {{ campo }}
+              {% if campo.errors %}
+                <div class="form-text text-danger">{{ campo.errors.0 }}</div>
+              {% elif campo.help_text %}
+                <div class="form-text small">{{ campo.help_text }}</div>
+              {% endif %}
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+      <datalist id="congregacoes">
+        {% for nome in congregacoes %}<option value="{{ nome }}">{% endfor %}
+      </datalist>
+
+      {% if form.create_access %}
+        <hr class="my-4">
+        <div class="form-check mb-3">
+          {{ form.create_access }}
+          <label class="form-check-label fw-medium" for="{{ form.create_access.id_for_label }}">
+            {{ form.create_access.label }}
+          </label>
+          <div class="form-text small">
+            Login: a inscrição CONAMAD. Entregue a senha por um canal seguro — ela
+            não é exibida de novo.
+          </div>
+        </div>
+        <div class="row g-3" id="camposDeAcesso">
+          <div class="col-12 col-md-6">
+            <label for="{{ form.password1.id_for_label }}" class="form-label small fw-medium mb-1">{{ form.password1.label }}</label>
+            {{ form.password1 }}
+            {% if form.password1.errors %}<div class="form-text text-danger">{{ form.password1.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-12 col-md-6">
+            <label for="{{ form.password2.id_for_label }}" class="form-label small fw-medium mb-1">{{ form.password2.label }}</label>
+            {{ form.password2 }}
+            {% if form.password2.errors %}<div class="form-text text-danger">{{ form.password2.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="d-flex flex-wrap gap-2 mt-4">
+        <button type="submit" class="btn btn-primary">Salvar</button>
+        <a class="btn btn-outline-secondary"
+           href="{% if ministro %}{% url 'admin_panel:minister_detail' ministro.pk %}{% else %}{% url 'admin_panel:minister_list' %}{% endif %}">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

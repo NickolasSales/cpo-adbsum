@@ -117,6 +117,12 @@ CERTIFICATE_SIGNATORY_TITLE = env(
 
 DEFAULT_STUDENT_PASSWORD = env("DEFAULT_STUDENT_PASSWORD", "")
 
+# Senha inicial das contas do Portal do Ministro criadas pela importacao da
+# relacao. Vazia, a importacao continua cadastrando ministros, mas recusa
+# criar acesso. Nunca e exibida em tela, relatorio ou log, e o ministro e
+# obrigado a troca-la no primeiro login.
+DEFAULT_MINISTER_PASSWORD = env("DEFAULT_MINISTER_PASSWORD", "")
+
 # Quando True, o IP do cliente e lido de X-Forwarded-For. Deve permanecer
 # False ate que exista um proxy reverso confiavel (Nginx) na frente da
 # aplicacao. Sem proxy, esse cabecalho e falsificavel por qualquer cliente.
@@ -144,6 +150,8 @@ LOCAL_APPS = [
     "courses",
     "exams",
     "certificates",
+    # Controle de Ministros: dominio separado do CPO academico.
+    "ministers",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + LOCAL_APPS

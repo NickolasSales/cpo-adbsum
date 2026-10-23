@@ -1,0 +1,143 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Lista de ministros. Tabela no desktop; abaixo de 768px a mesma marcacao vira
+cartoes (cpo-lista--cartoes, com o rotulo de cada celula em data-rotulo), sem
+barra horizontal.
+
+O acesso vem no mesmo SELECT (select_related), e a paginacao e no banco:
+nenhuma tela carrega a relacao inteira em memoria.
+{% endcomment %}
+
+{% block title %}Ministros - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">Ministros</h1>
+    <p class="text-body-secondary small mb-0">{{ total_geral }} ministro(s) cadastrado(s).</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'admin_panel:minister_import' %}">Importar</a>
+    <a class="btn btn-primary btn-sm" href="{% url 'admin_panel:minister_create' %}">Novo ministro</a>
+  </div>
+</div>
+
+<form method="get" class="cpo-cartao p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-lg-4">
+      <label for="q" class="form-label small fw-medium mb-1">Buscar</label>
+      <input type="search" id="q" name="q" value="{{ filtros.q }}" class="form-control form-control-sm"
+             placeholder="Nome, inscrição ou matrícula">
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+      <label for="congregacao" class="form-label small fw-medium mb-1">Congregação</label>
+      <select id="congregacao" name="congregacao" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        {% for nome in congregacoes %}
+          <option value="{{ nome }}" {% if filtros.congregacao == nome %}selected{% endif %}>{{ nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+      <label for="titulo" class="form-label small fw-medium mb-1">Cargo</label>
+      <select id="titulo" name="titulo" class="form-select form-select-sm">
+        <option value="">Todos</option>
+        {% for valor, rotulo in titulos %}
+          <option value="{{ valor }}" {% if filtros.titulo == valor %}selected{% endif %}>{{ rotulo }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-3 col-lg-1">
+      <label for="situacao" class="form-label small fw-medium mb-1">Situação</label>
+      <select id="situacao" name="situacao" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        <option value="ativos" {% if filtros.situacao == "ativos" %}selected{% endif %}>Ativos</option>
+        <option value="inativos" {% if filtros.situacao == "inativos" %}selected{% endif %}>Inativos</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+      <label for="acesso" class="form-label small fw-medium mb-1">Acesso</label>
+      <select id="acesso" name="acesso" class="form-select form-select-sm">
+        <option value="">Todos</option>
+        <option value="com" {% if filtros.acesso == "com" %}selected{% endif %}>Com acesso</option>
+        <option value="sem" {% if filtros.acesso == "sem" %}selected{% endif %}>Sem acesso</option>
+        <option value="bloqueado" {% if filtros.acesso == "bloqueado" %}selected{% endif %}>Acesso bloqueado</option>
+      </select>
+    </div>
+    <div class="col-12 col-lg-1 d-flex gap-2">
+      <button type="submit" class="btn btn-sm btn-primary w-100">Filtrar</button>
+    </div>
+  </div>
+  {% if tem_filtro %}
+    <div class="mt-2">
+      <a class="small text-decoration-none" href="{% url 'admin_panel:minister_list' %}">Limpar filtros</a>
+    </div>
+  {% endif %}
+</form>
+
+<div class="cpo-cartao">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 cpo-tabela cpo-lista--cartoes">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Matrícula Campo</th>
+          <th>CONAMAD</th>
+          <th class="d-none d-lg-table-cell">Congregação</th>
+          <th class="d-none d-md-table-cell">Cargo</th>
+          <th>Situação</th>
+          <th>Acesso</th>
+          <th class="text-end cpo-acoes">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ministro in ministros %}
+          <tr>
+            <td class="cpo-celula-titulo">
+              <a href="{% url 'admin_panel:minister_detail' ministro.pk %}" class="fw-medium text-decoration-none cpo-quebra">
+                {{ ministro.full_name }}
+              </a>
+              <div class="d-md-none small text-body-secondary">
+                {{ ministro.cargo_exibido }}{% if ministro.congregation %} &middot; {{ ministro.congregation }}{% endif %}
+              </div>
+            </td>
+            <td class="small" data-rotulo="Campo">{{ ministro.field_registration|default:"-" }}</td>
+            <td class="small" data-rotulo="CONAMAD">{{ ministro.conamad_registration }}</td>
+            <td class="d-none d-lg-table-cell small text-body-secondary" data-rotulo="Congregação">{{ ministro.congregation|default:"-" }}</td>
+            <td class="d-none d-md-table-cell small" data-rotulo="Cargo">{{ ministro.cargo_exibido }}</td>
+            <td data-rotulo="Situação">
+              {% if ministro.is_active %}
+                <span class="cpo-badge cpo-badge--ok">Ativo</span>
+              {% else %}
+                <span class="cpo-badge cpo-badge--erro">Inativo</span>
+              {% endif %}
+            </td>
+            <td data-rotulo="Acesso">
+              {% include "admin_panel/ministers/_acesso.html" with acesso=ministro.account %}
+            </td>
+            <td class="text-end cpo-acoes">
+              <div class="d-flex gap-1 justify-content-end flex-wrap">
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_panel:minister_detail' ministro.pk %}">Abrir</a>
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:minister_update' ministro.pk %}">Editar</a>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="8" class="text-center text-body-secondary py-5 cpo-celula-vazia">
+              {% if tem_filtro %}
+                Nenhum ministro encontrado com esses filtros.
+              {% else %}
+                Nenhum ministro cadastrado ainda.
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "admin_panel/_paginacao.html" %}
+{% endblock %}

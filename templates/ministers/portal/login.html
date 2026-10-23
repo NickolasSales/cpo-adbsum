@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% comment %}
+Login do Portal do Ministro.
+
+Mesmo desenho do login do CPO, outra porta: o formulario pede a
+matricula / inscricao (a inscricao CONAMAD) e a senha, e autentica contra
+MinisterAccount — nunca contra os usuarios do CPO.
+
+A mensagem de erro e uma so para identificador inexistente, senha errada e
+acesso bloqueado. Distinguir os casos confirmaria a quem tenta adivinhar
+quais inscricoes tem acesso.
+{% endcomment %}
+
+{% block title %}Portal do Ministro - {{ APP_LOGO_ALT }}{% endblock %}
+{% block main_class %}cpo-login{% endblock %}
+
+{% block content %}
+<div class="cpo-login__caixa">
+
+  <div class="cpo-login__marca cpo-marca-app cpo-marca-app--empilhada">
+    {% include "_marca.html" with tamanho="grande" %}
+    <div>
+      <strong>{{ APP_LOGO_ALT }}</strong>
+      <span>Portal do Ministro</span>
+    </div>
+  </div>
+
+  <div class="cpo-login__painel">
+    <h1 class="h5 mb-1">Entrar</h1>
+    <p class="text-body-secondary small mb-4">
+      Use o número da sua inscrição CONAMAD e a sua senha.
+    </p>
+
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger py-2 small" role="alert">
+        {% for erro in form.non_field_errors %}{{ erro }}{% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+
+      <div class="mb-3">
+        <label for="{{ form.identificador.id_for_label }}" class="form-label small fw-medium">
+          {{ form.identificador.label }}
+        </label>
+        {{ form.identificador }}
+        {% if form.identificador.errors %}
+          <div class="form-text text-danger">{{ form.identificador.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <div class="mb-4">
+        <label for="{{ form.senha.id_for_label }}" class="form-label small fw-medium">
+          {{ form.senha.label }}
+        </label>
+        {{ form.senha }}
+        {% if form.senha.errors %}
+          <div class="form-text text-danger">{{ form.senha.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <button type="submit" class="btn btn-primary w-100 cpo-botao-bloco">Entrar</button>
+    </form>
+  </div>
+
+  <p class="text-center small mt-3 mb-0" style="color:#94a3b8;">
+    Problemas para acessar? Procure a secretaria do campo.
+  </p>
+</div>
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% block title %}Importar ministros - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:minister_list' %}">&larr; Ministros</a>
+</nav>
+
+<div class="mb-3">
+  <h1 class="h4 mb-1">Importar ministros</h1>
+  <p class="text-body-secondary small mb-0">
+    Envie a relação de ministros para cadastrar em lote.
+  </p>
+</div>
+
+<div class="alert alert-info small" role="alert">
+  <strong>O envio ainda não importa nada.</strong>
+  O arquivo é apenas lido e conferido com o cadastro. Você verá um preview,
+  linha por linha, e só depois de confirmar nessa tela os ministros serão
+  cadastrados.
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-7">
+    <div class="cpo-cartao p-3 p-md-4">
+      <h2 class="h6 mb-3">Arquivo</h2>
+      <form method="post" enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger py-2 small">
+            {% for erro in form.non_field_errors %}<div>{{ erro }}</div>{% endfor %}
+          </div>
+        {% endif %}
+        <div class="mb-3">
+          <label for="{{ form.arquivo.id_for_label }}" class="form-label small fw-medium mb-1">{{ form.arquivo.label }}</label>
+          {{ form.arquivo }}
+          {% if form.arquivo.errors %}
+            <div class="form-text text-danger">{{ form.arquivo.errors.0 }}</div>
+          {% else %}
+            <div class="form-text small">{{ form.arquivo.help_text }}</div>
+          {% endif %}
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <button type="submit" class="btn btn-sm btn-primary">Analisar arquivo</button>
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:minister_list' %}">Cancelar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-5">
+    <div class="cpo-cartao p-3 p-md-4 h-100">
+      <h2 class="h6 mb-3">Formato aceito</h2>
+      <ul class="small text-body-secondary ps-3 mb-3">
+        <li class="mb-1">
+          A <strong>relação oficial</strong> (.xlsx) pode ser enviada como está:
+          o título no topo, o cabeçalho na linha 6 e a data de nascimento em
+          três colunas são reconhecidos.
+        </li>
+        <li class="mb-1">
+          Colunas obrigatórias: <code>Nome</code>, <code>Inscrição Conamad</code>
+          e <code>Titulo</code>.
+        </li>
+        <li class="mb-1">
+          Opcionais: <code>nº</code>, <code>Consagração</code>,
+          <code>Data Nascimento</code>, <code>Sexo</code>,
+          <code>Congregação</code>, <code>Matrícula Campo</code>.
+        </li>
+        <li class="mb-1"><code>IDADE</code> é calculada e não é importada.</li>
+        <li class="mb-1">CSV em UTF-8 (no Excel, "CSV UTF-8").</li>
+        <li class="mb-0">
+          Ministros já cadastrados (mesma inscrição) <strong>não são
+          alterados</strong>: o preview aponta as divergências.
+        </li>
+      </ul>
+      {% if not senha_padrao_configurada %}
+        <div class="alert alert-warning small mb-0" role="alert">
+          <code>DEFAULT_MINISTER_PASSWORD</code> não está configurada. A
+          importação poderá cadastrar ministros, mas não criar acesso ao portal.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

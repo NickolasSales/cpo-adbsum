@@ -1,0 +1,42 @@
+{% comment %}
+Dados ministeriais do ministro logado. Usado no inicio e no perfil.
+`completo` acrescenta os campos que so o perfil mostra.
+{% endcomment %}
+<dl class="cpo-portal__dados mb-0">
+  <div>
+    <dt>Cargo</dt>
+    <dd>{{ ministro.cargo_exibido }}</dd>
+  </div>
+  {% if completo and ministro.position %}
+    <div>
+      <dt>Título ministerial</dt>
+      <dd>{{ ministro.get_ministerial_title_display }}</dd>
+    </div>
+  {% endif %}
+  <div>
+    <dt>Congregação</dt>
+    <dd>{{ ministro.congregation|default:"Não informada" }}</dd>
+  </div>
+  <div>
+    <dt>Matrícula Campo</dt>
+    <dd>{{ ministro.field_registration|default:"Não informada" }}</dd>
+  </div>
+  <div>
+    <dt>Matrícula CONAMAD</dt>
+    <dd>{{ ministro.conamad_registration }}</dd>
+  </div>
+  {% if completo %}
+    {% if ministro.consecration_year %}
+      <div>
+        <dt>Ano de consagração</dt>
+        <dd>{{ ministro.consecration_year }}</dd>
+      </div>
+    {% endif %}
+    {% if ministro.birth_date %}
+      <div>
+        <dt>Data de nascimento</dt>
+        <dd>{{ ministro.birth_date|date:"d/m/Y" }}</dd>
+      </div>
+    {% endif %}
+  {% endif %}
+</dl>

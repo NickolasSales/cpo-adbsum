@@ -1,0 +1,23 @@
+{% extends "ministers/portal/base.html" %}
+
+{% comment %}
+Inicio do portal. Nesta etapa mostra so o que existe: a identificacao do
+ministro. Mensalidades entram quando a funcionalidade existir — nenhum card
+de "em breve" promete o que ainda nao ha.
+{% endcomment %}
+
+{% block content %}
+<div class="mb-3">
+  <p class="text-body-secondary small mb-1">Portal do Ministro</p>
+  <h1 class="h4 mb-0 cpo-quebra">Olá, {{ ministro.full_name }}</h1>
+</div>
+
+<div class="cpo-cartao p-3 p-md-4 mb-3">
+  {% include "ministers/portal/_dados.html" %}
+</div>
+
+<div class="d-flex flex-wrap gap-2">
+  <a class="btn btn-outline-secondary" href="{% url 'ministers:profile' %}">Ver meu perfil</a>
+  <a class="btn btn-outline-secondary" href="{% url 'ministers:change_password' %}">Alterar senha</a>
+</div>
+{% endblock %}

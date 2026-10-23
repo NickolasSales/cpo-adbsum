@@ -215,6 +215,52 @@ class AuditEvent(models.TextChoices):
         "Modelo de certificado duplicado",
     )
 
+    # Controle de Ministros (Ministros, Etapa 1)
+    #
+    # Ministro nao e User. Os eventos apontam para ele por entity_type
+    # "Minister" e entity_id, e o campo student fica vazio — ele existe para
+    # alunos do CPO e continua significando so isso.
+    #
+    # Nos eventos do proprio portal (login, troca de senha) o autor fica nulo:
+    # quem age e o ministro, que nao tem User. A entidade diz quem foi.
+    #
+    # MINISTER_BLOCKED e MINISTER_UNBLOCKED tratam do CADASTRO (ministro
+    # inativado ou reativado). O ACESSO ao portal tem eventos proprios, porque
+    # um ministro ativo pode estar com o acesso bloqueado e vice-versa.
+    MINISTER_CREATED = "MINISTER_CREATED", "Ministro cadastrado"
+    MINISTER_UPDATED = "MINISTER_UPDATED", "Ministro atualizado"
+    MINISTER_BLOCKED = "MINISTER_BLOCKED", "Ministro inativado"
+    MINISTER_UNBLOCKED = "MINISTER_UNBLOCKED", "Ministro reativado"
+    MINISTER_ACCOUNT_CREATED = (
+        "MINISTER_ACCOUNT_CREATED",
+        "Acesso do ministro criado",
+    )
+    MINISTER_ACCOUNT_BLOCKED = (
+        "MINISTER_ACCOUNT_BLOCKED",
+        "Acesso do ministro bloqueado",
+    )
+    MINISTER_ACCOUNT_UNBLOCKED = (
+        "MINISTER_ACCOUNT_UNBLOCKED",
+        "Acesso do ministro liberado",
+    )
+    MINISTER_PASSWORD_RESET = (
+        "MINISTER_PASSWORD_RESET",
+        "Senha do ministro redefinida",
+    )
+    MINISTER_IMPORT_COMPLETED = (
+        "MINISTER_IMPORT_COMPLETED",
+        "Importação de ministros concluída",
+    )
+    # A falha guarda o identificador digitado, normalizado — a mesma politica
+    # do LOGIN_FAILED do CPO, que guarda o e-mail tentado. E tambem o que
+    # alimenta o limite de tentativas do portal (ministers.auth).
+    MINISTER_LOGIN_SUCCESS = "MINISTER_LOGIN_SUCCESS", "Login de ministro realizado"
+    MINISTER_LOGIN_FAILED = "MINISTER_LOGIN_FAILED", "Falha de login de ministro"
+    MINISTER_PASSWORD_CHANGED = (
+        "MINISTER_PASSWORD_CHANGED",
+        "Senha alterada pelo ministro",
+    )
+
 
 class AuditLog(models.Model):
     """

@@ -8,6 +8,7 @@ Organizacao dos prefixos:
     /login/ ...      autenticacao
     /admin-panel/    interface administrativa propria
     /aluno/          painel do aluno
+    /ministros/      Portal do Ministro, com autenticacao propria
     /certificados/   validacao publica, sem autenticacao
 """
 
@@ -20,6 +21,7 @@ urlpatterns = [
     path("", include("accounts.urls")),
     path("admin-panel/", include("common.urls_admin_panel")),
     path("aluno/", include("common.urls_student")),
+    path("ministros/", include("ministers.urls_portal")),
     path("", include("certificates.urls_public")),
     path("", include("common.urls")),
 ]

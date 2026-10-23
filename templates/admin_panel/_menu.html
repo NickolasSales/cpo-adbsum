@@ -24,14 +24,24 @@ forma.
 </div>
 {% endif %}
 
-<ul class="nav nav-pills flex-column">
-  {% for item in itens_menu %}
-    <li class="nav-item">
-      <a class="nav-link {% if secao == item.secao %}active{% endif %}"
-         href="{% url item.url %}">{{ item.nome }}</a>
-    </li>
-  {% endfor %}
-</ul>
+{% comment %}
+Areas do painel: CPO, Ministros e Administracao. A lista do menu e plana
+(common.navigation.MENU_ADMIN) e o regroup junta itens consecutivos do mesmo
+grupo — a ordem da lista e a ordem da tela.
+{% endcomment %}
+{% regroup itens_menu by grupo as areas %}
+{% for area in areas %}
+  {% if area.grouper %}<div class="cpo-lateral__area{% if forloop.first %} mt-0{% endif %}">{{ area.grouper }}</div>{% endif %}
+  <ul class="nav nav-pills flex-column">
+    {% for item in area.list %}
+      <li class="nav-item">
+        <a class="nav-link {% if secao == item.secao %}active{% endif %}"
+           {% if secao == item.secao %}aria-current="page"{% endif %}
+           href="{% url item.url %}">{{ item.nome }}</a>
+      </li>
+    {% endfor %}
+  </ul>
+{% endfor %}
 
 {% if itens_futuros %}
   <div class="cpo-lateral__legenda">Proximas etapas</div>

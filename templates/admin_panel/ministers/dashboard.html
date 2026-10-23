@@ -1,0 +1,72 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Dashboard do Controle de Ministros. Somente numeros reais do cadastro e do
+acesso ao portal; metricas financeiras entram com as mensalidades.
+{% endcomment %}
+
+{% block title %}Ministros - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <div>
+    <h1 class="h4 mb-1">Controle de Ministros</h1>
+    <p class="text-body-secondary small mb-0">Cadastro ministerial e acesso ao Portal do Ministro.</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'admin_panel:minister_import' %}">Importar</a>
+    <a class="btn btn-primary btn-sm" href="{% url 'admin_panel:minister_create' %}">Novo ministro</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  {% for card in cards %}
+    <div class="col-6 col-lg-4 col-xl">
+      <a href="{% url 'admin_panel:minister_list' %}{% if card.filtro %}?{{ card.filtro }}{% endif %}"
+         class="text-decoration-none d-block h-100">
+        <div class="cpo-cartao cpo-indicador cpo-indicador--ativo">
+          <span class="cpo-indicador__rotulo">{{ card.titulo }}</span>
+          <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ card.valor }}</span>
+          <span class="cpo-indicador__nota">{{ card.nota }}</span>
+        </div>
+      </a>
+    </div>
+  {% endfor %}
+</div>
+
+<div class="row g-3 mt-1">
+  <div class="col-12 col-lg-6">
+    <div class="cpo-cartao p-4 h-100">
+      <h2 class="h6 mb-3">Acesso ao portal</h2>
+      <ul class="small text-body-secondary ps-3 mb-0">
+        <li class="mb-1">Login do ministro: a <strong>inscrição CONAMAD</strong>.</li>
+        <li class="mb-1">Portal: <code>/ministros/login/</code></li>
+        <li class="mb-1">
+          {{ numeros.troca_pendente }} acesso(s) ainda com a senha inicial
+          (troca obrigatória no primeiro login).
+        </li>
+        <li class="mb-0">
+          {% if senha_padrao_configurada %}
+            Senha padrão da importação configurada.
+          {% else %}
+            <span class="text-danger">A senha padrão da importação
+            (<code>DEFAULT_MINISTER_PASSWORD</code>) não está configurada:
+            a importação não poderá criar acessos.</span>
+          {% endif %}
+        </li>
+      </ul>
+    </div>
+  </div>
+  <div class="col-12 col-lg-6">
+    <div class="cpo-cartao p-4 h-100">
+      <h2 class="h6 mb-2">Ministro inativo × acesso bloqueado</h2>
+      <p class="text-body-secondary small mb-0">
+        São coisas diferentes. <strong>Inativar</strong> tira o ministro da
+        relação ativa; <strong>bloquear o acesso</strong> só impede a entrada
+        no portal. Para entrar, o ministro precisa estar ativo e com o acesso
+        liberado. Nenhum cadastro é excluído.
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

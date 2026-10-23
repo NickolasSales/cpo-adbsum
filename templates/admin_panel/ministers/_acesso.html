@@ -1,0 +1,11 @@
+{% comment %}Etiqueta do acesso ao portal. Recebe `acesso` (MinisterAccount ou nada).{% endcomment %}
+{% if not acesso %}
+  <span class="cpo-badge cpo-badge--neutro">Sem acesso</span>
+{% elif not acesso.is_active %}
+  <span class="cpo-badge cpo-badge--erro">Acesso bloqueado</span>
+{% else %}
+  <span class="cpo-badge cpo-badge--ok">Acesso ativo</span>
+  {% if acesso.must_change_password %}
+    <span class="cpo-badge cpo-badge--alerta" title="Ainda com a senha inicial">Senha inicial</span>
+  {% endif %}
+{% endif %}

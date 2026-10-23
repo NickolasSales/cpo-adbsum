@@ -15,6 +15,7 @@ from common import views
 from courses import urls_admin as courses_admin
 from exams import urls_admin as exams_admin
 from exams import urls_attempts_admin as exams_attempts_admin
+from ministers import urls_admin as ministers_admin
 from students import urls_admin as students_admin
 
 app_name = "admin_panel"
@@ -27,5 +28,6 @@ urlpatterns = [
     *exams_admin.urlpatterns,
     *exams_attempts_admin.urlpatterns,
     *certificates_admin.urlpatterns,
+    *ministers_admin.urlpatterns,
     *audit_admin.urlpatterns,
 ]

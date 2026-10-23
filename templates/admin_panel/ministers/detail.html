@@ -1,0 +1,220 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Ficha do ministro.
+
+Dois cartoes, duas perguntas: "quem e" (dados ministeriais e situacao do
+cadastro) e "consegue entrar no portal" (acesso). Sao interruptores
+independentes, e por isso cada um tem os seus botoes.
+
+Toda acao que altera estado e POST com CSRF; as que tiram alguem do ar
+passam por modal.
+{% endcomment %}
+
+{% block title %}{{ ministro.full_name }} - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:minister_list' %}">&larr; Ministros</a>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div class="cpo-quebra">
+    <h1 class="h4 mb-1">{{ ministro.full_name }}</h1>
+    <p class="text-body-secondary small mb-0">
+      {{ ministro.cargo_exibido }} &middot; CONAMAD {{ ministro.conamad_registration }}
+    </p>
+  </div>
+  <div class="cpo-barra-acoes">
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:minister_update' ministro.pk %}">Editar</a>
+    {% if ministro.is_active %}
+      <button type="button" class="btn btn-sm btn-outline-danger"
+              data-bs-toggle="modal" data-bs-target="#inativarMinistro">Inativar</button>
+    {% else %}
+      <form method="post" action="{% url 'admin_panel:minister_reactivate' ministro.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-outline-success">Reativar</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-7">
+    <h2 class="h6 mb-2">Dados ministeriais</h2>
+    <div class="cpo-cartao p-3">
+      <dl class="row small mb-0">
+        <dt class="col-5 text-body-secondary fw-normal">Situação</dt>
+        <dd class="col-7 mb-2">
+          {% if ministro.is_active %}
+            <span class="cpo-badge cpo-badge--ok">Ativo</span>
+          {% else %}
+            <span class="cpo-badge cpo-badge--erro">Inativo</span>
+          {% endif %}
+        </dd>
+
+        <dt class="col-5 text-body-secondary fw-normal">Inscrição CONAMAD</dt>
+        <dd class="col-7 mb-2">{{ ministro.conamad_registration }}</dd>
+
+        <dt class="col-5 text-body-secondary fw-normal">Matrícula do campo</dt>
+        <dd class="col-7 mb-2">{{ ministro.field_registration|default:"-" }}</dd>
+
+        <dt class="col-5 text-body-secondary fw-normal">Título ministerial</dt>
+        <dd class="col-7 mb-2">{{ ministro.get_ministerial_title_display }}</dd>
+
+        <dt class="col-5 text-body-secondary fw-normal">Cargo / função</dt>
+        <dd class="col-7 mb-2">{{ ministro.position|default:"-" }}</dd>
+
+        <dt class="col-5 text-body-secondary fw-normal">Congregação</dt>
+        <dd class="col-7 mb-2">{{ ministro.congregation|default:"-" }}</dd>
+
+        <dt class="col-5 text-body-secondary fw-normal">Ano de consagração</dt>
+        <dd class="col-7 mb-2">{{ ministro.consecration_year|default:"-" }}</dd>
+
+        <dt class="col-5 text-body-secondary fw-normal">Data de nascimento</dt>
+        <dd class="col-7 mb-2">{{ ministro.birth_date|date:"d/m/Y"|default:"-" }}</dd>
+
+        <dt class="col-5 text-body-secondary fw-normal">Sexo</dt>
+        <dd class="col-7 mb-2">{{ ministro.get_sex_display|default:"Não informado" }}</dd>
+
+        <dt class="col-5 text-body-secondary fw-normal">Origem</dt>
+        <dd class="col-7 mb-2">
+          {{ ministro.get_source_display }}
+          {% if ministro.import_sequence %}
+            <span class="text-body-secondary">(nº {{ ministro.import_sequence }} na relação)</span>
+          {% endif %}
+        </dd>
+
+        <dt class="col-5 text-body-secondary fw-normal">Cadastrado em</dt>
+        <dd class="col-7 mb-0">{{ ministro.created_at|date:"d/m/Y H:i" }}</dd>
+      </dl>
+
+      {% if ministro.notes %}
+        <hr class="my-3">
+        <p class="small text-body-secondary fw-medium mb-1">Observações</p>
+        <p class="small mb-0 cpo-quebra">{{ ministro.notes|linebreaksbr }}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-5">
+    <h2 class="h6 mb-2">Acesso ao Portal do Ministro</h2>
+    <div class="cpo-cartao p-3">
+      {% if acesso %}
+        <dl class="row small mb-3">
+          <dt class="col-5 text-body-secondary fw-normal">Situação</dt>
+          <dd class="col-7 mb-2">{% include "admin_panel/ministers/_acesso.html" %}</dd>
+
+          <dt class="col-5 text-body-secondary fw-normal">Login</dt>
+          <dd class="col-7 mb-2">{{ acesso.login_identifier }}</dd>
+
+          <dt class="col-5 text-body-secondary fw-normal">Último acesso</dt>
+          <dd class="col-7 mb-2">{{ acesso.last_login|date:"d/m/Y H:i"|default:"Nunca acessou" }}</dd>
+
+          <dt class="col-5 text-body-secondary fw-normal">Senha alterada em</dt>
+          <dd class="col-7 mb-0">{{ acesso.password_changed_at|date:"d/m/Y H:i"|default:"-" }}</dd>
+        </dl>
+        {% if not ministro.is_active %}
+          <p class="small text-danger mb-3">
+            O ministro está inativo: ele não entra no portal enquanto não for reativado.
+          </p>
+        {% endif %}
+        <div class="cpo-barra-acoes">
+          <a class="btn btn-sm btn-outline-secondary"
+             href="{% url 'admin_panel:minister_password_reset' ministro.pk %}">Resetar senha</a>
+          {% if acesso.is_active %}
+            <button type="button" class="btn btn-sm btn-outline-danger"
+                    data-bs-toggle="modal" data-bs-target="#bloquearAcesso">Bloquear acesso</button>
+          {% else %}
+            <form method="post" action="{% url 'admin_panel:minister_account_unblock' ministro.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm btn-outline-success">Liberar acesso</button>
+            </form>
+          {% endif %}
+        </div>
+      {% else %}
+        <p class="small text-body-secondary mb-3">
+          Este ministro ainda não tem acesso ao portal. O login será a
+          inscrição CONAMAD <strong>{{ ministro.conamad_registration }}</strong>.
+        </p>
+        <a class="btn btn-sm btn-primary" href="{% url 'admin_panel:minister_account_create' ministro.pk %}">
+          Criar acesso ao portal
+        </a>
+      {% endif %}
+    </div>
+
+    <h2 class="h6 mb-2 mt-3">Últimos eventos</h2>
+    <div class="cpo-cartao p-3">
+      {% if eventos %}
+        <ul class="list-unstyled small mb-0">
+          {% for evento in eventos %}
+            <li class="{% if not forloop.last %}mb-2{% endif %}">
+              <span class="fw-medium">{{ evento.get_event_display }}</span>
+              <div class="text-body-secondary">
+                {{ evento.timestamp|date:"d/m/Y H:i" }}
+                {% if evento.actor %}&middot; {{ evento.actor.full_name }}{% endif %}
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="small text-body-secondary mb-0">Nenhum evento registrado.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if ministro.is_active %}
+  <div class="modal fade" id="inativarMinistro" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h6">Inativar ministro</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Inativar <strong>{{ ministro.full_name }}</strong>?</p>
+          <p class="small text-body-secondary mb-0">
+            O cadastro não é excluído e pode ser reativado. Enquanto inativo,
+            o ministro não entra no portal.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <form method="post" action="{% url 'admin_panel:minister_deactivate' ministro.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-danger">Inativar</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+{% if acesso and acesso.is_active %}
+  <div class="modal fade" id="bloquearAcesso" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title h6">Bloquear acesso ao portal</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-2">Bloquear o acesso de <strong>{{ ministro.full_name }}</strong>?</p>
+          <p class="small text-body-secondary mb-0">
+            O cadastro continua ativo. A sessão aberta no portal cai no
+            próximo clique.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <form method="post" action="{% url 'admin_panel:minister_account_block' ministro.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-danger">Bloquear acesso</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

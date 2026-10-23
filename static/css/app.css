@@ -131,7 +131,11 @@ a { color: var(--cpo-primaria); }
   pointer-events: none;
 }
 
-.cpo-lateral__legenda {
+/* cpo-lateral__area: titulo de cada area do menu (CPO, Ministros,
+   Administracao). Mesmo desenho da legenda, classe propria: a legenda
+   marca itens futuros, e a sua ausencia e verificada nos testes. */
+.cpo-lateral__legenda,
+.cpo-lateral__area {
   font-size: .7rem;
   text-transform: uppercase;
   letter-spacing: .08em;
@@ -667,6 +671,11 @@ pre {
   .cpo-barra-acoes .btn {
     flex: 1 1 auto;
     min-height: 2.75rem;
+    /* Link com cara de botao centraliza o texto como o <button> vizinho;
+       sem isto o rotulo do <a> fica colado no topo da caixa mais alta. */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .cpo-barra-acoes--empilha .btn {
@@ -1212,4 +1221,47 @@ pre {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------
+   Portal do Ministro
+
+   Dados em grade: uma coluna no celular, duas a partir de 576px.
+   Cada par rotulo/valor e um bloco proprio, entao nada precisa de
+   largura fixa e nenhum numero longo empurra a pagina.
+   --------------------------------------------------------------- */
+
+.cpo-portal__dados {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: .9rem 1.5rem;
+}
+
+.cpo-portal__dados dt {
+  font-size: .75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--cpo-texto-suave);
+  margin-bottom: .15rem;
+}
+
+.cpo-portal__dados dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.cpo-portal__quem {
+  max-width: 16rem;
+}
+
+@media (min-width: 576px) {
+  .cpo-portal__dados {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cpo-portal__dados-largo {
+    grid-column: 1 / -1;
+  }
 }

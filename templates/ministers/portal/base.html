@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% comment %}
+Layout do Portal do Ministro.
+
+Primo do layout do aluno, e nao filho dele: o portal e outro dominio, com
+outra identidade na barra ("Portal do Ministro", nunca "Area do aluno") e
+outro logout. Sem lateral: poucas telas, quase sempre abertas no celular.
+
+O ministro nao e um User, entao `user` aqui e sempre anonimo. Quem esta
+logado vem de `ministro`, que a view injeta a partir da sessao do portal.
+{% endcomment %}
+
+{% block title %}Portal do Ministro - {{ APP_LOGO_ALT }}{% endblock %}
+{% block main_class %}container py-4 cpo-portal{% endblock %}
+
+{% block chrome %}
+<nav class="cpo-topo">
+  <div class="container d-flex align-items-center justify-content-between py-3 gap-3">
+    <a class="cpo-marca cpo-marca-app text-decoration-none"
+       href="{% url 'ministers:dashboard' %}"
+       aria-label="{{ APP_LOGO_ALT }} - Portal do Ministro">
+      {% include "_marca.html" with tamanho="barra" %}
+      <span class="cpo-marca-app__nome">
+        {{ APP_LOGO_ALT }}
+        <span class="cpo-marca-app__sub">Portal do Ministro</span>
+      </span>
+    </a>
+    <div class="dropdown">
+      <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+              data-bs-toggle="dropdown" aria-expanded="false">
+        Conta
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li class="px-3 py-1 small text-body-secondary text-truncate cpo-portal__quem">{{ ministro.full_name }}</li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="{% url 'ministers:dashboard' %}">Início</a></li>
+        <li><a class="dropdown-item" href="{% url 'ministers:profile' %}">Meu perfil</a></li>
+        <li><a class="dropdown-item" href="{% url 'ministers:change_password' %}">Alterar senha</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li>
+          <form method="post" action="{% url 'ministers:logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="dropdown-item">Sair</button>
+          </form>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+{% endblock %}

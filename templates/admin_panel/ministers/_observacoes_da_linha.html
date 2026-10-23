@@ -1,0 +1,4 @@
+{% for problema in linha.problemas %}<div class="text-danger">{{ problema }}</div>{% endfor %}
+{% if linha.divergencias %}<div>Diferente do cadastro em: {{ linha.divergencias|join:", " }}.</div>{% endif %}
+{% for aviso in linha.avisos %}<div>{{ aviso }}</div>{% endfor %}
+{% if not linha.problemas and not linha.divergencias and not linha.avisos %}-{% endif %}

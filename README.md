@@ -156,6 +156,7 @@ O `.env` **não é versionado** e nunca deve conter valores reais no
 | `SITE_URL` | não | `http://127.0.0.1:8000` | URL pública; futuro QR Code dos certificados |
 | `INSTITUTION_NAME` | não | `CPO` | nome exibido na interface e nos certificados |
 | `DEFAULT_STUDENT_PASSWORD` | não | vazio | senha inicial de alunos importados (Etapa 2) |
+| `DEFAULT_MINISTER_PASSWORD` | não | vazio | senha inicial dos acessos criados pela importação de ministros; sem ela a importação cadastra, mas não cria acesso |
 | `TRUST_PROXY_HEADERS` | não | `False` | ligar **apenas** com Nginx na frente |
 | `LOG_LEVEL` | não | `INFO` | nível de log |
 | `SESSION_COOKIE_AGE` | não | `43200` | 12h; precisa exceder a maior prova |
@@ -291,6 +292,36 @@ responde `405`, e não existe link que dispare alteração.
 | papel errado, CSRF ausente | **403** |
 | método errado numa rota de escrita | **405** |
 | autosave em tentativa encerrada, envio com obrigatória em branco | **409** |
+
+### Controle de Ministros
+
+Domínio separado do CPO (seção 9.21). Painel — somente **ADMIN**:
+
+| URL | Método | O que faz |
+|---|---|---|
+| `/admin-panel/ministros/` | GET | dashboard: total, ativos, inativos, com e sem acesso |
+| `/admin-panel/ministros/cadastro/` | GET | lista com busca, congregação, cargo, situação, acesso e paginação |
+| `/admin-panel/ministros/novo/` | GET/POST | cadastro manual, opcionalmente com acesso ao portal |
+| `/admin-panel/ministros/<id>/` | GET | ficha, acesso e últimos eventos |
+| `/admin-panel/ministros/<id>/editar/` | GET/POST | dados ministeriais (nunca senha) |
+| `/admin-panel/ministros/<id>/inativar/` · `reativar/` | **POST** | situação do cadastro |
+| `/admin-panel/ministros/<id>/acesso/criar/` | GET/POST | cria o acesso com senha definida pelo ADMIN |
+| `/admin-panel/ministros/<id>/acesso/bloquear/` · `desbloquear/` | **POST** | acesso ao portal |
+| `/admin-panel/ministros/<id>/acesso/resetar-senha/` | GET/POST | nova senha; derruba as sessões abertas |
+| `/admin-panel/ministros/importar/` | GET/POST | envio da relação (XLSX ou CSV) |
+| `/admin-panel/ministros/importar/preview/` | GET | conferência, **sem gravar nada** |
+| `/admin-panel/ministros/importar/confirmar/` | **POST** | grava só os ministros novos |
+| `/admin-panel/ministros/importar/cancelar/` | **POST** | descarta o lote |
+
+Portal do Ministro — autenticação própria, nenhuma rota recebe id:
+
+| URL | Método | O que faz |
+|---|---|---|
+| `/ministros/login/` | GET/POST | matrícula / inscrição (CONAMAD) e senha |
+| `/ministros/logout/` | **POST** | encerra a sessão do portal |
+| `/ministros/` | GET | início: nome, cargo, congregação, matrículas |
+| `/ministros/perfil/` | GET | dados ministeriais, somente leitura |
+| `/ministros/alterar-senha/` | GET/POST | troca pelo próprio ministro, exige a senha atual |
 
 ---
 
@@ -2686,6 +2717,184 @@ cheio não acusa erro na escrita, acusa na leitura.
 Retenção de 30 dias nos dois. **Continuam no mesmo volume EBS da aplicação** —
 isso cobre exclusão acidental e erro administrativo, e não cobre perda do
 disco. Cópia externa segue sendo o próximo passo de verdade.
+
+---
+
+## 9.21 Controle de Ministros
+
+Novo domínio funcional no mesmo projeto, banco, painel e servidor — e
+**isolado do CPO acadêmico**. O app `ministers` não importa nada de
+`students`, `courses`, `exams` nem `certificates`, nenhuma migration dele
+depende dessas apps, e nenhum modelo de lá aponta para cá. Compartilha só o
+que é infraestrutura: `/admin-panel/` e o ADMIN, `AuditLog`, identidade
+visual, PostgreSQL, Nginx. Um teste estático (`test_isolamento.py`) quebra se
+alguém importar o CPO dentro de `ministers`.
+
+```
+CPO acadêmico          Controle de Ministros        Compartilhado
+  alunos                 ministros                    ADMIN, AuditLog
+  módulos, provas        autenticação própria         branding, PostgreSQL
+  certificados           portal próprio               Nginx, deploy
+                         (futuro) mensalidades
+```
+
+### A relação de origem
+
+A modelagem partiu da planilha oficial, `Relatorio Ministros 2026.xlsx`, e
+da guia `Mensalidade_Ministro_Outubro_2026.pdf`. A planilha **não** entra no
+repositório (dado pessoal); os testes reproduzem a estrutura dela com nomes
+fictícios (`ministers/tests/planilhas.py`).
+
+| | |
+|---|---|
+| Abas | 1, `Ministros Campo Sumaré` |
+| Título | `C2:L4` mesclado |
+| Cabeçalho | linha **6**; linha 7 em branco; dados de 8 a 91 |
+| Registros | 84 |
+| `nº` | 1..84 contíguo — posição na relação, **não** matrícula |
+| `Nome` | 84 preenchidos; 83 em maiúsculas; 4 com espaço sobrando; sem homônimos |
+| coluna D | sem cabeçalho, sempre vazia |
+| `Inscrição Conamad` | 84 preenchidas, **todas únicas**, numéricas de 5 ou 6 dígitos |
+| `Titulo` | `EV` 54, `Ev` 1, `PR` 24, `PRª` 1, `Prª` 1, `Mis` 3 |
+| `Consagração` | ano; 83 numéricos e 1 como texto |
+| `Data Nascimento` | mesclado `H6:J6`: **dia, mês e ano em três colunas** |
+| `IDADE` | fórmula `=2026-ano` — derivada |
+| `Sexo` | `M` 45, `H` 28, `F` 11 — **dois esquemas misturados** |
+| Matrícula do campo | **não existe** na planilha |
+| Congregação | **não existe** na planilha |
+
+A guia em PDF mostra o que a planilha não tem: matrícula do campo,
+congregação, o cargo (`Pastor Presidente`), a referência, o valor e o Pix. Os
+três últimos são da etapa de mensalidades e não foram implementados.
+
+### Decisões de modelagem
+
+| Campo | Decisão |
+|---|---|
+| `conamad_registration` | obrigatória, **única**, texto. É o identificador do ministro e o **login** do portal |
+| `field_registration` | opcional, única só quando preenchida (índice parcial). Vem da guia, não da planilha |
+| `import_sequence` | o `nº` da relação, para achar a linha de origem. Não é matrícula |
+| `ministerial_title` | escolha fechada: Evangelista, Pastor, Pastora, Missionário(a) |
+| `position` | "cargo / função" livre (ex.: Pastor Presidente). Vazio, o portal mostra o título |
+| `congregation` | texto opcional; a planilha não tem |
+| `consecration_year`, `birth_date` | opcionais; nascimento montado das três colunas |
+| `sex` | `M`/`F`/vazio. **`M` da planilha entra vazio**, com aviso (ver abaixo) |
+| `is_active`, `source` | situação do cadastro e origem (`MANUAL`/`IMPORT`) |
+| `IDADE` | não é gravada: é derivada |
+
+Matrículas são **texto**, nunca inteiro: zeros à esquerda fazem parte do
+número quando existem. A normalização (`ministers/normalizacao.py`) tira
+espaços, transforma `132921.0` do Excel em `132921` e põe letras em
+maiúsculas. Nome: sem espaços sobrando, **caixa e acento preservados**.
+
+**Sexo `M`.** A coluna usa `H`/`F` para uns e `M` para outros, e o `M`
+aparece tanto em ministros quanto em ministras (uma Pastora e as três
+missionárias, entre outras). Não há como saber o que cada `M` quer dizer,
+então ele entra em branco e o preview avisa. `H` e `F` são inequívocos.
+
+`Minister` nunca é excluído pela aplicação (`delete()` recusa): na etapa de
+mensalidades ele terá histórico financeiro. Sair da relação é inativar.
+
+### Autenticação própria
+
+`MinisterAccount` (OneToOne com `Minister`) guarda `login_identifier` (a
+inscrição CONAMAD, sincronizada quando ela é editada), `password_hash`
+(`make_password`/`check_password` do Django), `is_active`,
+`must_change_password`, `last_login` e `password_changed_at`.
+
+O ministro **não é** `accounts.User`. `request.user` fica anônimo durante toda
+a navegação no portal, então nenhuma tela do CPO, do `/admin-panel/` ou do
+`/django-admin/` o reconhece. A sessão do portal guarda o id do acesso e uma
+assinatura derivada do hash da senha: trocou ou resetou a senha, as sessões
+abertas com a anterior caem no request seguinte. Bloquear o acesso ou
+inativar o ministro também derruba a sessão na hora.
+
+- **Fixação de sessão:** o login descarta a sessão anterior inteira e emite
+  chave nova (e novo token CSRF).
+- **Identidades exclusivas:** entrar no portal encerra a sessão do CPO no
+  mesmo navegador; entrar no CPO (signal `user_logged_in`) descarta a do
+  portal.
+- **Mensagem única** para inscrição inexistente, senha errada, acesso
+  bloqueado e ministro inativo. O motivo real vai só para a trilha.
+- **Limite de tentativas:** 5 falhas por identificador ou 30 por IP em 15
+  minutos bloqueiam novas tentativas. Não havia proteção de força bruta no
+  projeto nem cache compartilhado (2 workers Gunicorn), então a contagem usa
+  os próprios eventos `MINISTER_LOGIN_FAILED` da trilha — sem Redis, sem
+  tabela nova. Limitação aceita: quem souber a inscrição de alguém pode
+  segurá-lo fora por 15 minutos.
+- **Senha:** validadores do Django e não pode conter a inscrição (que é
+  pública: aparece na guia).
+- **`next`** só é aceito se for deste site **e** começar com `/ministros/`.
+- Páginas do portal saem com `Cache-Control: no-store`; logout só por POST.
+- Nenhuma URL do portal tem id: perfil é sempre o da sessão (anti-IDOR).
+
+### Senha inicial
+
+- **Cadastro manual:** o ADMIN digita e confirma; sem troca obrigatória.
+- **Importação:** `DEFAULT_MINISTER_PASSWORD` do ambiente, com **troca
+  obrigatória no primeiro login** — enquanto não trocar, o portal só mostra a
+  tela de troca. Sem a variável, a importação cadastra mas recusa criar
+  acesso, antes de qualquer escrita.
+- O hash da senha padrão é calculado **uma vez por importação** e
+  reaproveitado nas contas do lote. PBKDF2 com um milhão de iterações por
+  conta levaria cerca de 1 min para 84 ministros, além do timeout do
+  Gunicorn; e um salt por conta não protege nada quando a senha é a mesma
+  para todas. A troca obrigatória dá a cada conta o seu próprio hash.
+
+### Importação
+
+Upload → análise → preview → confirmação → importação → resultado, como a de
+alunos. O upload só guarda as linhas cruas na sessão (30 min); a confirmação
+refaz a análise contra o banco do momento, e do navegador só vem o token do
+lote e a escolha "criar acesso". Tudo numa transação.
+
+A relação oficial é aceita **como está**: o cabeçalho é procurado nas 20
+primeiras linhas (a que tem `Nome` e `Inscrição Conamad`), a data de
+nascimento aceita data, `dd/mm/aaaa` ou três colunas sob um cabeçalho
+mesclado, os títulos abreviados são mapeados e `IDADE` é ignorada. CSV em
+UTF-8, vírgula ou ponto e vírgula. Uma coluna chamada só "Matrícula" é
+ignorada de propósito: existem duas matrículas, e adivinhar seria inventar.
+
+| Situação | Entra? |
+|---|---|
+| NOVO | sim |
+| JÁ EXISTE (mesma inscrição) | não — idempotência |
+| JÁ EXISTE — DADOS DIVERGENTES | não; o preview lista os campos. Corrige-se na edição |
+| DUPLICADO NA PLANILHA (inscrição repetida) | nenhuma das ocorrências |
+| CAMPO OBRIGATÓRIO AUSENTE (nome, inscrição, título) | não |
+| MATRÍCULA CONFLITANTE (do campo, de outro ministro) | não |
+| LINHA INVÁLIDA (título desconhecido, data ou ano inválidos) | não |
+
+Avisos não bloqueiam: sexo ambíguo e homônimo com outra inscrição.
+
+### Auditoria
+
+`MINISTER_CREATED`, `MINISTER_UPDATED` (só nomes dos campos),
+`MINISTER_BLOCKED`/`UNBLOCKED` (cadastro), `MINISTER_ACCOUNT_CREATED`,
+`MINISTER_ACCOUNT_BLOCKED`/`UNBLOCKED`, `MINISTER_PASSWORD_RESET`,
+`MINISTER_IMPORT_COMPLETED` (só contagens), `MINISTER_LOGIN_SUCCESS`,
+`MINISTER_LOGIN_FAILED` (identificador e motivo) e
+`MINISTER_PASSWORD_CHANGED`. Todos com `entity_type="Minister"`; `student`
+fica vazio. Nos eventos do portal o autor é nulo — o ministro não é User.
+Nenhum carrega senha, hash ou comprimento.
+
+### Django Admin
+
+`Minister` e `MinisterAccount` aparecem em `/django-admin/` **somente
+leitura**, sem o hash. A interface oficial é `/admin-panel/ministros/`.
+
+### Responsividade
+
+Conferida em navegador real (Chromium) em 360×800, 390×844, 768×1024,
+1366×768 e 1920×1080: login, início e perfil do portal; dashboard, lista,
+ficha e preview administrativos — `scrollWidth` igual à largura em todos. A
+lista vira cartões abaixo de 768px.
+
+### Ainda não existe
+
+Mensalidades, competências, Pix, guia em PDF, comprovantes, aprovação de
+pagamento e relatórios financeiros. O menu não mostra esses itens até as
+telas existirem.
 
 ---
 

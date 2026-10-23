@@ -1,0 +1,217 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Preview da importacao. Estritamente informativo: a confirmacao refaz a
+analise no servidor, e o formulario so carrega o token do lote e a escolha
+de criar acesso. Nenhuma linha, id ou status sai daqui.
+
+A senha padrao nunca aparece nesta tela — so o fato de estar configurada.
+{% endcomment %}
+
+{% block title %}Conferir importação de ministros - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:minister_list' %}">&larr; Ministros</a>
+</nav>
+
+<div class="mb-3">
+  <h1 class="h4 mb-1">Conferir importação</h1>
+  <p class="text-body-secondary small mb-0 cpo-quebra">
+    Arquivo: <span class="fw-medium">{{ lote.arquivo }}</span>
+    {% if lote.aba %}&middot; aba <span class="fw-medium">{{ lote.aba }}</span>{% endif %}
+    &middot; cabeçalho na linha {{ lote.linha_cabecalho }}
+    &middot; {{ resumo.total_linhas }} linha(s) de dados.
+  </p>
+</div>
+
+<div class="alert alert-warning" role="alert">
+  <strong>Nada foi alterado ainda.</strong>
+  <span class="small">
+    Nenhum ministro foi cadastrado e nenhum acesso foi criado. Isso só
+    acontece quando você clicar em Confirmar importação, no fim da página.
+  </span>
+</div>
+
+<div class="row g-3 mb-3">
+  {% with r=resumo %}
+  <div class="col-6 col-md-4 col-xl-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Total de linhas</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ r.total_linhas }}</span>
+      <span class="cpo-indicador__nota">Fora o cabeçalho</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Novos ministros</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ r.novos }}</span>
+      <span class="cpo-indicador__nota">Serão cadastrados</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Já existentes</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ r.existentes }}</span>
+      <span class="cpo-indicador__nota">{{ r.divergentes }} com dados divergentes &middot; não alterados</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Duplicados na planilha</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ r.duplicados }}</span>
+      <span class="cpo-indicador__nota">Mesma inscrição repetida</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Obrigatórios ausentes</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ r.obrigatorios_ausentes }}</span>
+      <span class="cpo-indicador__nota">{{ r.sem_identificador }} sem inscrição</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Matrículas conflitantes</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ r.conflitantes }}</span>
+      <span class="cpo-indicador__nota">Já usadas por outro ministro</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Linhas inválidas</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ r.invalidas }}</span>
+      <span class="cpo-indicador__nota">Formato não aceito</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Com aviso</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ r.com_aviso }}</span>
+      <span class="cpo-indicador__nota">Entram, mas merecem revisão</span>
+    </div>
+  </div>
+  {% endwith %}
+</div>
+
+<details class="cpo-cartao p-3 mb-3">
+  <summary class="fw-medium small">Como as colunas do arquivo foram lidas</summary>
+  <div class="row g-3 mt-1">
+    <div class="col-12 col-md-7">
+      <p class="small text-body-secondary mb-1">Reconhecidas</p>
+      <ul class="small mb-0 ps-3">
+        {% for coluna in lote.colunas %}
+          <li><code>{{ coluna.cabecalho }}</code> &rarr; {{ coluna.rotulo }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="col-12 col-md-5">
+      <p class="small text-body-secondary mb-1">Ignoradas</p>
+      {% if lote.ignoradas %}
+        <ul class="small mb-0 ps-3">
+          {% for coluna in lote.ignoradas %}
+            <li><code>{{ coluna.cabecalho }}</code> &mdash; {{ coluna.motivo }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="small mb-0">Nenhuma.</p>
+      {% endif %}
+    </div>
+  </div>
+</details>
+
+<div class="cpo-cartao">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 cpo-tabela cpo-lista--cartoes">
+      <thead>
+        <tr>
+          <th class="text-end">Linha</th>
+          <th>Nome</th>
+          <th>Inscrição</th>
+          <th class="d-none d-md-table-cell">Título</th>
+          <th>Situação</th>
+          <th class="d-none d-lg-table-cell">Observações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for linha in linhas %}
+          <tr>
+            <td class="text-end small text-body-secondary" data-rotulo="Linha">
+              {{ linha.numero }}{% if linha.sequencia %} <span class="d-none d-md-inline">(nº {{ linha.sequencia }})</span>{% endif %}
+            </td>
+            <td class="cpo-celula-titulo"><span class="fw-medium cpo-quebra">{{ linha.nome|default:"-" }}</span></td>
+            <td class="small" data-rotulo="Inscrição">{{ linha.conamad|default:"-" }}</td>
+            <td class="d-none d-md-table-cell small" data-rotulo="Título">{{ linha.titulo|default:"-" }}</td>
+            <td data-rotulo="Situação">
+              {% if linha.importavel %}
+                <span class="cpo-badge cpo-badge--ok">{{ linha.status }}</span>
+              {% elif linha.existente %}
+                <span class="cpo-badge {% if linha.divergencias %}cpo-badge--alerta{% else %}cpo-badge--neutro{% endif %}">{{ linha.status }}</span>
+              {% else %}
+                <span class="cpo-badge cpo-badge--erro">{{ linha.status }}</span>
+              {% endif %}
+              <div class="d-lg-none small text-body-secondary mt-1">
+                {% include "admin_panel/ministers/_observacoes_da_linha.html" %}
+              </div>
+            </td>
+            <td class="d-none d-lg-table-cell small text-body-secondary" data-rotulo="Observações">
+              {% include "admin_panel/ministers/_observacoes_da_linha.html" %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-body-secondary py-5 cpo-celula-vazia">
+              O arquivo não possui nenhuma linha de dados.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="cpo-cartao p-3 p-md-4 mt-3">
+  <p class="small text-body-secondary mb-3">
+    Somente as linhas <strong>NOVO</strong> serão cadastradas. Ministros que já
+    existem não são alterados, e linhas recusadas são apenas ignoradas. Tudo é
+    gravado numa única transação: ou o lote inteiro entra, ou nada entra.
+  </p>
+
+  <form method="post" action="{% url 'admin_panel:minister_import_confirm' %}" id="confirmarImportacao">
+    {% csrf_token %}
+    <input type="hidden" name="token" value="{{ lote.token }}">
+    <div class="form-check mb-3">
+      <input class="form-check-input" type="checkbox" name="criar_acesso" value="1" id="criarAcesso"
+             {% if senha_padrao_configurada %}checked{% else %}disabled{% endif %}>
+      <label class="form-check-label" for="criarAcesso">Criar acesso ao portal para os novos ministros</label>
+      <div class="form-text small">
+        {% if senha_padrao_configurada %}
+          Login: a inscrição CONAMAD. Senha: a senha padrão configurada no
+          servidor, com troca obrigatória no primeiro acesso.
+        {% else %}
+          Indisponível: <code>DEFAULT_MINISTER_PASSWORD</code> não está
+          configurada. Os acessos podem ser criados depois, um a um.
+        {% endif %}
+      </div>
+    </div>
+  </form>
+
+  <div class="d-flex flex-wrap gap-2">
+    {% if analise.tem_algo_a_importar %}
+      <button type="submit" form="confirmarImportacao" class="btn btn-sm btn-primary">
+        Confirmar importação ({{ resumo.novos }} ministro(s))
+      </button>
+    {% else %}
+      <button type="button" class="btn btn-sm btn-primary" disabled>Confirmar importação</button>
+    {% endif %}
+    <form method="post" action="{% url 'admin_panel:minister_import_cancel' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm btn-outline-secondary">Cancelar</button>
+    </form>
+  </div>
+
+  {% if not analise.tem_algo_a_importar %}
+    <p class="small text-danger mb-0 mt-3">Não há nenhum ministro novo para importar neste arquivo.</p>
+  {% endif %}
+</div>
+{% endblock %}
