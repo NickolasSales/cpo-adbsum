@@ -113,6 +113,32 @@ def mensalidades_queryset():
     return MinisterMonthlyFee.objects.select_related("minister")
 
 
+# O que o Portal do Ministro pode ler de uma mensalidade. Observacoes,
+# motivos e a referencia do pagamento sao anotacoes da secretaria: nem saem
+# do banco quando a consulta e para o portal.
+COLUNAS_DO_PORTAL = (
+    "reference_month",
+    "due_date",
+    "amount",
+    "status",
+    "paid_at",
+    "payment_method",
+)
+
+
+def mensalidades_do_ministro(ministro):
+    """
+    As mensalidades de UM ministro, da competencia mais recente para a mais
+    antiga. Para o portal: `ministro` e sempre o da sessao autenticada, nunca
+    um id vindo da requisicao.
+    """
+    return (
+        MinisterMonthlyFee.objects.filter(minister=ministro)
+        .only(*COLUNAS_DO_PORTAL)
+        .order_by("-reference_month")
+    )
+
+
 def totais(consulta, hoje=None):
     """
     Numeros do dashboard, numa consulta so.

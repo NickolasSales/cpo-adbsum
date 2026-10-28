@@ -16,5 +16,6 @@ urlpatterns = [
     path("login/", views.LoginMinistroView.as_view(), name="login"),
     path("logout/", views.LogoutMinistroView.as_view(), name="logout"),
     path("perfil/", views.PerfilMinistroView.as_view(), name="profile"),
+    path("mensalidades/", views.MensalidadesMinistroView.as_view(), name="fees"),
     path("alterar-senha/", views.TrocarSenhaMinistroView.as_view(), name="change_password"),
 ]

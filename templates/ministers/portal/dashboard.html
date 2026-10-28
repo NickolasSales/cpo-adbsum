@@ -1,9 +1,10 @@
 {% extends "ministers/portal/base.html" %}
+{% load financeiro %}
 
 {% comment %}
-Inicio do portal. Nesta etapa mostra so o que existe: a identificacao do
-ministro. Mensalidades entram quando a funcionalidade existir — nenhum card
-de "em breve" promete o que ainda nao ha.
+Inicio do portal: a identificacao do ministro e um resumo curto das
+mensalidades, com o caminho para a lista. So o que existe — nenhum card de
+"em breve" promete o que ainda nao ha.
 {% endcomment %}
 
 {% block content %}
@@ -14,6 +15,32 @@ de "em breve" promete o que ainda nao ha.
 
 <div class="cpo-cartao p-3 p-md-4 mb-3">
   {% include "ministers/portal/_dados.html" %}
+</div>
+
+<div class="cpo-cartao p-3 p-md-4 mb-3">
+  <h2 class="h6 mb-3">Mensalidades</h2>
+  {% if resumo.qtd_total %}
+    <dl class="cpo-portal__resumo mb-3">
+      <div>
+        <dt>Vencidas</dt>
+        <dd{% if resumo.qtd_vencidas %} class="text-danger"{% endif %}>{{ resumo.qtd_vencidas }}</dd>
+      </div>
+      <div>
+        <dt>Pendentes</dt>
+        <dd>{{ resumo.qtd_pendentes }}</dd>
+      </div>
+      <div>
+        <dt>Pagas</dt>
+        <dd>{{ resumo.qtd_pagas }}</dd>
+      </div>
+    </dl>
+    {% if resumo.qtd_vencidas %}
+      <p class="small text-danger mb-3">Valor vencido: <strong class="text-nowrap">{{ resumo.vencido|brl }}</strong></p>
+    {% endif %}
+  {% else %}
+    <p class="small text-body-secondary mb-3">Você ainda não possui mensalidades registradas.</p>
+  {% endif %}
+  <a class="btn btn-primary" href="{% url 'ministers:fees' %}">Ver mensalidades</a>
 </div>
 
 <div class="d-flex flex-wrap gap-2">

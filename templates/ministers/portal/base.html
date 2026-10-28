@@ -35,6 +35,7 @@ logado vem de `ministro`, que a view injeta a partir da sessao do portal.
         <li class="px-3 py-1 small text-body-secondary text-truncate cpo-portal__quem">{{ ministro.full_name }}</li>
         <li><hr class="dropdown-divider"></li>
         <li><a class="dropdown-item" href="{% url 'ministers:dashboard' %}">Início</a></li>
+        <li><a class="dropdown-item" href="{% url 'ministers:fees' %}">Mensalidades</a></li>
         <li><a class="dropdown-item" href="{% url 'ministers:profile' %}">Meu perfil</a></li>
         <li><a class="dropdown-item" href="{% url 'ministers:change_password' %}">Alterar senha</a></li>
         <li><hr class="dropdown-divider"></li>

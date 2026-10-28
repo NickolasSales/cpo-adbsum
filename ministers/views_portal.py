@@ -22,6 +22,7 @@ from django.views.generic import FormView, TemplateView
 
 from common.exceptions import DomainError
 from ministers import auth, services
+from ministers import mensalidades as financeiro
 from ministers.forms import LoginMinistroForm, TrocarSenhaMinistroForm
 
 PREFIXO_DO_PORTAL = "/ministros/"
@@ -124,6 +125,36 @@ class LogoutMinistroView(View):
 
 class PainelMinistroView(MinistroRequiredMixin, TemplateView):
     template_name = "ministers/portal/dashboard.html"
+
+    def get_context_data(self, **kwargs):
+        contexto = super().get_context_data(**kwargs)
+        contexto["resumo"] = financeiro.totais(financeiro.mensalidades_do_ministro(self.ministro))
+        return contexto
+
+
+class MensalidadesMinistroView(MinistroRequiredMixin, TemplateView):
+    """
+    As mensalidades do ministro da sessao. Somente leitura.
+
+    A consulta parte de self.ministro, que o mixin tira da sessao; nada da
+    URL, da query string ou do corpo entra nela. Situacao e totais sao os
+    mesmos do painel administrativo (ministers.mensalidades): "Vencido"
+    calculado, isentas e canceladas visiveis no historico mas fora da divida.
+
+    Sem auditoria por visualizacao: o acesso ao portal ja fica registrado no
+    login, e um evento por pagina aberta encheria a trilha sem dizer nada.
+    """
+
+    template_name = "ministers/portal/mensalidades.html"
+
+    def get_context_data(self, **kwargs):
+        contexto = super().get_context_data(**kwargs)
+        consulta = financeiro.mensalidades_do_ministro(self.ministro)
+        totais = financeiro.totais(consulta)
+        contexto["mensalidades"] = list(consulta)
+        contexto["totais"] = totais
+        contexto["em_aberto"] = totais["pendente"] + totais["vencido"]
+        return contexto
 
 
 class PerfilMinistroView(MinistroRequiredMixin, TemplateView):

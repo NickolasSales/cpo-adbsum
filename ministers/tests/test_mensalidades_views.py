@@ -82,8 +82,12 @@ def test_anonimo_vai_para_o_login(client, mensalidade):
         assert resposta.status_code == 302 and resposta.url.startswith("/login/"), rota
 
 
-def test_portal_nao_tem_rota_financeira(ministro_client_logado):
-    assert ministro_client_logado.get("/ministros/mensalidades/").status_code == 404
+def test_portal_so_tem_a_rota_financeira_do_proprio_ministro(ministro_client_logado, ministro_com_acesso):
+    # Ate a 2B o portal nao tinha financeiro (404). Na 2C ganhou UMA rota,
+    # sem id: as mensalidades do ministro da sessao. Rota por id nao existe.
+    mensalidade = nova(ministro_com_acesso)
+    assert ministro_client_logado.get("/ministros/mensalidades/").status_code == 200
+    assert ministro_client_logado.get("/ministros/mensalidades/{}/".format(mensalidade.pk)).status_code == 404
 
 
 # ---------------------------------------------------------------------------

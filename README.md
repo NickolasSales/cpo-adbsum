@@ -2892,7 +2892,7 @@ lista vira cartões abaixo de 768px.
 
 ### Ainda não existe
 
-Mensalidades chegaram na Fase 2A (seção 9.22). Geração em massa na Fase 2B. Ainda faltam: Pix, guia em PDF, comprovantes, aprovação de
+Mensalidades chegaram na Fase 2A (seção 9.22). Geração em massa na Fase 2B; consulta no portal do ministro na Fase 2C. Ainda faltam: Pix, guia em PDF, comprovantes, aprovação de
 pagamento e relatórios financeiros. O menu não mostra esses itens até as
 telas existirem.
 
@@ -2901,7 +2901,8 @@ telas existirem.
 ## 9.22 Mensalidades de ministros (Fase 2A)
 
 Núcleo financeiro do Controle de Ministros. Extensão do app `ministers`; não
-toca no CPO acadêmico. Sem PDF e sem tela no portal do ministro até aqui.
+toca no CPO acadêmico. Sem PDF; o portal do ministro ganhou a consulta na
+Fase 2C.
 
 ### Modelo `MinisterMonthlyFee`
 
@@ -2974,7 +2975,7 @@ trilha existe para provar. A ficha da mensalidade mostra esse histórico.
 
 "Previsto" soma pendentes, vencidas e pagas; isentas e canceladas ficam fora
 dos valores. Ministro recebe redirecionamento para o login do CPO; aluno, 403.
-O portal do ministro ainda não tem rota financeira.
+No portal, cada ministro vê só as próprias (Fase 2C, abaixo).
 
 ### Geração em massa (Fase 2B)
 
@@ -3036,6 +3037,41 @@ numa transação).
 **Dashboard.** Sem filtro, abre no **mês corrente** (antes abria na
 competência mais recente com mensalidade, que pode ser um mês futuro já
 gerado). O mês corrente aparece no seletor mesmo sem mensalidade.
+
+### Portal do ministro (Fase 2C)
+
+`/ministros/mensalidades/` — somente leitura. Sem id na URL: a consulta parte
+do ministro da sessão (`MinistroRequiredMixin`), e nenhum parâmetro da query
+string ou do corpo entra nela; POST/PUT/DELETE dão 405. Conta bloqueada,
+ministro inativo, senha trocada ou resetada e troca obrigatória pendente
+valem aqui como no resto do portal — inativo não ganha acesso por ter
+mensalidades.
+
+| Mostra | Não mostra |
+|---|---|
+| competência (`Outubro/2026`), vencimento, valor, situação | observações, motivos de cancelamento/isenção/estorno |
+| data e forma do pagamento (Pix, Dinheiro…) | referência do pagamento, quem registrou, lote, trilha |
+
+A consulta do portal (`mensalidades.mensalidades_do_ministro`) só carrega as
+colunas da tabela: observações, motivos e referência nem saem do banco.
+**Referência fica de fora** porque é texto livre da secretaria, preenchido sem
+saber que o ministro leria — pode ter id de transação bancária ou anotação
+interna. Se um dia for útil ao ministro, entra com rótulo próprio.
+
+Situação e totais são os do painel (`situacao`, `totais()`): vencido
+calculado; dívida em aberto = pendentes + vencidas; pagas, isentas e
+canceladas fora dela. Isentas e canceladas continuam no histórico. O início
+do portal mostra vencidas, pendentes e pagas e leva à lista.
+
+Sem evento de auditoria por visualização — o acesso já fica registrado no
+login. `never_cache` (do mixin do portal): depois do logout, o voltar do
+navegador recarrega e cai no login. Número de consultas fixo, qualquer que
+seja o tamanho do histórico; o índice da unicidade ministro + competência
+atende o filtro e a ordenação. Sem paginação: são ~12 linhas por ano.
+
+Ainda não há cobrança, PDF ou Pix (Fase 2D). A ação de cada mensalidade
+entra como uma última célula `cpo-acoes`, que no celular já vira o rodapé do
+cartão.
 
 ---
 

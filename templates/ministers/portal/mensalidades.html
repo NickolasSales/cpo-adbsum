@@ -1,0 +1,108 @@
+{% extends "ministers/portal/base.html" %}
+{% load financeiro %}
+
+{% comment %}
+Mensalidades do ministro logado. Somente leitura: nenhuma acao, nenhum
+dado interno (observacoes, motivos, referencia, quem registrou). A view so
+carrega as colunas que aparecem aqui.
+
+Tabela no desktop, cartoes abaixo de 768px (cpo-lista--cartoes). A cobranca
+de cada mensalidade (Fase 2D) entra como uma ultima celula cpo-acoes por
+linha, que no celular ja vira o rodape do cartao.
+{% endcomment %}
+
+{% block title %}Mensalidades - Portal do Ministro{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'ministers:dashboard' %}">&larr; Início</a>
+</nav>
+
+<h1 class="h4 mb-1">Mensalidades</h1>
+<p class="text-body-secondary small mb-3">
+  Suas mensalidades, da mais recente para a mais antiga. Dúvidas sobre
+  valores ou pagamentos: procure a secretaria do campo.
+</p>
+
+{% if not mensalidades %}
+  <div class="cpo-cartao cpo-vazio">Você ainda não possui mensalidades registradas.</div>
+{% else %}
+  {% if totais.qtd_vencidas %}
+    <div class="alert alert-danger py-2 small mb-3" role="status">
+      Você tem {{ totais.qtd_vencidas }} mensalidade{{ totais.qtd_vencidas|pluralize }}
+      vencida{{ totais.qtd_vencidas|pluralize }}, somando <strong class="text-nowrap">{{ totais.vencido|brl }}</strong>.
+    </div>
+  {% endif %}
+
+  <div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3">
+      <div class="cpo-cartao cpo-indicador">
+        <span class="cpo-indicador__rotulo">Total de mensalidades</span>
+        <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ totais.qtd_total }}</span>
+        <span class="cpo-indicador__nota">
+          {% if totais.qtd_isentas or totais.qtd_canceladas %}inclui isentas e canceladas{% else %}todas as competências{% endif %}
+        </span>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="cpo-cartao cpo-indicador">
+        <span class="cpo-indicador__rotulo">Pagas</span>
+        <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ totais.qtd_pagas }}</span>
+        <span class="cpo-indicador__nota cpo-indicador__nota--valor text-nowrap">{{ totais.recebido|brl }}</span>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="cpo-cartao cpo-indicador">
+        <span class="cpo-indicador__rotulo">Pendentes</span>
+        <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ totais.qtd_pendentes }}</span>
+        <span class="cpo-indicador__nota cpo-indicador__nota--valor text-nowrap">{{ totais.pendente|brl }} a vencer</span>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="cpo-cartao cpo-indicador">
+        <span class="cpo-indicador__rotulo">Vencidas</span>
+        <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ totais.qtd_vencidas }}</span>
+        <span class="cpo-indicador__nota cpo-indicador__nota--valor text-nowrap">{{ totais.vencido|brl }}</span>
+      </div>
+    </div>
+  </div>
+
+  {% if em_aberto %}
+    <p class="small mb-3">Total em aberto (pendentes + vencidas): <strong class="text-nowrap">{{ em_aberto|brl }}</strong></p>
+  {% endif %}
+
+  <div class="cpo-cartao">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0 cpo-tabela cpo-lista--cartoes">
+        <thead>
+          <tr>
+            <th>Competência</th>
+            <th>Vencimento</th>
+            <th class="text-end">Valor</th>
+            <th>Situação</th>
+            <th>Pagamento</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in mensalidades %}
+            {% with situacao=m.situacao %}
+            <tr>
+              <td class="cpo-celula-titulo text-nowrap">{{ m.reference_month|date:"F/Y" }}</td>
+              <td class="small text-nowrap" data-rotulo="Vencimento">{{ m.due_date|date:"d/m/Y" }}</td>
+              <td class="text-end text-nowrap fw-medium" data-rotulo="Valor">{{ m.amount|brl }}</td>
+              <td data-rotulo="Situação">{% include "admin_panel/ministers/fees/_situacao.html" %}</td>
+              {% if m.paid_at %}
+                <td class="small text-nowrap" data-rotulo="Pagamento">{{ m.paid_at|date:"d/m/Y" }} &middot; {{ m.get_payment_method_display }}</td>
+              {% else %}
+                {# Sem pagamento, o cartao do celular nao ganha uma linha so com um traco. #}
+                <td class="small d-none d-md-table-cell text-body-secondary" data-rotulo="Pagamento">&mdash;</td>
+              {% endif %}
+            </tr>
+            {% endwith %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

@@ -1256,6 +1256,37 @@ pre {
   max-width: 16rem;
 }
 
+/* Resumo das mensalidades no inicio: tres numeros lado a lado, que cabem
+   em 360px sem quebrar. */
+.cpo-portal__resumo {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .75rem;
+}
+
+.cpo-portal__resumo dt {
+  font-size: .75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--cpo-texto-suave);
+}
+
+.cpo-portal__resumo dd {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* Valor em reais na nota de um cartao indicador do portal: a nota padrao e
+   clara demais para um numero que o ministro precisa ler. */
+.cpo-indicador__nota--valor {
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--cpo-texto-suave);
+}
+
 @media (min-width: 576px) {
   .cpo-portal__dados {
     grid-template-columns: 1fr 1fr;

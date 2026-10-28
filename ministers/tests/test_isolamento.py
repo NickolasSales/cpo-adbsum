@@ -151,3 +151,19 @@ def test_geracao_em_massa_nao_altera_o_cpo(tentativa, admin_user, ministro):
     lote = geracao.gerar(parametros, token=geracao.novo_token(), actor=admin_user)
     assert lote.created_count == 1
     assert retrato_do_cpo() == antes
+
+
+def test_portal_financeiro_nao_altera_o_cpo(tentativa, client):
+    import datetime
+
+    from ministers import mensalidades
+
+    ministro = services.create_minister(dados=dados_de_ministro(), password=SENHA_MINISTRO)
+    mensalidades.create_fee(
+        minister=ministro, reference_month="2026-11", due_date=datetime.date(2026, 11, 10), amount="50.00"
+    )
+    antes = retrato_do_cpo()
+    entrar_no_portal(client)
+    assert client.get("/ministros/").status_code == 200
+    assert client.get("/ministros/mensalidades/").status_code == 200
+    assert retrato_do_cpo() == antes
