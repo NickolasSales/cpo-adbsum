@@ -8,7 +8,7 @@ hash da senha nao tem por que aparecer num formulario.
 
 from django.contrib import admin
 
-from ministers.models import Minister, MinisterAccount, MinisterMonthlyFee
+from ministers.models import Minister, MinisterAccount, MinisterFeeBatch, MinisterMonthlyFee
 
 
 class SomenteLeitura(admin.ModelAdmin):
@@ -58,3 +58,14 @@ class MinisterMonthlyFeeAdmin(SomenteLeitura):
     list_filter = ("status", "reference_month", "payment_method")
     search_fields = ("minister__full_name", "minister__conamad_registration")
     list_select_related = ("minister",)
+
+
+@admin.register(MinisterFeeBatch)
+class MinisterFeeBatchAdmin(SomenteLeitura):
+    list_display = ("reference_month", "created_count", "existing_count", "inactive_count", "total_amount", "created_by", "created_at")
+    list_filter = ("reference_month",)
+    # O token e o identificador de idempotencia do lote; nao ha motivo para exibi-lo.
+    exclude = ("token",)
+
+    def get_readonly_fields(self, request, obj=None):
+        return [c for c in super().get_readonly_fields(request, obj) if c != "token"]

@@ -139,3 +139,15 @@ def test_mensalidade_nao_aponta_para_o_cpo():
         if campo.is_relation and campo.related_model is not None
     }
     assert relacionados == {Minister}
+
+
+def test_geracao_em_massa_nao_altera_o_cpo(tentativa, admin_user, ministro):
+    import datetime
+
+    from ministers import geracao
+
+    antes = retrato_do_cpo()
+    parametros = geracao.validar_parametros("2026-11", datetime.date(2026, 11, 10), "50.00")
+    lote = geracao.gerar(parametros, token=geracao.novo_token(), actor=admin_user)
+    assert lote.created_count == 1
+    assert retrato_do_cpo() == antes

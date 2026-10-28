@@ -20,8 +20,11 @@ Lista de mensalidades. Tabela no desktop, cartoes abaixo de 768px
       {{ page_obj.paginator.count }} mensalidade(s){% if ministro_filtrado %} de {{ ministro_filtrado.full_name }}{% endif %}.
     </p>
   </div>
-  <a class="btn btn-primary btn-sm"
-     href="{% url 'admin_panel:minister_fee_create' %}{% if ministro_filtrado %}?ministro={{ ministro_filtrado.pk }}{% endif %}">Nova mensalidade</a>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary btn-sm"
+       href="{% url 'admin_panel:minister_fee_create' %}{% if ministro_filtrado %}?ministro={{ ministro_filtrado.pk }}{% endif %}">Nova mensalidade</a>
+    <a class="btn btn-primary btn-sm" href="{% url 'admin_panel:minister_fee_generate' %}">Gerar mensalidades</a>
+  </div>
 </div>
 
 <form method="get" class="cpo-cartao p-3 mb-3">

@@ -110,11 +110,14 @@ def test_dashboard_filtra_por_competencia(admin_client_logado, ministro, outro_m
     assert todas["previsto"] == Decimal("95.00")
 
 
-def test_dashboard_sem_escolha_usa_a_competencia_mais_recente(admin_client_logado, ministro):
-    nova(ministro, competencia="2026-09")
-    nova(ministro, competencia="2026-11")
+def test_dashboard_sem_escolha_abre_no_mes_corrente(admin_client_logado, ministro):
+    mes = HOJE.replace(day=1)
+    futuro = (mes + datetime.timedelta(days=40)).replace(day=1)
+    nova(ministro, competencia=futuro)
     contexto = admin_client_logado.get(URL_DASHBOARD).context
-    assert contexto["competencia_chave"] == "2026-11"
+    assert contexto["competencia_chave"] == mes.strftime("%Y-%m")
+    # O mes corrente aparece no seletor mesmo sem mensalidade.
+    assert (mes.strftime("%Y-%m"), mes.strftime("%m/%Y")) in contexto["competencias"]
 
 
 def test_dashboard_vazio(admin_client_logado):

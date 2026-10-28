@@ -1,0 +1,77 @@
+{% extends "admin_panel/base_admin.html" %}
+{% load financeiro %}
+
+{% comment %}
+Recibo de uma geracao em massa, lido de MinisterFeeBatch. Recarregar esta
+pagina nao gera nada: ela so le o lote gravado.
+{% endcomment %}
+
+{% block title %}Resultado da geração - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:minister_fee_dashboard' %}">&larr; Mensalidades</a>
+</nav>
+
+<h1 class="h4 mb-1">Geração concluída</h1>
+<p class="text-body-secondary small mb-3">
+  Competência <strong>{{ lote.reference_month|date:"F/Y" }}</strong> &middot;
+  vencimento {{ lote.due_date|date:"d/m/Y" }} &middot; valor {{ lote.amount|brl }} cada.
+</p>
+
+<div class="alert {% if lote.created_count %}alert-success{% else %}alert-info{% endif %}" role="status">
+  {% if lote.created_count %}
+    <strong>{{ lote.created_count }} mensalidade{{ lote.created_count|pluralize }} criada{{ lote.created_count|pluralize }}</strong>,
+    somando {{ lote.total_amount|brl }}.
+  {% else %}
+    <strong>Nenhuma mensalidade nova.</strong> Todos os ministros ativos já tinham mensalidade nesta competência.
+  {% endif %}
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Criadas</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ lote.created_count }}</span>
+      <span class="cpo-indicador__nota">pendentes</span>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Já existentes</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ lote.existing_count }}</span>
+      <span class="cpo-indicador__nota">não alteradas</span>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Inativos ignorados</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ lote.inactive_count }}</span>
+      <span class="cpo-indicador__nota">sem mensalidade</span>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Valor total criado</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real cpo-indicador__valor--dinheiro">{{ lote.total_amount|brl }}</span>
+      <span class="cpo-indicador__nota">nesta geração</span>
+    </div>
+  </div>
+</div>
+
+<div class="cpo-cartao p-3 p-md-4">
+  <dl class="row small mb-3">
+    <dt class="col-5 col-md-3 text-body-secondary fw-normal">Administrador</dt>
+    <dd class="col-7 col-md-9 mb-2">{{ lote.created_by.full_name|default:"-" }}</dd>
+    <dt class="col-5 col-md-3 text-body-secondary fw-normal">Data e hora</dt>
+    <dd class="col-7 col-md-9 mb-2">{{ lote.created_at|date:"d/m/Y H:i" }}</dd>
+    <dt class="col-5 col-md-3 text-body-secondary fw-normal">Lote</dt>
+    <dd class="col-7 col-md-9 mb-0">nº {{ lote.pk }}</dd>
+  </dl>
+  <div class="cpo-barra-acoes">
+    <a class="btn btn-primary" href="{% url 'admin_panel:minister_fee_list' %}?competencia={{ lote.competencia_chave }}">Ver mensalidades da competência</a>
+    <a class="btn btn-outline-secondary" href="{% url 'admin_panel:minister_fee_dashboard' %}?competencia={{ lote.competencia_chave }}">Voltar ao dashboard</a>
+    <a class="btn btn-outline-secondary" href="{% url 'admin_panel:minister_fee_generate' %}">Gerar outra competência</a>
+  </div>
+</div>
+{% endblock %}

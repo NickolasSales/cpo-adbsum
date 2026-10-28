@@ -8,6 +8,7 @@ app do CPO. Todas abaixo de /admin-panel/ministros/.
 from django.urls import path
 
 from ministers import views_admin as views
+from ministers import views_geracao as geracao
 from ministers import views_mensalidades as fees
 
 urlpatterns = [
@@ -58,6 +59,28 @@ urlpatterns = [
     path("ministros/mensalidades/", fees.FeeDashboardView.as_view(), name="minister_fee_dashboard"),
     path("ministros/mensalidades/lista/", fees.FeeListView.as_view(), name="minister_fee_list"),
     path("ministros/mensalidades/nova/", fees.FeeCreateView.as_view(), name="minister_fee_create"),
+    # Geracao em massa (Fase 2B)
+    path("ministros/mensalidades/gerar/", geracao.GeracaoView.as_view(), name="minister_fee_generate"),
+    path(
+        "ministros/mensalidades/gerar/preview/",
+        geracao.GeracaoPreviewView.as_view(),
+        name="minister_fee_generate_preview",
+    ),
+    path(
+        "ministros/mensalidades/gerar/confirmar/",
+        geracao.geracao_confirmar,
+        name="minister_fee_generate_confirm",
+    ),
+    path(
+        "ministros/mensalidades/gerar/cancelar/",
+        geracao.geracao_cancelar,
+        name="minister_fee_generate_cancel",
+    ),
+    path(
+        "ministros/mensalidades/gerar/resultado/<int:pk>/",
+        geracao.GeracaoResultadoView.as_view(),
+        name="minister_fee_generate_result",
+    ),
     path("ministros/mensalidades/<int:pk>/", fees.FeeDetailView.as_view(), name="minister_fee_detail"),
     path(
         "ministros/mensalidades/<int:pk>/editar/",

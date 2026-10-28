@@ -1,0 +1,159 @@
+{% extends "admin_panel/base_admin.html" %}
+{% load financeiro %}
+
+{% comment %}
+Preview da geracao em massa. Somente leitura: os numeros sao calculados a
+cada abertura, e a confirmacao calcula de novo no servidor. O formulario de
+confirmacao leva so o token do lote e a confirmacao explicita.
+
+A situacao de cada ministro e escrita por extenso, e nao so por cor.
+{% endcomment %}
+
+{% block title %}Confirmar geração - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:minister_fee_generate' %}">&larr; Alterar parâmetros</a>
+</nav>
+
+<h1 class="h4 mb-1">Confirmar geração de mensalidades</h1>
+<p class="text-body-secondary small mb-3">
+  Competência <strong>{{ parametros.competencia|date:"F/Y" }}</strong> &middot;
+  vencimento <strong>{{ parametros.vencimento|date:"d/m/Y" }}</strong> &middot;
+  valor <strong>{{ parametros.valor|brl }}</strong> cada.
+</p>
+
+<div class="alert alert-warning" role="alert">
+  <strong>Nada foi criado ainda.</strong>
+  <span class="small">Esta tela é só uma conferência. As mensalidades são criadas quando você clicar em Confirmar geração.</span>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Ministros ativos</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ analise.ativos }}</span>
+      <span class="cpo-indicador__nota">no cadastro</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Novas mensalidades</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ analise.novas }}</span>
+      <span class="cpo-indicador__nota">serão criadas</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Já possuem</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ analise.existentes }}</span>
+      <span class="cpo-indicador__nota">não alteradas</span>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Inativos ignorados</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ analise.inativos }}</span>
+      <span class="cpo-indicador__nota">nunca recebem aqui</span>
+    </div>
+  </div>
+  <div class="col-12 col-md-8 col-xl-4">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Total a gerar</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real cpo-indicador__valor--dinheiro">{{ analise.total|brl }}</span>
+      <span class="cpo-indicador__nota">{{ analise.novas }} &times; {{ parametros.valor|brl }}</span>
+    </div>
+  </div>
+</div>
+
+<div class="cpo-cartao p-3 p-md-4 mb-3">
+  {% if analise.novas %}
+    <p class="mb-3">
+      Você está prestes a gerar <strong>{{ analise.novas }} mensalidade{{ analise.novas|pluralize }}</strong>
+      referente{{ analise.novas|pluralize }} a <strong>{{ parametros.competencia|date:"F/Y" }}</strong>,
+      no valor de <strong>{{ parametros.valor|brl }}</strong> cada.
+      Total previsto: <strong>{{ analise.total|brl }}</strong>.
+    </p>
+    <div class="d-flex flex-wrap gap-2">
+      <form method="post" action="{% url 'admin_panel:minister_fee_generate_confirm' %}" id="confirmarGeracao">
+        {% csrf_token %}
+        <input type="hidden" name="token" value="{{ token }}">
+        <input type="hidden" name="confirmar" value="1">
+        <button type="submit" class="btn btn-primary" data-desabilitar-ao-enviar>Confirmar geração</button>
+      </form>
+      <form method="post" action="{% url 'admin_panel:minister_fee_generate_cancel' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-secondary">Cancelar</button>
+      </form>
+    </div>
+  {% else %}
+    <p class="mb-3">
+      <strong>Não há mensalidade nova a gerar</strong> para {{ parametros.competencia|date:"F/Y" }}:
+      todos os ministros ativos já têm uma nesta competência.
+    </p>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-secondary"
+         href="{% url 'admin_panel:minister_fee_list' %}?competencia={{ parametros.competencia|date:'Y-m' }}">Ver mensalidades da competência</a>
+      <form method="post" action="{% url 'admin_panel:minister_fee_generate_cancel' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-secondary">Voltar</button>
+      </form>
+    </div>
+  {% endif %}
+</div>
+
+<div class="cpo-cartao">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 cpo-tabela cpo-lista--cartoes">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>CONAMAD / Campo</th>
+          <th class="d-none d-lg-table-cell">Congregação</th>
+          <th>Situação</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for linha in analise.linhas %}
+          <tr>
+            <td class="cpo-celula-titulo cpo-col-nome">
+              <span class="fw-medium">{{ linha.full_name }}</span>
+              {% if linha.congregation %}<div class="d-lg-none small text-body-secondary fw-normal">{{ linha.congregation }}</div>{% endif %}
+            </td>
+            <td class="small text-nowrap" data-rotulo="CONAMAD / Campo">
+              {{ linha.conamad_registration }}
+              {% if linha.field_registration %}<div class="text-body-secondary">Campo {{ linha.field_registration }}</div>{% endif %}
+            </td>
+            <td class="d-none d-lg-table-cell small text-body-secondary" data-rotulo="Congregação">{{ linha.congregation|default:"-" }}</td>
+            <td data-rotulo="Situação">
+              {% if linha.situacao == "CRIAR" %}
+                <span class="cpo-badge cpo-badge--ok">&#10003; Será criada</span>
+              {% elif linha.situacao == "EXISTE" %}
+                <span class="cpo-badge cpo-badge--alerta">&#9679; Já existe</span>
+              {% else %}
+                <span class="cpo-badge cpo-badge--neutro">&ndash; Ministro inativo</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="4" class="text-center text-body-secondary py-5 cpo-celula-vazia">Nenhum ministro cadastrado.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // Conveniencia contra o clique duplo. A protecao de verdade e do servidor:
+  // o token do lote e unico no banco e a geracao roda sob trava.
+  document.querySelectorAll("[data-desabilitar-ao-enviar]").forEach(function (botao) {
+    botao.form.addEventListener("submit", function () {
+      setTimeout(function () { botao.disabled = true; botao.textContent = "Gerando..."; }, 0);
+    });
+  });
+</script>
+{% endblock %}

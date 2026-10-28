@@ -290,6 +290,17 @@ class AuditEvent(models.TextChoices):
     MINISTER_FEE_EXEMPTED = "MINISTER_FEE_EXEMPTED", "Mensalidade isentada"
     MINISTER_FEE_REACTIVATED = "MINISTER_FEE_REACTIVATED", "Mensalidade reativada"
 
+    # Geracao em massa (Ministros, Fase 2B)
+    #
+    # Um evento por LOTE, com os parametros e as contagens — nunca a lista de
+    # ministros. Cada mensalidade criada pelo lote continua com o proprio
+    # MINISTER_FEE_CREATED, que leva o id do lote na metadata: a ficha de
+    # cada mensalidade mostra de onde ela veio, e o lote mostra o conjunto.
+    MINISTER_FEE_BATCH_CREATED = (
+        "MINISTER_FEE_BATCH_CREATED",
+        "Mensalidades geradas em massa",
+    )
+
 
 class AuditLog(models.Model):
     """

@@ -101,13 +101,19 @@ class FeeDashboardView(PainelAdminMixin, TemplateView):
         existentes = servico.competencias_existentes()
 
         pedido = (self.request.GET.get("competencia") or "").strip()
+        mes_corrente = timezone.localdate().replace(day=1)
         if pedido == "todas":
             competencia = None
         elif pedido:
             competencia = servico.competencia_ou_none(pedido)
         else:
-            # Sem escolha: a competencia mais recente com mensalidade.
-            competencia = existentes[0] if existentes else None
+            # Sem escolha: o mes corrente, mesmo que ainda nao tenha
+            # mensalidade — e o mes que a secretaria esta cobrando. A
+            # competencia mais recente com dados pode ser um mes futuro ja
+            # gerado, e abrir nela esconderia o atraso de agora.
+            competencia = mes_corrente
+        if competencia is not None and competencia not in existentes:
+            existentes = sorted(set(existentes) | {competencia}, reverse=True)
 
         consulta = MinisterMonthlyFee.objects.all()
         if competencia is not None:

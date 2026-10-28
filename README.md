@@ -2892,7 +2892,7 @@ lista vira cartões abaixo de 768px.
 
 ### Ainda não existe
 
-Mensalidades chegaram na Fase 2A (seção 9.22). Ainda faltam: geração em massa, Pix, guia em PDF, comprovantes, aprovação de
+Mensalidades chegaram na Fase 2A (seção 9.22). Geração em massa na Fase 2B. Ainda faltam: Pix, guia em PDF, comprovantes, aprovação de
 pagamento e relatórios financeiros. O menu não mostra esses itens até as
 telas existirem.
 
@@ -2901,8 +2901,7 @@ telas existirem.
 ## 9.22 Mensalidades de ministros (Fase 2A)
 
 Núcleo financeiro do Controle de Ministros. Extensão do app `ministers`; não
-toca no CPO acadêmico. Sem PDF, sem geração em massa e sem tela no portal do
-ministro nesta fase.
+toca no CPO acadêmico. Sem PDF e sem tela no portal do ministro até aqui.
 
 ### Modelo `MinisterMonthlyFee`
 
@@ -2976,6 +2975,67 @@ trilha existe para provar. A ficha da mensalidade mostra esse histórico.
 "Previsto" soma pendentes, vencidas e pagas; isentas e canceladas ficam fora
 dos valores. Ministro recebe redirecionamento para o login do CPO; aluno, 403.
 O portal do ministro ainda não tem rota financeira.
+
+### Geração em massa (Fase 2B)
+
+`/admin-panel/ministros/mensalidades/gerar/` → preview → confirmação →
+resultado. Somente ADMIN; GET nunca grava.
+
+| Ministro | Na geração |
+|---|---|
+| ativo sem mensalidade na competência | recebe uma, pendente, com competência, vencimento e valor informados |
+| ativo que já tem mensalidade — pendente, paga, cancelada ou isenta | **ignorado**: a existente não é editada nem reativada |
+| inativo | **sempre ignorado**; não há opção para incluir |
+
+O formulário sugere o mês corrente e o valor mais usado na competência mais
+recente. Vencimento não tem sugestão.
+
+**Confirmação.** Do navegador vêm só o token do lote e a confirmação
+explícita. Competência, vencimento e valor vêm da sessão e são validados de
+novo; quem recebe é recalculado no banco, dentro da transação — mudanças entre
+o preview e a confirmação (ministro novo, inativado, mensalidade lançada à mão)
+valem.
+
+**Idempotência.** O token nasce no preview e é único em `MinisterFeeBatch`.
+Reenviar a confirmação (clique duplo, F5, POST repetido) devolve o mesmo lote,
+sem rodar de novo. Uma geração nova da mesma competência — outro preview,
+outro token — cria só para quem ainda não tem: depois de entrar um ministro,
+ela cria uma.
+
+**Concorrência**, de fora para dentro:
+
+| Camada | Protege contra |
+|---|---|
+| `pg_advisory_xact_lock` por competência | duas gerações da mesma competência ao mesmo tempo: a segunda espera e recalcula |
+| `select_for_update` nos ministros ativos | cadastro manual simultâneo (que trava a mesma linha) e inativação no meio |
+| `UniqueConstraint` ministro + competência | qualquer coisa que escape: a transação inteira volta e nada fica gravado |
+
+Testado com duas threads em conexões separadas: duas gerações simultâneas
+resultam em 20 + 0, e o mesmo token em paralelo resulta em um lote só.
+
+**`bulk_create`.** Um INSERT para o lote inteiro; no PostgreSQL ele devolve os
+ids, então cada mensalidade ainda ganha o seu `MINISTER_FEE_CREATED`. O
+modelo não tem signal nem `save()` com regra que o `bulk_create` pularia (o
+`save()` só normaliza a competência para o dia 1, e ela já chega assim).
+`ignore_conflicts` **não** é usado: esconderia o conflito em vez de reverter,
+e sem ids não haveria auditoria por mensalidade.
+
+**Auditoria.** Um `MINISTER_FEE_BATCH_CREATED` por lote — competência,
+vencimento, valor, criadas, existentes, inativos ignorados e total, nunca a
+lista de ministros — mais um `MINISTER_FEE_CREATED` por mensalidade criada,
+com o id do lote. As duas granularidades não se repetem: o lote responde "o
+que foi gerado", e cada mensalidade continua com a sua história completa na
+ficha. A auditoria do projeto é explícita (não há gravação automática por
+signal), então não há evento duplicado.
+
+**Consultas.** O preview faz duas consultas qualquer que seja o número de
+ministros. A geração tem custo fixo mais uma inserção de auditoria por
+mensalidade criada (testado com 50; para 1.000 ministros são ~1.000 inserções
+numa transação).
+
+**Dashboard.** Sem filtro, abre no **mês corrente** (antes abria na
+competência mais recente com mensalidade, que pode ser um mês futuro já
+gerado). O mês corrente aparece no seletor mesmo sem mensalidade.
 
 ---
 

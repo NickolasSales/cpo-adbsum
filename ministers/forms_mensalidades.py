@@ -144,3 +144,20 @@ class CorrecaoPagamentoForm(forms.Form):
 
 class MotivoForm(forms.Form):
     reason = campo_de_motivo()
+
+
+class GeracaoForm(forms.Form):
+    """Parametros da geracao em massa. Nenhum valor ou vencimento padrao."""
+
+    reference_month = forms.CharField(
+        label="Competência",
+        widget=forms.TextInput(attrs={"class": CLASSE, "type": "month", "placeholder": "AAAA-MM"}),
+    )
+    due_date = campo_de_data("Vencimento")
+    amount = campo_de_valor()
+
+    def clean_reference_month(self):
+        try:
+            return competencia_de_texto(self.cleaned_data.get("reference_month"))
+        except DomainError as erro:
+            raise forms.ValidationError(str(erro))

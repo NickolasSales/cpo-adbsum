@@ -22,6 +22,7 @@ Nenhum modelo aqui conhece o dominio academico. Ministro nao e User, nao tem
 papel, nao entra em /admin-panel/ nem em /aluno/.
 """
 
+from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import models
 from django.db.models import Q
@@ -502,3 +503,65 @@ class MinisterMonthlyFee(models.Model):
     @property
     def situacao(self):
         return self.situacao_em(timezone.localdate())
+
+
+class MinisterFeeBatch(models.Model):
+    """
+    Uma geracao de mensalidades em massa (Fase 2B).
+
+    Existe para que a geracao seja idempotente de verdade. O token nasce no
+    preview e e UNICO aqui: reenviar a confirmacao (clique duplo, F5, POST
+    repetido) encontra o lote ja gravado e devolve o MESMO resultado, em vez
+    de rodar de novo e mostrar "0 criadas" por cima do resultado real.
+
+    Guarda os parametros e os numeros do resultado; a lista de ministros nao,
+    porque cada mensalidade criada tem o proprio evento na trilha, com o id
+    deste lote.
+    """
+
+    token = models.CharField("identificador do lote", max_length=64, unique=True)
+    reference_month = models.DateField("competência")
+    due_date = models.DateField("vencimento")
+    amount = models.DecimalField("valor unitário", max_digits=10, decimal_places=2)
+
+    created_count = models.PositiveIntegerField("mensalidades criadas", default=0)
+    existing_count = models.PositiveIntegerField("já existentes", default=0)
+    inactive_count = models.PositiveIntegerField("inativos ignorados", default=0)
+    total_amount = models.DecimalField(
+        "valor total criado", max_digits=14, decimal_places=2, default=0
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="administrador",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    created_at = models.DateTimeField("gerado em", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "geração de mensalidades"
+        verbose_name_plural = "gerações de mensalidades"
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(reference_month__day=1),
+                name="minister_fee_batch_competencia_no_dia_1",
+            ),
+            models.CheckConstraint(
+                condition=Q(amount__gt=0),
+                name="minister_fee_batch_valor_positivo",
+            ),
+        ]
+
+    def __str__(self):
+        return "Geração {} ({})".format(self.reference_month.strftime("%m/%Y"), self.pk)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("Lote de geracao nao e excluido: ele e o recibo da operacao.")
+
+    @property
+    def competencia_chave(self):
+        return self.reference_month.strftime("%Y-%m")

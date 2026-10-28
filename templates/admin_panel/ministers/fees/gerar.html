@@ -1,0 +1,52 @@
+{% extends "admin_panel/base_admin.html" %}
+{% load financeiro %}
+
+{% comment %}
+Parametros da geracao em massa. Enviar leva ao preview — nada e criado aqui.
+Vencimento nao tem valor padrao de proposito: e escolha do administrador.
+{% endcomment %}
+
+{% block title %}Gerar mensalidades - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<div class="cpo-form-estreito">
+  <nav aria-label="Trilha" class="mb-3">
+    <a class="small text-decoration-none" href="{% url 'admin_panel:minister_fee_dashboard' %}">&larr; Mensalidades</a>
+  </nav>
+
+  <h1 class="h4 mb-1">Gerar mensalidades</h1>
+  <p class="text-body-secondary small mb-3">
+    Cria, de uma vez, a mensalidade da competência para todos os ministros
+    <strong>ativos</strong> que ainda não têm uma.
+  </p>
+
+  <div class="alert alert-info small" role="alert">
+    <strong>Este passo ainda não cria nada.</strong>
+    Ao continuar você verá o preview, ministro por ministro, e só a
+    confirmação nessa tela gera as mensalidades.
+  </div>
+
+  <div class="cpo-cartao p-3 p-md-4">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% include "admin_panel/ministers/fees/_campos.html" %}
+      {% if valor_sugerido %}
+        <p class="form-text small mt-2 mb-0">
+          Valor sugerido: o mais usado na competência mais recente ({{ valor_sugerido|brl }}).
+        </p>
+      {% endif %}
+      <ul class="small text-body-secondary ps-3 mt-3 mb-0">
+        <li>Ministros inativos nunca recebem mensalidade por aqui.</li>
+        <li>
+          Quem já tem mensalidade na competência — pendente, paga, cancelada
+          ou isenta — é deixado como está.
+        </li>
+      </ul>
+      <div class="d-flex flex-wrap gap-2 mt-4">
+        <button type="submit" class="btn btn-primary">Ver preview</button>
+        <a class="btn btn-outline-secondary" href="{% url 'admin_panel:minister_fee_dashboard' %}">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
