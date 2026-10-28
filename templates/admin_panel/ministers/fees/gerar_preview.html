@@ -28,6 +28,15 @@ A situacao de cada ministro e escrita por extenso, e nao so por cor.
   <span class="small">Esta tela é só uma conferência. As mensalidades são criadas quando você clicar em Confirmar geração.</span>
 </div>
 
+{% if cobranca_pronta %}
+  <p class="small mb-3">A cobrança Pix de cada mensalidade nova é gerada junto, com a configuração de pagamento atual.</p>
+{% else %}
+  <div class="alert alert-info small" role="note">
+    O pagamento ainda não está configurado: as mensalidades serão criadas <strong>sem cobrança</strong>.
+    Configure os dados de pagamento antes de gerar as cobranças.
+  </div>
+{% endif %}
+
 <div class="row g-3 mb-3">
   <div class="col-6 col-md-4 col-xl-2">
     <div class="cpo-cartao cpo-indicador">

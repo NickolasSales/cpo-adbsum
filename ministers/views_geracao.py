@@ -29,7 +29,7 @@ from django.views.generic import FormView, TemplateView
 from common.exceptions import DomainError
 from common.mixins import admin_required
 from common.views import PainelAdminMixin
-from ministers import geracao
+from ministers import cobranca, geracao
 from ministers.forms_mensalidades import GeracaoForm
 from ministers.models import MinisterFeeBatch
 
@@ -114,6 +114,7 @@ class GeracaoPreviewView(PainelAdminMixin, TemplateView):
         contexto["analise"] = analise
         contexto["parametros"] = self.parametros
         contexto["token"] = self.lote["token"]
+        contexto["cobranca_pronta"] = cobranca.configuracao_pronta() is not None
         return contexto
 
 

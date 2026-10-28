@@ -80,3 +80,24 @@ def ministro_client_logado(client, ministro_com_acesso):
     resposta = entrar_no_portal(client)
     assert resposta.status_code == 302
     return client
+
+
+# Configuracao de pagamento FICTICIA (Fase 2D). Nenhum dado de recebimento
+# real da instituicao entra em teste: dominio example.com, reservado para
+# documentacao, e um favorecido que diz que e teste.
+PIX_DE_TESTE = {
+    "pix_key_type": "EMAIL",
+    "pix_key": "pix.teste@example.com",
+    "pix_receiver_name": "AD Brás Sumaré Teste",
+    "pix_receiver_city": "Sumaré",
+    "payment_instructions": "Envie o comprovante para a secretaria.",
+    "is_active": True,
+}
+
+
+@pytest.fixture
+def configuracao_pix(db):
+    from ministers import cobranca
+
+    configuracao, _ = cobranca.salvar_configuracao(dict(PIX_DE_TESTE))
+    return configuracao

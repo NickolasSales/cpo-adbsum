@@ -8,6 +8,7 @@ app do CPO. Todas abaixo de /admin-panel/ministros/.
 from django.urls import path
 
 from ministers import views_admin as views
+from ministers import views_cobranca as cobranca
 from ministers import views_geracao as geracao
 from ministers import views_mensalidades as fees
 
@@ -81,6 +82,24 @@ urlpatterns = [
         geracao.GeracaoResultadoView.as_view(),
         name="minister_fee_generate_result",
     ),
+    # Cobranca Pix (Fase 2D)
+    path(
+        "ministros/configuracoes/pagamento/",
+        cobranca.ConfiguracaoPagamentoView.as_view(),
+        name="minister_billing_settings",
+    ),
+    path("ministros/mensalidades/cobrancas/", cobranca.CobrancasView.as_view(), name="minister_charges"),
+    path(
+        "ministros/mensalidades/cobrancas/gerar/",
+        cobranca.cobrancas_gerar,
+        name="minister_charges_generate",
+    ),
+    path(
+        "ministros/mensalidades/<int:pk>/cobranca/gerar/",
+        cobranca.cobranca_gerar,
+        name="minister_fee_charge_generate",
+    ),
+    path("ministros/mensalidades/<int:pk>/guia.pdf", cobranca.guia_admin, name="minister_fee_guide"),
     path("ministros/mensalidades/<int:pk>/", fees.FeeDetailView.as_view(), name="minister_fee_detail"),
     path(
         "ministros/mensalidades/<int:pk>/editar/",

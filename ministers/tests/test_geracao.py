@@ -577,6 +577,8 @@ def test_auditoria_do_lote_e_das_mensalidades(admin_user):
         "existentes": 0,
         "inativos_ignorados": 1,
         "total_criado": "135.00",
+        # Fase 2D: sem configuracao de pagamento, o lote nao gera cobranca.
+        "cobrancas_geradas": 0,
     }
 
     individuais = AuditLog.objects.filter(event=AuditEvent.MINISTER_FEE_CREATED)

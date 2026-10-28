@@ -93,6 +93,12 @@ MENU_ADMIN = [
         "grupo": GRUPO_MINISTROS,
     },
     {
+        "nome": "Configurações",
+        "url": "admin_panel:minister_billing_settings",
+        "secao": "ministros_configuracoes",
+        "grupo": GRUPO_MINISTROS,
+    },
+    {
         "nome": "Administradores",
         "url": "admin_panel:admin_user_list",
         "secao": "administradores",

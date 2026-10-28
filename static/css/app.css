@@ -1287,6 +1287,89 @@ pre {
   color: var(--cpo-texto-suave);
 }
 
+/*
+ * Cobranca de uma mensalidade no portal (Fase 2D). Coluna unica e estreita
+ * em qualquer tela: e o que se usa no celular, com o app do banco ao lado.
+ *
+ * O Pix Copia e Cola e uma sequencia longa sem espaco: overflow-wrap
+ * anywhere quebra em qualquer ponto em vez de alargar a pagina, e
+ * user-select all seleciona o codigo inteiro com um toque, para quem nao
+ * consegue usar o botao de copiar.
+ */
+.cpo-cobranca {
+  max-width: 34rem;
+  margin-inline: auto;
+}
+
+.cpo-cobranca__valor {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: .75rem;
+}
+
+.cpo-cobranca__dados {
+  display: grid;
+  gap: .35rem;
+}
+
+.cpo-cobranca__dados > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.cpo-cobranca__dados dt {
+  font-weight: 400;
+  color: var(--cpo-texto-suave);
+}
+
+.cpo-cobranca__dados dd {
+  margin: 0;
+  text-align: right;
+}
+
+.cpo-cobranca__qr {
+  width: min(16rem, 100%);
+  margin-inline: auto;
+}
+
+.cpo-cobranca__qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.cpo-cobranca__codigo {
+  display: block;
+  padding: .75rem;
+  border: 1px solid var(--cpo-borda);
+  border-radius: .5rem;
+  background: var(--cpo-fundo);
+  color: #0f172a;
+  font-size: .8rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  white-space: normal;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+.cpo-cobranca__retorno:empty {
+  display: none;
+}
+
+.cpo-cobranca__aviso {
+  display: grid;
+  gap: .25rem;
+  padding: 1rem 1.25rem;
+}
+
+.cpo-cobranca__aviso--ok {
+  border-left: 4px solid #16a34a;
+}
+
 @media (min-width: 576px) {
   .cpo-portal__dados {
     grid-template-columns: 1fr 1fr;

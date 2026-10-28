@@ -527,6 +527,11 @@ class MinisterFeeBatch(models.Model):
     created_count = models.PositiveIntegerField("mensalidades criadas", default=0)
     existing_count = models.PositiveIntegerField("já existentes", default=0)
     inactive_count = models.PositiveIntegerField("inativos ignorados", default=0)
+    charge_count = models.PositiveIntegerField(
+        "cobranças geradas",
+        default=0,
+        help_text="Zero quando o pagamento ainda não estava configurado.",
+    )
     total_amount = models.DecimalField(
         "valor total criado", max_digits=14, decimal_places=2, default=0
     )
@@ -565,3 +570,182 @@ class MinisterFeeBatch(models.Model):
     @property
     def competencia_chave(self):
         return self.reference_month.strftime("%Y-%m")
+
+
+# ---------------------------------------------------------------------------
+# Cobranca Pix (Fase 2D)
+# ---------------------------------------------------------------------------
+
+
+class PixKeyType(models.TextChoices):
+    """Tipo da chave: so para validar e normalizar o que o administrador digita."""
+
+    CPF = "CPF", "CPF"
+    CNPJ = "CNPJ", "CNPJ"
+    EMAIL = "EMAIL", "E-mail"
+    TELEFONE = "TELEFONE", "Telefone"
+    ALEATORIA = "ALEATORIA", "Chave aleatória"
+
+
+class MinisterBillingSettings(models.Model):
+    """
+    Dados de recebimento das mensalidades. Uma linha so (id 1).
+
+    A chave Pix nao e segredo — ela vai impressa em cada guia —, mas tambem
+    nao vive no codigo nem em migration: quem a informa e o administrador,
+    por tela, e cada alteracao fica na trilha com antes e depois.
+
+    Mudar esta configuracao vale para as cobrancas que forem geradas DEPOIS.
+    As ja geradas copiaram os dados para o proprio snapshot
+    (MinisterFeeCharge) e nao leem mais daqui.
+    """
+
+    pix_key_type = models.CharField(
+        "tipo da chave Pix", max_length=10, choices=PixKeyType.choices
+    )
+    pix_key = models.CharField("chave Pix", max_length=77)
+    pix_receiver_name = models.CharField(
+        "favorecido",
+        max_length=25,
+        help_text="Como aparece no aplicativo do banco. Até 25 caracteres, sem acento.",
+    )
+    pix_receiver_city = models.CharField(
+        "cidade",
+        max_length=15,
+        help_text="Cidade do favorecido. Até 15 caracteres, sem acento.",
+    )
+    payment_instructions = models.TextField(
+        "orientações",
+        blank=True,
+        help_text="Aparecem na cobrança do portal e na guia em PDF.",
+    )
+    is_active = models.BooleanField(
+        "cobrança por Pix ativa",
+        default=True,
+        help_text="Desligada, nenhuma cobrança nova é gerada. As já geradas continuam valendo.",
+    )
+
+    created_at = models.DateTimeField("criado em", auto_now_add=True)
+    updated_at = models.DateTimeField("atualizado em", auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="atualizado por",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "configuração de pagamento"
+        verbose_name_plural = "configuração de pagamento"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(id=1), name="minister_billing_settings_linha_unica"
+            ),
+        ]
+
+    def __str__(self):
+        return "Configuração de pagamento"
+
+
+class MinisterFeeCharge(models.Model):
+    """
+    A cobranca Pix de uma mensalidade: um SNAPSHOT imutavel.
+
+    Tudo o que a guia e a tela de cobranca mostram esta copiado aqui no
+    momento da geracao — valor, vencimento, chave, favorecido, cidade e os
+    dados do ministro. Mudar a configuracao, o cadastro do ministro ou o
+    valor padrao de amanha nao reescreve a cobranca de hoje: o PDF de
+    Outubro reconstruido daqui a um ano e o mesmo PDF.
+
+    O Pix Copia e Cola e gravado pronto (pix_payload). O QR Code e desenhado
+    a partir dele, sempre, e nunca e montado de novo a partir dos outros
+    campos.
+
+    Imutavel na aplicacao: save() recusa atualizar e delete() recusa
+    excluir. A unica mudanca possivel e marcar a cobranca como SUBSTITUIDA
+    (superseded_at), por queryset.update em ministers.cobranca, quando o
+    administrador altera o valor ou o vencimento de uma mensalidade
+    pendente. A substituida continua no banco, com o mesmo TXID, como
+    historico; a vigente e a unica sem superseded_at — o banco garante.
+    """
+
+    fee = models.ForeignKey(
+        MinisterMonthlyFee,
+        verbose_name="mensalidade",
+        on_delete=models.PROTECT,
+        related_name="charges",
+    )
+    txid = models.CharField("TXID", max_length=25, unique=True)
+
+    reference_month_snapshot = models.DateField("competência")
+    amount_snapshot = models.DecimalField("valor", max_digits=10, decimal_places=2)
+    due_date_snapshot = models.DateField("vencimento")
+
+    pix_key_snapshot = models.CharField("chave Pix", max_length=77)
+    pix_receiver_name_snapshot = models.CharField("favorecido", max_length=25)
+    pix_receiver_city_snapshot = models.CharField("cidade", max_length=15)
+    payment_instructions_snapshot = models.TextField("orientações", blank=True)
+
+    minister_name_snapshot = models.CharField("nome do ministro", max_length=200)
+    conamad_registration_snapshot = models.CharField(
+        "inscrição CONAMAD", max_length=TAMANHO_MAXIMO_REGISTRO
+    )
+    field_registration_snapshot = models.CharField(
+        "matrícula do campo", max_length=TAMANHO_MAXIMO_REGISTRO, blank=True
+    )
+    congregation_snapshot = models.CharField("congregação", max_length=120, blank=True)
+    position_snapshot = models.CharField("cargo", max_length=100, blank=True)
+
+    pix_payload = models.TextField("Pix Copia e Cola")
+
+    generated_at = models.DateTimeField("gerada em", auto_now_add=True)
+    generated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="gerada por",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    superseded_at = models.DateTimeField("substituída em", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "cobrança de mensalidade"
+        verbose_name_plural = "cobranças de mensalidades"
+        ordering = ["-generated_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["fee"],
+                condition=Q(superseded_at__isnull=True),
+                name="minister_charge_uma_vigente_por_mensalidade",
+            ),
+            models.CheckConstraint(
+                condition=Q(amount_snapshot__gt=0),
+                name="minister_charge_valor_positivo",
+            ),
+            models.CheckConstraint(
+                condition=Q(reference_month_snapshot__day=1),
+                name="minister_charge_competencia_no_dia_1",
+            ),
+            models.CheckConstraint(
+                condition=~Q(pix_payload="") & ~Q(txid=""),
+                name="minister_charge_payload_obrigatorio",
+            ),
+        ]
+
+    def __str__(self):
+        return "Cobrança {}".format(self.txid)
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValueError("Cobranca e um snapshot: nao e alterada depois de gerada.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("Cobranca nao e excluida: ela e o historico do que foi cobrado.")
+
+    @property
+    def vigente(self):
+        return self.superseded_at is None

@@ -1,0 +1,92 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Cobrancas das mensalidades: o retrato antes de gerar (somente leitura) e a
+acao em lote, POST com confirmacao explicita.
+
+A acao e o caminho das mensalidades criadas ANTES da configuracao de
+pagamento (as da 2A/2B, por exemplo). Gera para toda mensalidade pendente
+ou vencida sem cobranca; paga, isenta e cancelada nunca recebem. Tudo numa
+transacao: ou todas, ou nenhuma.
+{% endcomment %}
+
+{% block title %}Cobranças - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:minister_fee_dashboard' %}">&larr; Mensalidades</a>
+</nav>
+
+<h1 class="h4 mb-1">Cobranças das mensalidades</h1>
+<p class="text-body-secondary small mb-3">
+  Cobrança é o Pix (QR Code, Copia e Cola e guia em PDF) que o ministro vê no portal.
+  Esta tela só mostra números: nada é gerado sem a confirmação abaixo.
+</p>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Mensalidades</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ resumo.total }}</span>
+      <span class="cpo-indicador__nota">em todas as competências</span>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Já têm cobrança</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ resumo.com_cobranca }}</span>
+      <span class="cpo-indicador__nota">vigente</span>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Sem cobrança, a gerar</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ resumo.elegiveis }}</span>
+      <span class="cpo-indicador__nota">pendentes ou vencidas</span>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="cpo-cartao cpo-indicador">
+      <span class="cpo-indicador__rotulo">Pagas sem cobrança</span>
+      <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ resumo.pagas_sem_cobranca }}</span>
+      <span class="cpo-indicador__nota">não recebem: já foram pagas</span>
+    </div>
+  </div>
+</div>
+
+<div class="cpo-cartao p-3 mb-3">
+  <h2 class="h6 mb-2">Por situação</h2>
+  <dl class="row small mb-0">
+    <dt class="col-7 col-sm-4 fw-normal text-body-secondary">Pendentes</dt><dd class="col-5 col-sm-8 mb-1">{{ resumo.pendentes }}</dd>
+    <dt class="col-7 col-sm-4 fw-normal text-body-secondary">Vencidas</dt><dd class="col-5 col-sm-8 mb-1">{{ resumo.vencidas }}</dd>
+    <dt class="col-7 col-sm-4 fw-normal text-body-secondary">Pagas</dt><dd class="col-5 col-sm-8 mb-1">{{ resumo.pagas }}</dd>
+    <dt class="col-7 col-sm-4 fw-normal text-body-secondary">Isentas</dt><dd class="col-5 col-sm-8 mb-1">{{ resumo.isentas }}</dd>
+    <dt class="col-7 col-sm-4 fw-normal text-body-secondary">Canceladas</dt><dd class="col-5 col-sm-8 mb-0">{{ resumo.canceladas }}</dd>
+  </dl>
+</div>
+
+{% if not pronta %}
+  <div class="alert alert-warning" role="alert">
+    {{ motivo }}
+    <a class="alert-link" href="{% url 'admin_panel:minister_billing_settings' %}">Abrir a configuração de pagamento</a>.
+  </div>
+{% elif resumo.elegiveis %}
+  <div class="cpo-cartao p-3 p-md-4">
+    <form method="post" action="{% url 'admin_panel:minister_charges_generate' %}">
+      {% csrf_token %}
+      <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="confirmar" value="1" id="confirmarCobrancas" required>
+        <label class="form-check-label" for="confirmarCobrancas">
+          Confirmo a geração de {{ resumo.elegiveis }} cobrança{{ resumo.elegiveis|pluralize }} com a configuração de pagamento atual.
+        </label>
+      </div>
+      <button type="submit" class="btn btn-primary">Gerar {{ resumo.elegiveis }} cobrança{{ resumo.elegiveis|pluralize }}</button>
+      <p class="small text-body-secondary mt-2 mb-0">
+        Gerar cobrança não muda a situação de nenhuma mensalidade e não registra pagamento.
+      </p>
+    </form>
+  </div>
+{% else %}
+  <p class="small text-body-secondary mb-0">Nenhuma mensalidade pendente está sem cobrança.</p>
+{% endif %}
+{% endblock %}

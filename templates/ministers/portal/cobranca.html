@@ -1,0 +1,94 @@
+{% extends "ministers/portal/base.html" %}
+{% load financeiro static %}
+
+{% comment %}
+Cobranca de UMA mensalidade do ministro logado (/ministros/mensalidades/AAAA/MM/).
+
+Somente leitura. O QR Code e o Copia e Cola sao o MESMO texto gravado no
+snapshot da cobranca (pix_payload) — o SVG e desenhado a partir dele, sem
+nenhum dado do usuario dentro. Paga, isenta e cancelada nao mostram Pix.
+
+Copiar o Pix e coisa do navegador (static/js/copiar-pix.js): nao chama o
+servidor e nao muda a situacao. Sem a Clipboard API, o codigo continua
+selecionavel com um toque (user-select: all).
+{% endcomment %}
+
+{% block title %}{{ mensalidade.reference_month|date:"F/Y" }} - Portal do Ministro{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'ministers:fees' %}">&larr; Mensalidades</a>
+</nav>
+
+<div class="cpo-cobranca">
+  <div class="cpo-cartao p-3 p-md-4 mb-3">
+    <h1 class="h4 mb-2">{{ mensalidade.reference_month|date:"F/Y" }}</h1>
+    <div class="cpo-cobranca__valor text-nowrap">{{ mensalidade.amount|brl }}</div>
+    <dl class="cpo-cobranca__dados small mb-0">
+      <div><dt>Vencimento</dt><dd>{{ mensalidade.due_date|date:"d/m/Y" }}</dd></div>
+      <div><dt>Situação</dt><dd>{% include "admin_panel/ministers/fees/_situacao.html" %}</dd></div>
+      {% if situacao == "PAID" %}
+        <div><dt>Pago em</dt><dd>{{ mensalidade.paid_at|date:"d/m/Y" }} &middot; {{ mensalidade.get_payment_method_display }}</dd></div>
+      {% endif %}
+    </dl>
+  </div>
+
+  {% if situacao == "PAID" %}
+    <div class="cpo-cartao cpo-cobranca__aviso cpo-cobranca__aviso--ok">
+      <strong>Mensalidade paga</strong>
+      <span>O pagamento desta competência já está registrado. Nenhuma ação é necessária.</span>
+    </div>
+  {% elif situacao == "EXEMPT" %}
+    <div class="cpo-cartao cpo-cobranca__aviso">
+      <strong>Mensalidade isenta</strong>
+      <span>Nenhum pagamento é necessário.</span>
+    </div>
+  {% elif situacao == "CANCELLED" %}
+    <div class="cpo-cartao cpo-cobranca__aviso">
+      <strong>Mensalidade cancelada</strong>
+      <span>Esta mensalidade foi cancelada. Nenhum pagamento é necessário.</span>
+    </div>
+  {% elif not cobranca %}
+    <div class="cpo-cartao cpo-cobranca__aviso">
+      <strong>Cobrança ainda não disponível</strong>
+      <span>A cobrança desta mensalidade ainda não foi emitida. Procure a secretaria do campo.</span>
+    </div>
+  {% else %}
+    {% if situacao == "OVERDUE" %}
+      <div class="alert alert-danger py-2 small mb-3" role="status">
+        Esta mensalidade está vencida. O Pix abaixo continua válido para o pagamento.
+      </div>
+    {% endif %}
+    <section class="cpo-cartao p-3 p-md-4" aria-labelledby="pague-com-pix">
+      <h2 class="h6 text-center mb-3" id="pague-com-pix">Pague com Pix</h2>
+
+      <div class="cpo-cobranca__qr">{{ qr_svg|safe }}</div>
+      <p class="small text-center text-body-secondary mt-2 mb-3">
+        Aponte a câmera do aplicativo do banco para o QR Code ou use o Pix Copia e Cola.
+      </p>
+
+      <button type="button" class="btn btn-primary btn-lg w-100 mb-1"
+              data-copiar="pix-copia-e-cola" data-copiado="Pix copiado!">Copiar Pix</button>
+      <p class="small text-center mb-3 cpo-cobranca__retorno" id="pix-retorno" role="status" aria-live="polite"></p>
+
+      <p class="small fw-medium mb-1" id="rotulo-pix">Pix Copia e Cola:</p>
+      <code class="cpo-cobranca__codigo" id="pix-copia-e-cola" aria-labelledby="rotulo-pix">{{ cobranca.pix_payload }}</code>
+
+      {% if cobranca.payment_instructions_snapshot %}
+        <p class="small text-body-secondary mt-3 mb-0 cpo-quebra">{{ cobranca.payment_instructions_snapshot|linebreaksbr }}</p>
+      {% endif %}
+
+      <a class="btn btn-outline-primary w-100 mt-3"
+         href="{% url 'ministers:fee_guide' ano=mensalidade.reference_month|date:'Y' mes=mensalidade.reference_month|date:'m' %}">Baixar guia PDF</a>
+    </section>
+    <p class="small text-body-secondary mt-3 mb-0">
+      Copiar o Pix ou baixar a guia não registra pagamento. Depois de pagar,
+      a secretaria confirma o recebimento e a situação muda para Pago.
+    </p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+  {% if cobranca %}<script src="{% static 'js/copiar-pix.js' %}"></script>{% endif %}
+{% endblock %}

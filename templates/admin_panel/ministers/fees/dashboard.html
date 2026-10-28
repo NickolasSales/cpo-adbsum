@@ -21,6 +21,7 @@ vencimento no passado. Isentas e canceladas ficam fora dos totais em reais.
     <a class="btn btn-outline-secondary btn-sm"
        href="{% url 'admin_panel:minister_fee_list' %}{% if competencia_chave %}?competencia={{ competencia_chave }}{% endif %}">Ver lista</a>
     <a class="btn btn-outline-secondary btn-sm" href="{% url 'admin_panel:minister_fee_create' %}">Nova mensalidade</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'admin_panel:minister_charges' %}">Cobranças</a>
     <a class="btn btn-primary btn-sm" href="{% url 'admin_panel:minister_fee_generate' %}">Gerar mensalidades</a>
   </div>
 </div>

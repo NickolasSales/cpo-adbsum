@@ -10,7 +10,10 @@ computador compartilhado nao pode mostra-los pelo botao voltar depois do
 logout.
 """
 
+import datetime
+
 from django.contrib import messages
+from django.http import Http404
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.decorators import method_decorator
@@ -21,9 +24,10 @@ from django.views.decorators.http import require_POST
 from django.views.generic import FormView, TemplateView
 
 from common.exceptions import DomainError
-from ministers import auth, services
+from ministers import auth, cobranca, guia, pix, services
 from ministers import mensalidades as financeiro
 from ministers.forms import LoginMinistroForm, TrocarSenhaMinistroForm
+from ministers.models import FeeSituation, MinisterMonthlyFee
 
 PREFIXO_DO_PORTAL = "/ministros/"
 
@@ -151,10 +155,89 @@ class MensalidadesMinistroView(MinistroRequiredMixin, TemplateView):
         contexto = super().get_context_data(**kwargs)
         consulta = financeiro.mensalidades_do_ministro(self.ministro)
         totais = financeiro.totais(consulta)
-        contexto["mensalidades"] = list(consulta)
+        contexto["mensalidades"] = list(cobranca.anotar_cobranca(consulta))
         contexto["totais"] = totais
         contexto["em_aberto"] = totais["pendente"] + totais["vencido"]
         return contexto
+
+
+SITUACOES_COBRAVEIS = (FeeSituation.PENDING, FeeSituation.OVERDUE)
+
+
+def _mensalidade_da_competencia(ministro, ano, mes):
+    """
+    A mensalidade do ministro DA SESSAO naquela competencia, ou 404.
+
+    O filtro e sempre minister=ministro: a URL so escolhe o mes. Mes que nao
+    existe, competencia que o ministro nao tem e competencia de outro
+    ministro dao o mesmo 404 — a resposta nao revela se alguem mais tem
+    mensalidade naquele mes.
+    """
+    try:
+        competencia = datetime.date(int(ano), int(mes), 1)
+    except ValueError:
+        raise Http404
+    mensalidade = (
+        MinisterMonthlyFee.objects.filter(minister=ministro, reference_month=competencia)
+        .only(*financeiro.COLUNAS_DO_PORTAL)
+        .first()
+    )
+    if mensalidade is None:
+        raise Http404
+    return mensalidade
+
+
+def _cobranca_para_pagar(mensalidade, situacao):
+    """A cobranca vigente, so se ainda houver o que pagar."""
+    if situacao not in SITUACOES_COBRAVEIS:
+        return None
+    return (
+        cobranca.vigentes()
+        .filter(fee=mensalidade)
+        .only("fee_id", "txid", "pix_payload", "payment_instructions_snapshot")
+        .first()
+    )
+
+
+class CobrancaMinistroView(MinistroRequiredMixin, TemplateView):
+    """
+    "Ver cobranca": /ministros/mensalidades/AAAA/MM/. Somente leitura.
+
+    Pendente ou vencida com cobranca: QR Code, Copia e Cola e guia. Paga,
+    isenta e cancelada: so a situacao, sem nada que convide a pagar. Abrir,
+    copiar e baixar nao mudam a situacao e nao gravam nada — nem cobranca:
+    a que nao existe continua nao existindo ate o administrador gerar.
+    """
+
+    template_name = "ministers/portal/cobranca.html"
+
+    def get_context_data(self, **kwargs):
+        contexto = super().get_context_data(**kwargs)
+        mensalidade = _mensalidade_da_competencia(self.ministro, kwargs["ano"], kwargs["mes"])
+        situacao = mensalidade.situacao
+        atual = _cobranca_para_pagar(mensalidade, situacao)
+        contexto.update(
+            {
+                "mensalidade": mensalidade,
+                "situacao": situacao,
+                "cobranca": atual,
+                "qr_svg": pix.svg_qr(atual.pix_payload) if atual else "",
+                "cobravel": situacao in SITUACOES_COBRAVEIS,
+            }
+        )
+        return contexto
+
+
+class GuiaMinistroView(MinistroRequiredMixin, View):
+    """A guia em PDF da competencia, gerada na hora a partir do snapshot."""
+
+    def get(self, request, ano, mes):
+        mensalidade = _mensalidade_da_competencia(self.ministro, ano, mes)
+        atual = _cobranca_para_pagar(mensalidade, mensalidade.situacao)
+        if atual is None:
+            raise Http404
+        # A guia le o snapshot inteiro, e nao so as colunas da tela.
+        return guia.resposta_da_guia(cobranca.vigentes().get(pk=atual.pk))
 
 
 class PerfilMinistroView(MinistroRequiredMixin, TemplateView):

@@ -1,4 +1,5 @@
 {% extends "admin_panel/base_admin.html" %}
+{% load financeiro %}
 
 {% comment %}
 Ficha da mensalidade. As acoes oferecidas dependem da situacao gravada —
@@ -45,6 +46,62 @@ ultima mudanca; a sequencia inteira, com antes e depois, esta nos eventos.
     <p class="small mt-2 mb-0">
       <a class="text-decoration-none" href="{% url 'admin_panel:minister_fee_list' %}?ministro={{ mensalidade.minister.pk }}">Todas as mensalidades deste ministro</a>
     </p>
+
+    {% comment %}
+    Cobranca Pix (Fase 2D). Os dados vem do snapshot: o que o ministro ve e
+    o que a guia imprime. Gerar e POST com CSRF; a mensalidade nao muda de
+    situacao.
+    {% endcomment %}
+    <h2 class="h6 mt-4 mb-2">Cobrança</h2>
+    <div class="cpo-cartao p-3">
+      <dl class="row small mb-0">
+        <dt class="col-5 text-body-secondary fw-normal">Cobrança gerada</dt>
+        <dd class="col-7 mb-2">{% if cobranca %}Sim{% else %}Não{% endif %}</dd>
+        {% if cobranca %}
+          <dt class="col-5 text-body-secondary fw-normal">TXID</dt>
+          <dd class="col-7 mb-2 font-monospace cpo-quebra">{{ cobranca.txid }}</dd>
+          <dt class="col-5 text-body-secondary fw-normal">Gerada em</dt>
+          <dd class="col-7 mb-2">{{ cobranca.generated_at|date:"d/m/Y H:i" }}{% if cobranca.generated_by %} &middot; {{ cobranca.generated_by.full_name }}{% endif %}</dd>
+          <dt class="col-5 text-body-secondary fw-normal">Valor cobrado</dt>
+          <dd class="col-7 mb-2">{{ cobranca.amount_snapshot|brl }} &middot; venc. {{ cobranca.due_date_snapshot|date:"d/m/Y" }}</dd>
+          <dt class="col-5 text-body-secondary fw-normal">Favorecido</dt>
+          <dd class="col-7 mb-2 cpo-quebra">{{ cobranca.pix_receiver_name_snapshot }} &middot; {{ cobranca.pix_receiver_city_snapshot }}</dd>
+        {% endif %}
+      </dl>
+
+      {% if cobranca %}
+        <details class="small mt-2">
+          <summary>Pix Copia e Cola</summary>
+          <code class="cpo-cobranca__codigo mt-2">{{ cobranca.pix_payload }}</code>
+        </details>
+        {% if guia_disponivel %}
+          <a class="btn btn-sm btn-outline-secondary mt-3" href="{% url 'admin_panel:minister_fee_guide' mensalidade.pk %}">Baixar guia PDF</a>
+        {% endif %}
+      {% elif pode_gerar_cobranca %}
+        {% if cobranca_pronta %}
+          <form method="post" action="{% url 'admin_panel:minister_fee_charge_generate' mensalidade.pk %}" class="mt-2">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-primary">Gerar cobrança</button>
+          </form>
+        {% else %}
+          <p class="small text-body-secondary mt-2 mb-0">
+            {{ cobranca_motivo }}
+            <a href="{% url 'admin_panel:minister_billing_settings' %}">Configuração de pagamento</a>.
+          </p>
+        {% endif %}
+      {% else %}
+        <p class="small text-body-secondary mt-2 mb-0">Só mensalidades pendentes recebem cobrança.</p>
+      {% endif %}
+
+      {% if cobrancas_substituidas %}
+        <p class="small text-body-secondary mt-3 mb-1">Cobranças substituídas (valor ou vencimento alterado):</p>
+        <ul class="small text-body-secondary mb-0 ps-3">
+          {% for antiga in cobrancas_substituidas %}
+            <li><span class="font-monospace">{{ antiga.txid }}</span> &middot; {{ antiga.amount_snapshot|brl }} &middot; até {{ antiga.superseded_at|date:"d/m/Y H:i" }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
   </div>
 
   <div class="col-12 col-lg-6">

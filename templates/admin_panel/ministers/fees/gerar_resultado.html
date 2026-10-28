@@ -28,6 +28,20 @@ pagina nao gera nada: ela so le o lote gravado.
   {% endif %}
 </div>
 
+{% if lote.created_count %}
+  {% if lote.charge_count %}
+    <p class="small mb-3">
+      Cobrança Pix gerada para {{ lote.charge_count }} mensalidade{{ lote.charge_count|pluralize }}: o ministro já vê o QR Code e a guia no portal.
+    </p>
+  {% else %}
+    <div class="alert alert-warning small" role="status">
+      As mensalidades foram criadas <strong>sem cobrança</strong>. Configure os dados de pagamento antes de gerar as cobranças:
+      <a class="alert-link" href="{% url 'admin_panel:minister_billing_settings' %}">configuração de pagamento</a>,
+      depois <a class="alert-link" href="{% url 'admin_panel:minister_charges' %}">Cobranças</a>.
+    </div>
+  {% endif %}
+{% endif %}
+
 <div class="row g-3 mb-3">
   <div class="col-6 col-lg-3">
     <div class="cpo-cartao cpo-indicador">

@@ -1,0 +1,100 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Configuracao de pagamento das mensalidades (Fase 2D). Somente ADMIN.
+
+A chave Pix nao e segredo (vai impressa em cada guia), mas so existe aqui:
+nem no codigo, nem em migration. Nenhum segredo de infraestrutura aparece
+nesta tela. Salvar vale para cobrancas NOVAS; as ja geradas guardaram os
+dados no proprio snapshot.
+{% endcomment %}
+
+{% block title %}Configuração de pagamento - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<div class="cpo-form-estreito">
+  <h1 class="h4 mb-1">Configuração de pagamento</h1>
+  <p class="text-body-secondary small mb-3">
+    Dados do Pix usados nas cobranças das mensalidades dos ministros.
+  </p>
+
+  {% if not configuracao %}
+    <div class="alert alert-warning small" role="alert">
+      <strong>Pagamento ainda não configurado.</strong>
+      Enquanto não houver configuração, as mensalidades são criadas sem cobrança e o
+      ministro não vê o Pix no portal.
+    </div>
+  {% elif not pronta %}
+    <div class="alert alert-warning small" role="alert">
+      <strong>Nenhuma cobrança nova está sendo gerada.</strong>
+      {% if not configuracao.is_active %}A cobrança por Pix está desativada.{% else %}Revise os dados abaixo.{% endif %}
+    </div>
+  {% endif %}
+
+  <div class="alert alert-info small" role="note">
+    Alterações valem só para as cobranças geradas <strong>depois</strong> de salvar.
+    {% if cobrancas_vigentes %}Cobranças já geradas ({{ cobrancas_vigentes }}) continuam com os dados de quando foram emitidas.{% endif %}
+  </div>
+
+  <div class="cpo-cartao p-3 p-md-4">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger small" role="alert">
+          <ul class="mb-0 ps-3">{% for erro in form.non_field_errors %}<li>{{ erro }}</li>{% endfor %}</ul>
+        </div>
+      {% endif %}
+
+      <div class="row g-3">
+        <div class="col-12 col-md-5">
+          <label class="form-label" for="{{ form.pix_key_type.id_for_label }}">{{ form.pix_key_type.label }}</label>
+          {{ form.pix_key_type }}
+          {% for erro in form.pix_key_type.errors %}<div class="text-danger small">{{ erro }}</div>{% endfor %}
+        </div>
+        <div class="col-12 col-md-7">
+          <label class="form-label" for="{{ form.pix_key.id_for_label }}">{{ form.pix_key.label }}</label>
+          {{ form.pix_key }}
+          {% for erro in form.pix_key.errors %}<div class="text-danger small">{{ erro }}</div>{% endfor %}
+        </div>
+        <div class="col-12 col-md-7">
+          <label class="form-label" for="{{ form.pix_receiver_name.id_for_label }}">{{ form.pix_receiver_name.label }}</label>
+          {{ form.pix_receiver_name }}
+          <div class="form-text">{{ form.pix_receiver_name.help_text }}</div>
+          {% for erro in form.pix_receiver_name.errors %}<div class="text-danger small">{{ erro }}</div>{% endfor %}
+        </div>
+        <div class="col-12 col-md-5">
+          <label class="form-label" for="{{ form.pix_receiver_city.id_for_label }}">{{ form.pix_receiver_city.label }}</label>
+          {{ form.pix_receiver_city }}
+          <div class="form-text">{{ form.pix_receiver_city.help_text }}</div>
+          {% for erro in form.pix_receiver_city.errors %}<div class="text-danger small">{{ erro }}</div>{% endfor %}
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="{{ form.payment_instructions.id_for_label }}">{{ form.payment_instructions.label }}</label>
+          {{ form.payment_instructions }}
+          <div class="form-text">{{ form.payment_instructions.help_text }}</div>
+          {% for erro in form.payment_instructions.errors %}<div class="text-danger small">{{ erro }}</div>{% endfor %}
+        </div>
+        <div class="col-12">
+          <div class="form-check">
+            {{ form.is_active }}
+            <label class="form-check-label" for="{{ form.is_active.id_for_label }}">{{ form.is_active.label }}</label>
+            <div class="form-text">{{ form.is_active.help_text }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex flex-wrap gap-2 mt-4">
+        <button type="submit" class="btn btn-primary">Salvar</button>
+        <a class="btn btn-outline-secondary" href="{% url 'admin_panel:minister_charges' %}">Cobranças</a>
+      </div>
+    </form>
+  </div>
+
+  {% if configuracao %}
+    <p class="small text-body-secondary mt-3 mb-0">
+      Última alteração em {{ configuracao.updated_at|date:"d/m/Y H:i" }}{% if atualizado_por %} por {{ atualizado_por }}{% endif %}.
+      O histórico completo fica nos Logs.
+    </p>
+  {% endif %}
+</div>
+{% endblock %}

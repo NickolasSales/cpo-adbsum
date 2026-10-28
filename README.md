@@ -2892,7 +2892,7 @@ lista vira cartões abaixo de 768px.
 
 ### Ainda não existe
 
-Mensalidades chegaram na Fase 2A (seção 9.22). Geração em massa na Fase 2B; consulta no portal do ministro na Fase 2C. Ainda faltam: Pix, guia em PDF, comprovantes, aprovação de
+Mensalidades chegaram na Fase 2A (seção 9.22). Geração em massa na Fase 2B; consulta no portal do ministro na Fase 2C; Pix e guia em PDF na Fase 2D (seção 9.23). Ainda faltam: comprovantes, aprovação de
 pagamento e relatórios financeiros. O menu não mostra esses itens até as
 telas existirem.
 
@@ -3069,9 +3069,171 @@ navegador recarrega e cai no login. Número de consultas fixo, qualquer que
 seja o tamanho do histórico; o índice da unicidade ministro + competência
 atende o filtro e a ordenação. Sem paginação: são ~12 linhas por ano.
 
-Ainda não há cobrança, PDF ou Pix (Fase 2D). A ação de cada mensalidade
-entra como uma última célula `cpo-acoes`, que no celular já vira o rodapé do
-cartão.
+Cada linha termina numa célula `cpo-acoes` que leva à competência —
+"Ver cobrança" ou "Ver detalhes" (seção 9.23).
+
+## 9.23 Cobrança Pix das mensalidades (Fase 2D)
+
+Fluxo de cobrança: Pix Copia e Cola, QR Code e guia em PDF, gerados a partir
+da mensalidade que já existe. Upload e análise de comprovante, conciliação,
+Pix API, e-mail e WhatsApp automáticos ficam para a Fase 2E.
+
+```
+Minister + MinisterMonthlyFee + MinisterBillingSettings
+                    │  gerar_cobranca()  (snapshot)
+                    ▼
+            MinisterFeeCharge
+            ├─ pix_payload  ──► Copia e Cola (tela)
+            │               └─► QR Code (SVG na tela, vetor no PDF)
+            └─ *_snapshot   ──► guia em PDF (gerada na hora, nunca gravada)
+```
+
+### Configuração de pagamento
+
+`/admin-panel/ministros/configuracoes/pagamento/` (menu Ministros →
+Configurações), somente ADMIN, POST com CSRF. Uma linha só
+(`MinisterBillingSettings`, id 1): tipo e chave Pix, favorecido, cidade,
+orientações (até 300 caracteres) e "cobrança por Pix ativa".
+
+- A chave Pix não é segredo — vai impressa em cada guia —, mas **não existe
+  no código, no Git nem em migration**: quem informa é o administrador.
+- Validação por tipo: CPF e CNPJ com dígito verificador (inclusive o CNPJ
+  alfanumérico de 2026), e-mail, telefone (+55) e chave aleatória (UUID).
+- Favorecido até 25 caracteres e cidade até 15, sem acento e em maiúsculas,
+  como o BR Code exige. Nome longo é **recusado** com mensagem, nunca
+  cortado em silêncio. O último teste é montar um payload real com os dados.
+- Cada alteração vira `MINISTER_BILLING_SETTINGS_UPDATED`, com antes e
+  depois de cada campo.
+- **Vale para cobranças novas.** As já geradas copiaram os dados.
+
+### Pix Copia e Cola (`ministers/pix.py`)
+
+Implementação própria, pequena e testada, sem dependência nova: BR Code
+estático (EMV QRCPS-MPM, perfil do Banco Central), campos TLV
+`00 26(00 01 02) 52 53 54 58 59 60 62(05) 63`, valor com ponto e duas casas
+(`35.00`, nunca `35,00`), CRC-16/CCITT-FALSE (polinômio 0x1021, início
+0xFFFF). Os testes conferem o CRC com o valor de verificação do algoritmo
+(`29B1`) e com o exemplo do manual do BR Code (`1D3D`), e cada payload gerado
+é relido e conferido antes de ser gravado. A descrição (`26-02`,
+"MENSALIDADE 10 2026") só entra se couber nos 99 caracteres do campo 26.
+
+O payload da guia antiga **não** é reaproveitado: cada cobrança monta o seu,
+com chave, favorecido, cidade, o valor da mensalidade e o próprio TXID.
+
+**TXID**: `CPO` + `AAAAMM` + 10 caracteres aleatórios (`CPO202610K7Q2M9XW4B`),
+19 dos 25 permitidos, só A-Z e 0-9. Nem sequencial nem derivado de id, nome,
+CPF ou e-mail; único no banco; nunca recalculado.
+
+**QR Code**: desenhado a partir do `pix_payload` gravado, e só dele — nenhuma
+URL, id ou sessão. Na tela é um SVG (um `<path>`), no PDF são retângulos
+vetoriais. Nenhum arquivo de imagem é gravado.
+
+### Snapshot (`MinisterFeeCharge`)
+
+Gravado uma vez, nunca alterado (`save()` recusa atualização, `delete()`
+recusa exclusão). Congela: competência, valor, vencimento, chave, favorecido,
+cidade, orientações, nome do ministro, matrícula do campo, inscrição CONAMAD,
+congregação, cargo, o payload pronto, quando e por quem foi gerada.
+
+- Configuração nova, cadastro do ministro alterado, valor padrão novo: nada
+  disso muda a cobrança já gerada. A guia de Outubro reconstruída daqui a um
+  ano é **a mesma guia** — o PDF sai byte a byte igual (ReportLab
+  `invariant`).
+- Idempotente: gerar de novo devolve a existente. A linha da mensalidade fica
+  travada (`select_for_update`) e o banco aceita uma cobrança vigente por
+  mensalidade (constraint parcial). Testado com duas gerações simultâneas.
+- **Única exceção**: o administrador altera valor ou vencimento de uma
+  mensalidade pendente. A cobrança vigente passa a substituída
+  (`superseded_at`; mesmo TXID, continua no banco e aparece na ficha) e nasce
+  outra com o valor novo, na mesma transação, registrada no
+  `MINISTER_FEE_UPDATED`. Sem isso, um valor digitado errado no lote ficaria
+  impresso em todas as guias, sem conserto.
+
+### Quando a cobrança é gerada
+
+| Caminho | Como |
+|---|---|
+| Geração em massa (2B) | junto das mensalidades, na mesma transação; o lote guarda `charge_count` |
+| Cadastro manual | logo depois de criar |
+| Ficha da mensalidade | botão "Gerar cobrança" (POST) |
+| `/admin-panel/ministros/mensalidades/cobrancas/` | resumo somente leitura + "Gerar N cobranças" com confirmação (POST) |
+
+Só mensalidade **pendente ou vencida** com valor > 0 recebe cobrança. Paga,
+isenta e cancelada nunca — inclusive a paga antiga sem cobrança: não há o
+que pagar. Gerar cobrança **não muda a situação** da mensalidade.
+
+Sem configuração pronta (ausente, inválida ou desativada) a mensalidade é
+criada mesmo assim — ela existe sem cobrança desde a 2A —, nenhuma cobrança
+nasce pela metade e as telas dizem "Configure os dados de pagamento antes de
+gerar as cobranças.". O portal mostra "Cobrança ainda não disponível".
+
+**Lote = tudo ou nada.** "Gerar cobranças pendentes" roda numa transação só,
+com advisory lock próprio: se uma cobrança falhar, nenhuma fica gravada. Um
+evento consolidado (`MINISTER_BILLING_BATCH_GENERATED`, com contagens por
+competência), não um por cobrança; a geração individual registra
+`MINISTER_BILLING_GENERATED` na ficha. Consultas fixas, qualquer que seja o
+número de mensalidades (um INSERT para todas).
+
+**Migration não gera Pix.** As mensalidades criadas antes desta fase ficam
+sem cobrança até o administrador configurar o pagamento e usar a tela de
+cobranças, que mostra antes quantas são elegíveis, quantas já têm cobrança e
+quantas há em cada situação.
+
+### Portal
+
+| Rota | O que é |
+|---|---|
+| `/ministros/mensalidades/` | lista; cada linha com "Ver cobrança" ou "Ver detalhes" |
+| `/ministros/mensalidades/AAAA/MM/` | a cobrança daquela competência |
+| `/ministros/mensalidades/AAAA/MM/guia.pdf` | a guia em PDF |
+
+A URL escolhe só o mês; o ministro vem sempre da sessão. Competência que não
+existe, mês inválido e competência de outro ministro dão o mesmo 404. Não há
+rota com id. Só GET: POST, PUT e DELETE dão 405. Abrir, copiar e baixar
+**não gravam nada** — nem cobrança, nem evento.
+
+| Situação | Tela |
+|---|---|
+| Pendente | QR, "Copiar Pix", Copia e Cola, "Baixar guia PDF" |
+| Vencido | o mesmo, com aviso de vencida |
+| Pago | "Mensalidade paga", data e forma; sem Pix, sem guia (404) |
+| Isento | "Mensalidade isenta — nenhum pagamento é necessário." |
+| Cancelado | "Mensalidade cancelada" |
+
+"Copiar Pix" usa a Clipboard API (`static/js/copiar-pix.js`, sem
+biblioteca); sem ela, tenta o `execCommand` antigo e, se nada funcionar,
+deixa o código selecionado. O código também se seleciona inteiro com um
+toque (`user-select: all`) e quebra em qualquer ponto
+(`overflow-wrap: anywhere`), sem rolagem horizontal.
+
+**Nada disso é pagamento.** Copiar o Pix, abrir a cobrança e baixar a guia
+não mudam a situação; quem registra o pagamento continua sendo a secretaria
+(2A). Comprovante entra na 2E.
+
+Cache: telas e PDF saem com `no-store, no-cache, must-revalidate, private,
+max-age=0`; depois do logout, o voltar do navegador cai no login.
+
+### Guia em PDF (`ministers/guia.py`)
+
+ReportLab (já no projeto; renderer próprio, independente do certificado),
+uma página carta, gerada na hora a partir do snapshot — nunca gravada. Segue
+a guia que a secretaria usava: cabeçalho e rodapé do papel timbrado
+(`static/branding/guia-cabecalho.png` e `guia-rodape.png`, recortados do
+timbrado original; para mudar endereço ou diretoria, troque os arquivos),
+título, referência, nome, matrículas, congregação, cargo, faixa do valor —
+agora com o **vencimento** —, QR, Copia e Cola e orientações. Nome longo
+encolhe; orientações longas encolhem o QR até um mínimo; nada empurra para
+uma segunda página. Arquivo `mensalidade-outubro-2026.pdf`, sem nome de
+pessoa. Sem administrador, lote, ids, observações ou referência interna. A
+administração baixa a mesma guia pela ficha.
+
+### Configuração real em produção
+
+Feita conscientemente pelo responsável, pela tela, depois do deploy. Os
+dados da guia antiga não são copiados automaticamente: o favorecido dela
+estava cortado em 25 caracteres e a cidade era "BRASILIA". Só depois de
+configurado, a tela de cobranças mostra a prévia — e nada é gerado sem a
+confirmação dela.
 
 ---
 

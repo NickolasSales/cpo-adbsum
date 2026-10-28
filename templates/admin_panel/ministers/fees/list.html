@@ -85,6 +85,7 @@ Lista de mensalidades. Tabela no desktop, cartoes abaixo de 768px
           <th>Vencimento</th>
           <th>Situação</th>
           <th class="d-none d-xl-table-cell">Pagamento</th>
+          <th>Cobrança</th>
           <th class="text-end cpo-acoes">Ações</th>
         </tr>
       </thead>
@@ -111,6 +112,7 @@ Lista de mensalidades. Tabela no desktop, cartoes abaixo de 768px
             <td class="d-none d-xl-table-cell small text-nowrap" data-rotulo="Pagamento">
               {% if m.paid_at %}{{ m.paid_at|date:"d/m/Y" }} &middot; {{ m.get_payment_method_display }}{% else %}-{% endif %}
             </td>
+            <td class="small text-nowrap" data-rotulo="Cobrança">{% if m.tem_cobranca %}Sim{% else %}<span class="text-body-secondary">Não</span>{% endif %}</td>
             <td class="text-end cpo-acoes">
               <div class="d-flex gap-1 justify-content-end flex-wrap">
                 <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_panel:minister_fee_detail' m.pk %}">Abrir</a>
@@ -123,7 +125,7 @@ Lista de mensalidades. Tabela no desktop, cartoes abaixo de 768px
           {% endwith %}
         {% empty %}
           <tr>
-            <td colspan="8" class="text-center text-body-secondary py-5 cpo-celula-vazia">
+            <td colspan="9" class="text-center text-body-secondary py-5 cpo-celula-vazia">
               {% if tem_filtro %}Nenhuma mensalidade com esses filtros.{% else %}Nenhuma mensalidade cadastrada ainda.{% endif %}
             </td>
           </tr>

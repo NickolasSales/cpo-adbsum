@@ -36,6 +36,7 @@ from audit.models import AuditEvent
 from audit.services import record
 from common.exceptions import DomainError
 from common.texto import validar_motivo
+from ministers import cobranca
 from ministers.models import (
     FeeSituation,
     Minister,
@@ -357,6 +358,18 @@ def update_fee(mensalidade, *, due_date, amount, notes, actor=None, request=None
         for campo in alterados:
             setattr(atual, campo, novas[campo])
         atual.save(update_fields=alterados + ["updated_at"])
+
+        # Valor e vencimento estao impressos na cobranca. Se ela ja existe,
+        # vira historico e da lugar a uma nova (Fase 2D) — na mesma
+        # transacao, para nunca existir cobranca com o valor antigo ao lado
+        # da mensalidade com o valor novo.
+        extra = {}
+        if {"amount", "due_date"} & set(alterados):
+            substituida, nova = cobranca.substituir_por_alteracao(atual, actor=actor)
+            if substituida is not None:
+                extra["cobranca_substituida"] = substituida.txid
+                extra["cobranca_nova"] = nova.txid if nova is not None else ""
+
         _auditar(
             AuditEvent.MINISTER_FEE_UPDATED,
             atual,
@@ -365,6 +378,7 @@ def update_fee(mensalidade, *, due_date, amount, notes, actor=None, request=None
             changed_fields=alterados,
             antes=antes,
             depois=_retrato(atual, alterados),
+            **extra,
         )
     return atual
 

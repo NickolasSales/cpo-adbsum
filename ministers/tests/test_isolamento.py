@@ -133,12 +133,35 @@ def test_mensalidades_nao_alteram_o_cpo(tentativa, admin_user, ministro):
 def test_mensalidade_nao_aponta_para_o_cpo():
     from ministers.models import MinisterMonthlyFee
 
+    from ministers.models import MinisterFeeCharge
+
     relacionados = {
         campo.related_model
         for campo in MinisterMonthlyFee._meta.get_fields()
         if campo.is_relation and campo.related_model is not None
     }
-    assert relacionados == {Minister}
+    # Fase 2D: a cobranca (MinisterFeeCharge.fee) aparece como relacao
+    # reversa. Continua tudo dentro do dominio de ministros.
+    assert relacionados == {Minister, MinisterFeeCharge}
+
+
+def test_cobranca_so_aponta_para_ministros_e_para_o_administrador():
+    from django.contrib.auth import get_user_model
+
+    from ministers.models import MinisterBillingSettings, MinisterFeeCharge, MinisterMonthlyFee
+
+    for modelo, esperados in (
+        (MinisterFeeCharge, {MinisterMonthlyFee, get_user_model()}),
+        (MinisterBillingSettings, {get_user_model()}),
+    ):
+        relacionados = {
+            campo.related_model
+            for campo in modelo._meta.get_fields()
+            if campo.is_relation and campo.related_model is not None
+        }
+        # O User e so o administrador que agiu (generated_by / updated_by),
+        # como em MinisterFeeBatch.created_by — nunca um aluno ou dado academico.
+        assert relacionados == esperados, modelo
 
 
 def test_geracao_em_massa_nao_altera_o_cpo(tentativa, admin_user, ministro):
@@ -166,4 +189,37 @@ def test_portal_financeiro_nao_altera_o_cpo(tentativa, client):
     entrar_no_portal(client)
     assert client.get("/ministros/").status_code == 200
     assert client.get("/ministros/mensalidades/").status_code == 200
+    assert retrato_do_cpo() == antes
+
+
+def test_cobranca_pix_nao_altera_o_cpo(tentativa, client, admin_user):
+    """Configurar o Pix, gerar cobranca, abrir a cobranca e baixar a guia."""
+    import datetime
+
+    from django.test import Client
+
+    from ministers import cobranca, mensalidades
+    from ministers.tests.conftest import PIX_DE_TESTE
+
+    antes = retrato_do_cpo()
+
+    cobranca.salvar_configuracao(dict(PIX_DE_TESTE), actor=admin_user)
+    ministro = services.create_minister(dados=dados_de_ministro(), password=SENHA_MINISTRO)
+    outubro = mensalidades.create_fee(
+        minister=ministro, reference_month="2026-10", due_date=datetime.date(2026, 10, 31), amount="35.00"
+    )
+    mensalidades.create_fee(
+        minister=ministro, reference_month="2026-11", due_date=datetime.date(2026, 11, 30), amount="35.00"
+    )
+    cobranca.gerar_cobranca(outubro, actor=admin_user)
+    cobranca.gerar_cobrancas_pendentes(actor=admin_user)
+
+    entrar_no_portal(client)
+    for url in ("/ministros/mensalidades/2026/10/", "/ministros/mensalidades/2026/10/guia.pdf"):
+        assert client.get(url).status_code == 200
+
+    admin = Client()
+    admin.force_login(admin_user)
+    assert admin.get("/admin-panel/ministros/mensalidades/{}/guia.pdf".format(outubro.pk)).status_code == 200
+
     assert retrato_do_cpo() == antes

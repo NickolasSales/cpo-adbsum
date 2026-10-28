@@ -6,9 +6,10 @@ Mensalidades do ministro logado. Somente leitura: nenhuma acao, nenhum
 dado interno (observacoes, motivos, referencia, quem registrou). A view so
 carrega as colunas que aparecem aqui.
 
-Tabela no desktop, cartoes abaixo de 768px (cpo-lista--cartoes). A cobranca
-de cada mensalidade (Fase 2D) entra como uma ultima celula cpo-acoes por
-linha, que no celular ja vira o rodape do cartao.
+Tabela no desktop, cartoes abaixo de 768px (cpo-lista--cartoes). A ultima
+celula (cpo-acoes) leva a competencia: "Ver cobranca" quando ha Pix para
+pagar (pendente ou vencida, com cobranca gerada), "Ver detalhes" no resto.
+A URL e a competencia (/ministros/mensalidades/2026/10/), nunca um id.
 {% endcomment %}
 
 {% block title %}Mensalidades - Portal do Ministro{% endblock %}
@@ -81,6 +82,7 @@ linha, que no celular ja vira o rodape do cartao.
             <th class="text-end">Valor</th>
             <th>Situação</th>
             <th>Pagamento</th>
+            <th class="text-end cpo-acoes"><span class="visually-hidden">Ações</span></th>
           </tr>
         </thead>
         <tbody>
@@ -97,6 +99,14 @@ linha, que no celular ja vira o rodape do cartao.
                 {# Sem pagamento, o cartao do celular nao ganha uma linha so com um traco. #}
                 <td class="small d-none d-md-table-cell text-body-secondary" data-rotulo="Pagamento">&mdash;</td>
               {% endif %}
+              <td class="text-end cpo-acoes">
+                {% url 'ministers:fee_charge' ano=m.reference_month|date:'Y' mes=m.reference_month|date:'m' as url_da_competencia %}
+                {% if m.tem_cobranca and situacao == "PENDING" or m.tem_cobranca and situacao == "OVERDUE" %}
+                  <a class="btn btn-sm btn-primary text-nowrap" href="{{ url_da_competencia }}">Ver cobrança</a>
+                {% else %}
+                  <a class="btn btn-sm btn-outline-secondary text-nowrap" href="{{ url_da_competencia }}">Ver detalhes</a>
+                {% endif %}
+              </td>
             </tr>
             {% endwith %}
           {% endfor %}

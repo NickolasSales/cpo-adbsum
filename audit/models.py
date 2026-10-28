@@ -301,6 +301,30 @@ class AuditEvent(models.TextChoices):
         "Mensalidades geradas em massa",
     )
 
+    # Cobranca Pix (Ministros, Fase 2D)
+    #
+    # So operacoes administrativas. Abrir a cobranca, copiar o Pix e baixar a
+    # guia nao geram evento: nenhum deles muda nada, e um evento por clique
+    # afogaria a trilha. A configuracao registra antes e depois de cada campo
+    # alterado — a chave Pix nao e segredo, e e justamente o que precisa de
+    # prova quando muda.
+    #
+    # MINISTER_BILLING_GENERATED e por mensalidade (entidade
+    # MinisterMonthlyFee, aparece na ficha). A geracao em lote grava UM evento
+    # consolidado, com as contagens, e nao um por cobranca.
+    MINISTER_BILLING_SETTINGS_UPDATED = (
+        "MINISTER_BILLING_SETTINGS_UPDATED",
+        "Configuração de pagamento alterada",
+    )
+    MINISTER_BILLING_GENERATED = (
+        "MINISTER_BILLING_GENERATED",
+        "Cobrança de mensalidade gerada",
+    )
+    MINISTER_BILLING_BATCH_GENERATED = (
+        "MINISTER_BILLING_BATCH_GENERATED",
+        "Cobranças de mensalidades geradas em lote",
+    )
+
 
 class AuditLog(models.Model):
     """

@@ -55,6 +55,7 @@ from django.db.models import Count
 from audit.models import AuditEvent
 from audit.services import record
 from common.exceptions import DomainError
+from ministers import cobranca
 from ministers.mensalidades import _valor, _vencimento, competencia_de_texto
 from ministers.models import (
     Minister,
@@ -258,16 +259,24 @@ def gerar(parametros, *, token, actor=None, request=None):
                     },
                 )
 
+            # Cobrancas na mesma transacao (Fase 2D): se uma falhar, o lote
+            # inteiro volta. Sem configuracao pronta, zero — as mensalidades
+            # nascem sem cobranca e a acao "Gerar cobrancas pendentes" cuida
+            # delas depois.
+            cobrancas = cobranca.gerar_para_novas(criadas, actor=actor)
+
             lote.created_count = len(criadas)
             lote.existing_count = analise.existentes
             lote.inactive_count = analise.inativos
             lote.total_amount = parametros.valor * len(criadas)
+            lote.charge_count = cobrancas
             lote.save(
                 update_fields=[
                     "created_count",
                     "existing_count",
                     "inactive_count",
                     "total_amount",
+                    "charge_count",
                 ]
             )
 
@@ -285,6 +294,7 @@ def gerar(parametros, *, token, actor=None, request=None):
                     "existentes": lote.existing_count,
                     "inativos_ignorados": lote.inactive_count,
                     "total_criado": str(lote.total_amount),
+                    "cobrancas_geradas": lote.charge_count,
                 },
             )
     except IntegrityError:

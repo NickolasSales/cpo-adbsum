@@ -3,7 +3,7 @@ Mensalidades no painel administrativo: /admin-panel/ministros/mensalidades/*.
 
 Somente ADMIN, pelo mesmo PainelAdminMixin do resto do painel. Ministro (que
 nao e User) chega aqui como anonimo e vai para o login do CPO; aluno recebe
-403. O portal do ministro nao tem rota financeira nesta fase.
+403. A cobranca Pix (Fase 2D) fica em views_cobranca.
 
 Toda escrita e POST com CSRF e passa por ministers.mensalidades.
 """
@@ -18,6 +18,7 @@ from django.views.generic import FormView, ListView, TemplateView
 from audit.models import AuditLog
 from common.exceptions import DomainError
 from common.views import PainelAdminMixin
+from ministers import cobranca
 from ministers import mensalidades as servico
 from ministers.forms_mensalidades import (
     CorrecaoPagamentoForm,
@@ -35,6 +36,7 @@ from ministers.models import (
 )
 from ministers.templatetags.financeiro import brl
 from ministers.services import congregacoes_cadastradas
+from ministers.views_cobranca import cobranca_da_ficha
 
 SECAO = "mensalidades"
 
@@ -188,6 +190,7 @@ class FeeListView(PainelAdminMixin, ListView):
         if f["ministro"].isdigit():
             consulta = consulta.filter(minister_id=int(f["ministro"]))
 
+        consulta = cobranca.anotar_cobranca(consulta)
         return consulta.order_by("-reference_month", "minister__full_name", "id")
 
     def get_context_data(self, **kwargs):
@@ -218,6 +221,7 @@ class FeeDetailView(PainelAdminMixin, TemplateView):
         mensalidade = get_object_or_404(servico.mensalidades_queryset(), pk=kwargs["pk"])
         contexto["mensalidade"] = mensalidade
         contexto["situacao"] = mensalidade.situacao
+        contexto.update(cobranca_da_ficha(mensalidade))
         eventos = list(
             AuditLog.objects.filter(entity_type="MinisterMonthlyFee", entity_id=str(mensalidade.pk))
             .select_related("actor")
@@ -284,6 +288,15 @@ class FeeCreateView(PainelAdminMixin, FormView):
                 mensalidade.competencia_rotulo, mensalidade.minister.full_name
             ),
         )
+        # Fase 2D: com o pagamento configurado, a cobranca nasce junto. Sem
+        # ele, a mensalidade existe sem cobranca e a ficha oferece a acao.
+        if cobranca.configuracao_pronta() is not None:
+            try:
+                cobranca.gerar_cobranca(mensalidade, actor=self.request.user, request=self.request)
+            except DomainError as erro:
+                messages.warning(self.request, str(erro))
+        else:
+            messages.warning(self.request, cobranca.motivo_sem_configuracao())
         return redirect("admin_panel:minister_fee_detail", pk=mensalidade.pk)
 
 
