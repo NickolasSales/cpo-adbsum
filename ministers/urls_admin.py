@@ -8,6 +8,7 @@ app do CPO. Todas abaixo de /admin-panel/ministros/.
 from django.urls import path
 
 from ministers import views_admin as views
+from ministers import views_mensalidades as fees
 
 urlpatterns = [
     path("ministros/", views.MinisterDashboardView.as_view(), name="minister_dashboard"),
@@ -52,5 +53,45 @@ urlpatterns = [
         "ministros/<int:pk>/acesso/resetar-senha/",
         views.MinisterPasswordResetView.as_view(),
         name="minister_password_reset",
+    ),
+    # Mensalidades (Fase 2A)
+    path("ministros/mensalidades/", fees.FeeDashboardView.as_view(), name="minister_fee_dashboard"),
+    path("ministros/mensalidades/lista/", fees.FeeListView.as_view(), name="minister_fee_list"),
+    path("ministros/mensalidades/nova/", fees.FeeCreateView.as_view(), name="minister_fee_create"),
+    path("ministros/mensalidades/<int:pk>/", fees.FeeDetailView.as_view(), name="minister_fee_detail"),
+    path(
+        "ministros/mensalidades/<int:pk>/editar/",
+        fees.FeeUpdateView.as_view(),
+        name="minister_fee_update",
+    ),
+    path(
+        "ministros/mensalidades/<int:pk>/pagamento/",
+        fees.FeePaymentView.as_view(),
+        name="minister_fee_payment",
+    ),
+    path(
+        "ministros/mensalidades/<int:pk>/pagamento/corrigir/",
+        fees.FeePaymentCorrectView.as_view(),
+        name="minister_fee_payment_correct",
+    ),
+    path(
+        "ministros/mensalidades/<int:pk>/pagamento/estornar/",
+        fees.FeePaymentReverseView.as_view(),
+        name="minister_fee_payment_reverse",
+    ),
+    path(
+        "ministros/mensalidades/<int:pk>/cancelar/",
+        fees.FeeCancelView.as_view(),
+        name="minister_fee_cancel",
+    ),
+    path(
+        "ministros/mensalidades/<int:pk>/isentar/",
+        fees.FeeExemptView.as_view(),
+        name="minister_fee_exempt",
+    ),
+    path(
+        "ministros/mensalidades/<int:pk>/reativar/",
+        fees.FeeReactivateView.as_view(),
+        name="minister_fee_reactivate",
     ),
 ]

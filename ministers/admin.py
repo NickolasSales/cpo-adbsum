@@ -8,7 +8,7 @@ hash da senha nao tem por que aparecer num formulario.
 
 from django.contrib import admin
 
-from ministers.models import Minister, MinisterAccount
+from ministers.models import Minister, MinisterAccount, MinisterMonthlyFee
 
 
 class SomenteLeitura(admin.ModelAdmin):
@@ -50,3 +50,11 @@ class MinisterAccountAdmin(SomenteLeitura):
 
     def get_readonly_fields(self, request, obj=None):
         return [c for c in super().get_readonly_fields(request, obj) if c != "password_hash"]
+
+
+@admin.register(MinisterMonthlyFee)
+class MinisterMonthlyFeeAdmin(SomenteLeitura):
+    list_display = ("minister", "reference_month", "due_date", "amount", "status", "paid_at")
+    list_filter = ("status", "reference_month", "payment_method")
+    search_fields = ("minister__full_name", "minister__conamad_registration")
+    list_select_related = ("minister",)

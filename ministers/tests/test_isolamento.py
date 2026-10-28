@@ -107,3 +107,35 @@ def test_migration_de_ministros_nao_depende_do_cpo():
             continue
         for dependencia, _ in migracao.dependencies:
             assert dependencia not in APPS_ACADEMICAS
+
+
+def test_mensalidades_nao_alteram_o_cpo(tentativa, admin_user, ministro):
+    import datetime
+
+    from ministers import mensalidades
+
+    antes = retrato_do_cpo()
+    m = mensalidades.create_fee(
+        minister=ministro,
+        reference_month="2026-10",
+        due_date=datetime.date(2026, 10, 10),
+        amount="35.00",
+        actor=admin_user,
+    )
+    mensalidades.register_payment(
+        m, paid_at=datetime.date(2026, 10, 1), payment_method="PIX", actor=admin_user
+    )
+    mensalidades.reverse_payment(m, reason="teste", actor=admin_user)
+    mensalidades.cancel_fee(m, reason="teste", actor=admin_user)
+    assert retrato_do_cpo() == antes
+
+
+def test_mensalidade_nao_aponta_para_o_cpo():
+    from ministers.models import MinisterMonthlyFee
+
+    relacionados = {
+        campo.related_model
+        for campo in MinisterMonthlyFee._meta.get_fields()
+        if campo.is_relation and campo.related_model is not None
+    }
+    assert relacionados == {Minister}

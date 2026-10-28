@@ -2892,9 +2892,90 @@ lista vira cartões abaixo de 768px.
 
 ### Ainda não existe
 
-Mensalidades, competências, Pix, guia em PDF, comprovantes, aprovação de
+Mensalidades chegaram na Fase 2A (seção 9.22). Ainda faltam: geração em massa, Pix, guia em PDF, comprovantes, aprovação de
 pagamento e relatórios financeiros. O menu não mostra esses itens até as
 telas existirem.
+
+---
+
+## 9.22 Mensalidades de ministros (Fase 2A)
+
+Núcleo financeiro do Controle de Ministros. Extensão do app `ministers`; não
+toca no CPO acadêmico. Sem PDF, sem geração em massa e sem tela no portal do
+ministro nesta fase.
+
+### Modelo `MinisterMonthlyFee`
+
+| Campo | Decisão |
+|---|---|
+| `minister` | FK com `PROTECT`; ministro continua sem exclusão |
+| `reference_month` | competência gravada como **data no dia 1** (`2026-10-01` = 10/2026). Constraint garante o dia 1 |
+| `due_date` | vencimento |
+| `amount` | `Decimal(10,2)`, nunca float; constraint `> 0`. Cada mensalidade guarda o seu valor; não há valor padrão no código |
+| `status` | gravado: `PENDING`, `PAID`, `EXEMPT`, `CANCELLED` |
+| `paid_at`, `payment_method`, `payment_reference` | dados do pagamento. Constraint: pago **tem** data e forma; o que não é pago **não tem** nenhum dos três |
+| `status_reason` | motivo da última mudança de situação |
+| `notes` | observações |
+
+**Uma mensalidade por ministro + competência** (`UniqueConstraint`). Uma
+cancelada continua ocupando a competência: reativa-se em vez de criar outra.
+
+Competência entra de fora **só** como `AAAA-MM` (`<input type="month">`, filtro,
+URL). "Outubro", "Out/26" e "10-2026" são recusados.
+
+### "Vencido" é calculado
+
+`Vencido` não é gravado: é pendente com vencimento antes de hoje. Gravar
+exigiria um processo diário trocando a situação, e no dia em que ele falhasse
+o painel mostraria em dia quem está atrasado. Calculado na leitura, nunca fica
+desatualizado — e uma mensalidade **paga nunca aparece vencida**, porque só
+pendente vence. O filtro "Vencido" vira `status=PENDING AND due_date < hoje`.
+
+### Transições
+
+| Ação | De → para | Motivo |
+|---|---|---|
+| criar | — → Pendente | — |
+| editar valor/vencimento/obs. | Pendente → Pendente | — |
+| registrar pagamento | Pendente (inclusive vencida) → Pago | — |
+| corrigir pagamento | Pago → Pago | obrigatório |
+| estornar pagamento | Pago → Pendente | obrigatório |
+| cancelar | Pendente → Cancelado | obrigatório |
+| isentar | Pendente → Isento | obrigatório |
+| reativar | Cancelado/Isento → Pendente | obrigatório |
+
+Paga não é editada, cancelada nem isentada direto: primeiro o estorno, com
+motivo. Cada transição trava a linha (`select_for_update`) e confere a
+situação dentro da transação — dois cliques simultâneos geram um registro e
+uma recusa. Nada é excluído (`delete()` recusa).
+
+**Ministro inativo** não recebe mensalidade sem confirmação explícita: o
+serviço recusa, e o cadastro manual exige marcar "confirmo a mensalidade para
+ministro inativo". As mensalidades antigas de quem é inativado ficam como
+estão.
+
+### Auditoria
+
+`MINISTER_FEE_CREATED`, `_UPDATED`, `_PAYMENT_REGISTERED`,
+`_PAYMENT_UPDATED`, `_PAYMENT_REVERSED`, `_CANCELLED`, `_EXEMPTED`,
+`_REACTIVATED`. Entidade `MinisterMonthlyFee`; metadata com `minister_id`,
+`competencia`, os valores **antes e depois** e o motivo. Exceção deliberada à
+regra "só nomes de campos" do cadastro: aqui o valor é o fato financeiro que a
+trilha existe para provar. A ficha da mensalidade mostra esse histórico.
+
+### Telas — somente ADMIN
+
+| URL | O que faz |
+|---|---|
+| `/admin-panel/ministros/mensalidades/` | dashboard por competência: previsto, recebido, pendente, vencido e contagens |
+| `/admin-panel/ministros/mensalidades/lista/` | lista com competência, situação, congregação, ministro e busca por nome/CONAMAD/matrícula; paginada |
+| `/admin-panel/ministros/mensalidades/nova/` | cadastro manual (`?ministro=<id>` sugere o último valor dele) |
+| `/admin-panel/ministros/mensalidades/<id>/` | ficha e histórico |
+| `…/<id>/editar/`, `pagamento/`, `pagamento/corrigir/`, `pagamento/estornar/`, `cancelar/`, `isentar/`, `reativar/` | ações (POST com CSRF) |
+
+"Previsto" soma pendentes, vencidas e pagas; isentas e canceladas ficam fora
+dos valores. Ministro recebe redirecionamento para o login do CPO; aluno, 403.
+O portal do ministro ainda não tem rota financeira.
 
 ---
 

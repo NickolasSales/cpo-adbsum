@@ -1,0 +1,6 @@
+{% comment %}Etiqueta da situacao exibida. Recebe `situacao` (FeeSituation).{% endcomment %}
+{% if situacao == "PAID" %}<span class="cpo-badge cpo-badge--ok">Pago</span>
+{% elif situacao == "OVERDUE" %}<span class="cpo-badge cpo-badge--erro">Vencido</span>
+{% elif situacao == "PENDING" %}<span class="cpo-badge cpo-badge--alerta">Pendente</span>
+{% elif situacao == "EXEMPT" %}<span class="cpo-badge cpo-badge--info">Isento</span>
+{% else %}<span class="cpo-badge cpo-badge--neutro">Cancelado</span>{% endif %}

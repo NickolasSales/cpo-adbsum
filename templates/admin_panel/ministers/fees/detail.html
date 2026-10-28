@@ -1,0 +1,83 @@
+{% extends "admin_panel/base_admin.html" %}
+
+{% comment %}
+Ficha da mensalidade. As acoes oferecidas dependem da situacao gravada —
+o servico confere de novo, dentro da transacao, entao um botao que nao
+deveria estar aqui seria recusado mesmo assim.
+
+O historico vem da trilha de auditoria: a mensalidade guarda so o motivo da
+ultima mudanca; a sequencia inteira, com antes e depois, esta nos eventos.
+{% endcomment %}
+
+{% block title %}Mensalidade {{ mensalidade.competencia_rotulo }} - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:minister_fee_list' %}">&larr; Lista de mensalidades</a>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div class="cpo-quebra">
+    <h1 class="h4 mb-1">Mensalidade {{ mensalidade.competencia_rotulo }}</h1>
+    <p class="text-body-secondary small mb-0">{{ mensalidade.minister.full_name }}</p>
+  </div>
+  <div class="cpo-barra-acoes">
+    {% if mensalidade.status == "PENDING" %}
+      <a class="btn btn-sm btn-success" href="{% url 'admin_panel:minister_fee_payment' mensalidade.pk %}">Registrar pagamento</a>
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:minister_fee_update' mensalidade.pk %}">Editar</a>
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:minister_fee_exempt' mensalidade.pk %}">Isentar</a>
+      <a class="btn btn-sm btn-outline-danger" href="{% url 'admin_panel:minister_fee_cancel' mensalidade.pk %}">Cancelar</a>
+    {% elif mensalidade.status == "PAID" %}
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:minister_fee_payment_correct' mensalidade.pk %}">Corrigir pagamento</a>
+      <a class="btn btn-sm btn-outline-danger" href="{% url 'admin_panel:minister_fee_payment_reverse' mensalidade.pk %}">Estornar pagamento</a>
+    {% else %}
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:minister_fee_reactivate' mensalidade.pk %}">Reativar</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-6">
+    <h2 class="h6 mb-2">Dados</h2>
+    <div class="cpo-cartao p-3">
+      {% include "admin_panel/ministers/fees/_resumo.html" %}
+    </div>
+    <p class="small mt-2 mb-0">
+      <a class="text-decoration-none" href="{% url 'admin_panel:minister_fee_list' %}?ministro={{ mensalidade.minister.pk }}">Todas as mensalidades deste ministro</a>
+    </p>
+  </div>
+
+  <div class="col-12 col-lg-6">
+    <h2 class="h6 mb-2">Histórico</h2>
+    <div class="cpo-cartao p-3">
+      {% if eventos %}
+        <ul class="list-unstyled small mb-0">
+          {% for evento in eventos %}
+            <li class="{% if not forloop.last %}mb-3{% endif %}">
+              <span class="fw-medium">{{ evento.get_event_display }}</span>
+              <div class="text-body-secondary">
+                {{ evento.timestamp|date:"d/m/Y H:i" }}{% if evento.actor %} &middot; {{ evento.actor.full_name }}{% endif %}
+              </div>
+              {% if evento.antes %}
+                <div class="text-body-secondary cpo-quebra">Antes:
+                  {% for rotulo, valor in evento.antes %}{{ rotulo }} {{ valor }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}
+                </div>
+              {% endif %}
+              {% if evento.depois %}
+                <div class="text-body-secondary cpo-quebra">Depois:
+                  {% for rotulo, valor in evento.depois %}{{ rotulo }} {{ valor }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}
+                </div>
+              {% endif %}
+              {% if evento.metadata.motivo %}
+                <div class="cpo-quebra">Motivo: {{ evento.metadata.motivo }}</div>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="small text-body-secondary mb-0">Nenhum evento registrado.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

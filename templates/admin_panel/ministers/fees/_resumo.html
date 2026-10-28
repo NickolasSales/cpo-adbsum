@@ -1,0 +1,51 @@
+{% load financeiro %}
+{% comment %}Resumo de uma mensalidade. Recebe `mensalidade` e `situacao`.{% endcomment %}
+<dl class="row small mb-0">
+  <dt class="col-5 text-body-secondary fw-normal">Ministro</dt>
+  <dd class="col-7 mb-2 cpo-quebra">
+    <a class="text-decoration-none" href="{% url 'admin_panel:minister_detail' mensalidade.minister.pk %}">{{ mensalidade.minister.full_name }}</a>
+    {% if not mensalidade.minister.is_active %}<span class="cpo-badge cpo-badge--neutro ms-1">Inativo</span>{% endif %}
+  </dd>
+
+  <dt class="col-5 text-body-secondary fw-normal">CONAMAD</dt>
+  <dd class="col-7 mb-2">{{ mensalidade.minister.conamad_registration }}</dd>
+
+  <dt class="col-5 text-body-secondary fw-normal">Matrícula do campo</dt>
+  <dd class="col-7 mb-2">{{ mensalidade.minister.field_registration|default:"-" }}</dd>
+
+  <dt class="col-5 text-body-secondary fw-normal">Congregação</dt>
+  <dd class="col-7 mb-2">{{ mensalidade.minister.congregation|default:"-" }}</dd>
+
+  <dt class="col-5 text-body-secondary fw-normal">Competência</dt>
+  <dd class="col-7 mb-2 fw-medium">{{ mensalidade.competencia_rotulo }}</dd>
+
+  <dt class="col-5 text-body-secondary fw-normal">Valor</dt>
+  <dd class="col-7 mb-2 fw-medium">{{ mensalidade.amount|brl }}</dd>
+
+  <dt class="col-5 text-body-secondary fw-normal">Vencimento</dt>
+  <dd class="col-7 mb-2">{{ mensalidade.due_date|date:"d/m/Y" }}</dd>
+
+  <dt class="col-5 text-body-secondary fw-normal">Situação</dt>
+  <dd class="col-7 mb-2">{% include "admin_panel/ministers/fees/_situacao.html" %}</dd>
+
+  {% if mensalidade.status == "PAID" %}
+    <dt class="col-5 text-body-secondary fw-normal">Pago em</dt>
+    <dd class="col-7 mb-2">{{ mensalidade.paid_at|date:"d/m/Y" }}</dd>
+
+    <dt class="col-5 text-body-secondary fw-normal">Forma</dt>
+    <dd class="col-7 mb-2">{{ mensalidade.get_payment_method_display }}</dd>
+
+    <dt class="col-5 text-body-secondary fw-normal">Referência</dt>
+    <dd class="col-7 mb-2 cpo-quebra">{{ mensalidade.payment_reference|default:"-" }}</dd>
+  {% endif %}
+
+  {% if mensalidade.status_reason %}
+    <dt class="col-5 text-body-secondary fw-normal">Último motivo</dt>
+    <dd class="col-7 mb-2 cpo-quebra">{{ mensalidade.status_reason|linebreaksbr }}</dd>
+  {% endif %}
+
+  {% if mensalidade.notes %}
+    <dt class="col-5 text-body-secondary fw-normal">Observações</dt>
+    <dd class="col-7 mb-0 cpo-quebra">{{ mensalidade.notes|linebreaksbr }}</dd>
+  {% endif %}
+</dl>

@@ -261,6 +261,35 @@ class AuditEvent(models.TextChoices):
         "Senha alterada pelo ministro",
     )
 
+    # Mensalidades de ministros (Ministros, Fase 2A)
+    #
+    # Entidade "MinisterMonthlyFee". A metadata sempre traz minister_id e a
+    # competencia, e — por ser dinheiro — os valores ANTES e DEPOIS de cada
+    # campo alterado, alem do motivo dos atos que exigem um. Excecao
+    # deliberada a regra "so os nomes dos campos" das edicoes de cadastro: ali
+    # o valor e dado pessoal; aqui e o fato que a trilha existe para provar.
+    #
+    # A mensalidade guarda apenas o motivo da ULTIMA mudanca de situacao. O
+    # historico inteiro — quem cancelou, quem reativou, quem estornou e por
+    # que — vive aqui.
+    MINISTER_FEE_CREATED = "MINISTER_FEE_CREATED", "Mensalidade criada"
+    MINISTER_FEE_UPDATED = "MINISTER_FEE_UPDATED", "Mensalidade alterada"
+    MINISTER_FEE_PAYMENT_REGISTERED = (
+        "MINISTER_FEE_PAYMENT_REGISTERED",
+        "Pagamento de mensalidade registrado",
+    )
+    MINISTER_FEE_PAYMENT_UPDATED = (
+        "MINISTER_FEE_PAYMENT_UPDATED",
+        "Pagamento de mensalidade corrigido",
+    )
+    MINISTER_FEE_PAYMENT_REVERSED = (
+        "MINISTER_FEE_PAYMENT_REVERSED",
+        "Pagamento de mensalidade estornado",
+    )
+    MINISTER_FEE_CANCELLED = "MINISTER_FEE_CANCELLED", "Mensalidade cancelada"
+    MINISTER_FEE_EXEMPTED = "MINISTER_FEE_EXEMPTED", "Mensalidade isentada"
+    MINISTER_FEE_REACTIVATED = "MINISTER_FEE_REACTIVATED", "Mensalidade reativada"
+
 
 class AuditLog(models.Model):
     """

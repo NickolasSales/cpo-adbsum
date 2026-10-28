@@ -1,0 +1,134 @@
+{% extends "admin_panel/base_admin.html" %}
+{% load financeiro %}
+
+{% comment %}
+Lista de mensalidades. Tabela no desktop, cartoes abaixo de 768px
+(cpo-lista--cartoes). Paginada no banco; o ministro vem no mesmo SELECT.
+{% endcomment %}
+
+{% block title %}Lista de mensalidades - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:minister_fee_dashboard' %}">&larr; Mensalidades</a>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">Lista de mensalidades</h1>
+    <p class="text-body-secondary small mb-0">
+      {{ page_obj.paginator.count }} mensalidade(s){% if ministro_filtrado %} de {{ ministro_filtrado.full_name }}{% endif %}.
+    </p>
+  </div>
+  <a class="btn btn-primary btn-sm"
+     href="{% url 'admin_panel:minister_fee_create' %}{% if ministro_filtrado %}?ministro={{ ministro_filtrado.pk }}{% endif %}">Nova mensalidade</a>
+</div>
+
+<form method="get" class="cpo-cartao p-3 mb-3">
+  {% if filtros.ministro %}<input type="hidden" name="ministro" value="{{ filtros.ministro }}">{% endif %}
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-lg-4">
+      <label for="q" class="form-label small fw-medium mb-1">Buscar ministro</label>
+      <input type="search" id="q" name="q" value="{{ filtros.q }}" class="form-control form-control-sm"
+             placeholder="Nome, CONAMAD ou matrícula do campo">
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <label for="competencia" class="form-label small fw-medium mb-1">Competência</label>
+      <select id="competencia" name="competencia" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        {% for chave, rotulo in competencias %}
+          <option value="{{ chave }}" {% if filtros.competencia == chave %}selected{% endif %}>{{ rotulo }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <label for="situacao" class="form-label small fw-medium mb-1">Situação</label>
+      <select id="situacao" name="situacao" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        {% for valor, rotulo in situacoes %}
+          <option value="{{ valor }}" {% if filtros.situacao == valor %}selected{% endif %}>{{ rotulo }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-8 col-md-4 col-lg-2">
+      <label for="congregacao" class="form-label small fw-medium mb-1">Congregação</label>
+      <select id="congregacao" name="congregacao" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        {% for nome in congregacoes %}
+          <option value="{{ nome }}" {% if filtros.congregacao == nome %}selected{% endif %}>{{ nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-4 col-lg-2">
+      <button type="submit" class="btn btn-sm btn-primary w-100">Filtrar</button>
+    </div>
+  </div>
+  {% if tem_filtro %}
+    <div class="mt-2">
+      <a class="small text-decoration-none" href="{% url 'admin_panel:minister_fee_list' %}">Limpar filtros</a>
+    </div>
+  {% endif %}
+</form>
+
+<div class="cpo-cartao">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 cpo-tabela cpo-lista--cartoes">
+      <thead>
+        <tr>
+          <th>Ministro</th>
+          <th>CONAMAD / Campo</th>
+          <th>Competência</th>
+          <th class="text-end">Valor</th>
+          <th>Vencimento</th>
+          <th>Situação</th>
+          <th class="d-none d-xl-table-cell">Pagamento</th>
+          <th class="text-end cpo-acoes">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in mensalidades %}
+          {% with situacao=m.situacao %}
+          <tr>
+            <td class="cpo-celula-titulo cpo-col-nome">
+              <a href="{% url 'admin_panel:minister_fee_detail' m.pk %}" class="fw-medium text-decoration-none">{{ m.minister.full_name }}</a>
+              {% if not m.minister.is_active %}<span class="cpo-badge cpo-badge--neutro ms-1">Inativo</span>{% endif %}
+              {% if m.minister.congregation %}<div class="small text-body-secondary fw-normal">{{ m.minister.congregation }}</div>{% endif %}
+            </td>
+            <td class="small text-nowrap" data-rotulo="CONAMAD / Campo">
+              {{ m.minister.conamad_registration }}
+              {% if m.minister.field_registration %}<div class="text-body-secondary">Campo {{ m.minister.field_registration }}</div>{% endif %}
+            </td>
+            <td class="small text-nowrap" data-rotulo="Competência">{{ m.competencia_rotulo }}</td>
+            <td class="small text-end text-nowrap" data-rotulo="Valor">{{ m.amount|brl }}</td>
+            <td class="small text-nowrap" data-rotulo="Vencimento">{{ m.due_date|date:"d/m/Y" }}</td>
+            <td data-rotulo="Situação">
+              {% include "admin_panel/ministers/fees/_situacao.html" %}
+              {% if m.paid_at %}<div class="d-xl-none small text-body-secondary mt-1 text-nowrap">Pago em {{ m.paid_at|date:"d/m/Y" }} &middot; {{ m.get_payment_method_display }}</div>{% endif %}
+            </td>
+            <td class="d-none d-xl-table-cell small text-nowrap" data-rotulo="Pagamento">
+              {% if m.paid_at %}{{ m.paid_at|date:"d/m/Y" }} &middot; {{ m.get_payment_method_display }}{% else %}-{% endif %}
+            </td>
+            <td class="text-end cpo-acoes">
+              <div class="d-flex gap-1 justify-content-end flex-wrap">
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_panel:minister_fee_detail' m.pk %}">Abrir</a>
+                {% if m.status == "PENDING" %}
+                  <a class="btn btn-sm btn-outline-success text-nowrap" href="{% url 'admin_panel:minister_fee_payment' m.pk %}">Registrar pagamento</a>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endwith %}
+        {% empty %}
+          <tr>
+            <td colspan="8" class="text-center text-body-secondary py-5 cpo-celula-vazia">
+              {% if tem_filtro %}Nenhuma mensalidade com esses filtros.{% else %}Nenhuma mensalidade cadastrada ainda.{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "admin_panel/_paginacao.html" %}
+{% endblock %}

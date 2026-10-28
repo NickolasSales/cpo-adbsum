@@ -143,6 +143,16 @@ passam por modal.
       {% endif %}
     </div>
 
+    <h2 class="h6 mb-2 mt-3">Mensalidades</h2>
+    <div class="cpo-cartao p-3">
+      <div class="cpo-barra-acoes">
+        <a class="btn btn-sm btn-outline-secondary"
+           href="{% url 'admin_panel:minister_fee_list' %}?ministro={{ ministro.pk }}">Ver mensalidades</a>
+        <a class="btn btn-sm btn-outline-primary"
+           href="{% url 'admin_panel:minister_fee_create' %}?ministro={{ ministro.pk }}">Nova mensalidade</a>
+      </div>
+    </div>
+
     <h2 class="h6 mb-2 mt-3">Últimos eventos</h2>
     <div class="cpo-cartao p-3">
       {% if eventos %}

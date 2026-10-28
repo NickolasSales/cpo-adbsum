@@ -1,0 +1,75 @@
+{% extends "admin_panel/base_admin.html" %}
+{% load financeiro %}
+
+{% comment %}
+Dashboard de mensalidades. Numeros reais, de uma unica consulta agregada,
+filtrados pela competencia escolhida. "Vencido" e calculado: pendente com
+vencimento no passado. Isentas e canceladas ficam fora dos totais em reais.
+{% endcomment %}
+
+{% block title %}Mensalidades - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">Mensalidades</h1>
+    <p class="text-body-secondary small mb-0">
+      {% if competencia %}Competência {{ competencia|date:"m/Y" }}{% else %}Todas as competências{% endif %}
+    </p>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm"
+       href="{% url 'admin_panel:minister_fee_list' %}{% if competencia_chave %}?competencia={{ competencia_chave }}{% endif %}">Ver lista</a>
+    <a class="btn btn-primary btn-sm" href="{% url 'admin_panel:minister_fee_create' %}">Nova mensalidade</a>
+  </div>
+</div>
+
+<form method="get" class="cpo-cartao p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-8 col-md-4 col-lg-3">
+      <label for="competencia" class="form-label small fw-medium mb-1">Competência</label>
+      <select id="competencia" name="competencia" class="form-select form-select-sm">
+        <option value="todas" {% if not competencia %}selected{% endif %}>Todas</option>
+        {% for chave, rotulo in competencias %}
+          <option value="{{ chave }}" {% if chave == competencia_chave %}selected{% endif %}>{{ rotulo }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-4 col-md-auto">
+      <button type="submit" class="btn btn-sm btn-primary w-100">Filtrar</button>
+    </div>
+  </div>
+</form>
+
+{% if not totais.qtd_total %}
+  <div class="cpo-cartao cpo-vazio mb-3">
+    Nenhuma mensalidade {% if competencia %}nesta competência{% else %}cadastrada ainda{% endif %}.
+  </div>
+{% endif %}
+
+<div class="row g-3">
+  {% for card in cards_valor %}
+    <div class="col-6 col-xl-3">
+      <a href="{{ card.url }}" class="text-decoration-none d-block h-100">
+        <div class="cpo-cartao cpo-indicador cpo-indicador--ativo">
+          <span class="cpo-indicador__rotulo">{{ card.titulo }}</span>
+          <span class="cpo-indicador__valor cpo-indicador__valor--real cpo-indicador__valor--dinheiro">{{ card.valor|brl }}</span>
+          <span class="cpo-indicador__nota">{{ card.nota }}</span>
+        </div>
+      </a>
+    </div>
+  {% endfor %}
+</div>
+
+<div class="row g-3 mt-1">
+  {% for card in cards_qtd %}
+    <div class="col-6 col-xl-3">
+      <div class="cpo-cartao cpo-indicador">
+        <span class="cpo-indicador__rotulo">{{ card.titulo }}</span>
+        <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ card.valor }}</span>
+        <span class="cpo-indicador__nota">{{ card.nota }}</span>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1265,3 +1265,30 @@ pre {
     grid-column: 1 / -1;
   }
 }
+
+/* ---------------------------------------------------------------
+   Valores em reais nos cartoes indicadores
+
+   "R$ 12.345,00" no corpo de 1.9rem nao cabe num cartao de meia
+   largura a 360px. A fonte encolhe no celular e o texto pode quebrar
+   em vez de empurrar o cartao.
+   --------------------------------------------------------------- */
+
+.cpo-indicador__valor--dinheiro {
+  font-size: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 768px) {
+  .cpo-indicador__valor--dinheiro {
+    font-size: 1.6rem;
+  }
+}
+
+/* Coluna do nome nas tabelas largas: sem largura minima, o navegador a
+   espremia ate quebrar uma palavra por linha quando havia muitas colunas. */
+@media (min-width: 768px) {
+  .cpo-tabela .cpo-col-nome {
+    min-width: 12rem;
+  }
+}

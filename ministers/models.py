@@ -322,3 +322,183 @@ class MinisterAccount(models.Model):
     @property
     def pode_entrar(self):
         return self.is_active and self.minister.is_active
+
+
+# ---------------------------------------------------------------------------
+# Mensalidades (Fase 2A)
+# ---------------------------------------------------------------------------
+
+
+class MonthlyFeeStatus(models.TextChoices):
+    """
+    Situacao GRAVADA da mensalidade.
+
+    "Vencido" nao esta aqui de proposito: e uma situacao CALCULADA (pendente
+    com vencimento no passado), e nao um estado gravado. Gravar exigiria um
+    processo agendado virando PENDING em OVERDUE todo dia — e, no dia em que
+    ele falhasse, o painel mostraria como em dia quem esta atrasado. Calculado
+    na leitura, o vencido nunca fica desatualizado, e uma mensalidade PAGA
+    nunca aparece como vencida, porque so PENDING pode vencer.
+    """
+
+    PENDING = "PENDING", "Pendente"
+    PAID = "PAID", "Pago"
+    EXEMPT = "EXEMPT", "Isento"
+    CANCELLED = "CANCELLED", "Cancelado"
+
+
+class FeeSituation(models.TextChoices):
+    """Situacao EXIBIDA: as gravadas mais o vencido calculado."""
+
+    PENDING = "PENDING", "Pendente"
+    OVERDUE = "OVERDUE", "Vencido"
+    PAID = "PAID", "Pago"
+    EXEMPT = "EXEMPT", "Isento"
+    CANCELLED = "CANCELLED", "Cancelado"
+
+
+class PaymentMethod(models.TextChoices):
+    """Formas de pagamento. Uma forma nova e uma linha aqui e uma migration
+    que so altera choices — nenhuma coluna muda."""
+
+    PIX = "PIX", "Pix"
+    CASH = "CASH", "Dinheiro"
+    TRANSFER = "TRANSFER", "Transferência"
+    OTHER = "OTHER", "Outro"
+
+
+def primeiro_dia(data):
+    return data.replace(day=1)
+
+
+class MinisterMonthlyFee(models.Model):
+    """
+    Uma mensalidade de um ministro numa competencia.
+
+    Entidade propria: Minister nao carrega nenhum campo financeiro.
+
+    Competencia
+    -----------
+    Gravada como DATA, sempre no dia 1 do mes (2026-10-01 e a competencia
+    10/2026). Data, e nao texto: ordena, filtra por intervalo e nao admite
+    "Out/26" ou "10-2026". O dia 1 e garantido por constraint no banco, e a
+    unicidade ministro + competencia tambem.
+
+    Valor
+    -----
+    Decimal com duas casas, nunca float. Cada mensalidade guarda o proprio
+    valor: ministros e competencias podem ter valores diferentes, e mudar o
+    valor de amanha nao reescreve o de ontem. Nao ha valor padrao no codigo.
+
+    Nunca e excluida: cancelar e um estado, com motivo, e o historico de cada
+    mudanca fica na trilha de auditoria.
+    """
+
+    minister = models.ForeignKey(
+        Minister,
+        verbose_name="ministro",
+        on_delete=models.PROTECT,
+        related_name="monthly_fees",
+    )
+    reference_month = models.DateField(
+        "competência", help_text="Sempre o dia 1 do mês da competência."
+    )
+    due_date = models.DateField("vencimento")
+    amount = models.DecimalField("valor", max_digits=10, decimal_places=2)
+
+    status = models.CharField(
+        "situação",
+        max_length=10,
+        choices=MonthlyFeeStatus.choices,
+        default=MonthlyFeeStatus.PENDING,
+        db_index=True,
+    )
+    status_reason = models.TextField(
+        "motivo da situação",
+        blank=True,
+        help_text="Motivo do último cancelamento, isenção, estorno ou reativação.",
+    )
+
+    paid_at = models.DateField("data do pagamento", null=True, blank=True)
+    payment_method = models.CharField(
+        "forma de pagamento", max_length=10, choices=PaymentMethod.choices, blank=True
+    )
+    payment_reference = models.CharField(
+        "referência / transação", max_length=120, blank=True
+    )
+    notes = models.TextField("observações", blank=True)
+
+    created_at = models.DateTimeField("criado em", auto_now_add=True)
+    updated_at = models.DateTimeField("atualizado em", auto_now=True)
+
+    class Meta:
+        verbose_name = "mensalidade de ministro"
+        verbose_name_plural = "mensalidades de ministros"
+        ordering = ["-reference_month", "minister__full_name", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["minister", "reference_month"],
+                name="minister_fee_unica_por_competencia",
+                violation_error_message="Este ministro já tem mensalidade nesta competência.",
+            ),
+            models.CheckConstraint(
+                condition=Q(reference_month__day=1),
+                name="minister_fee_competencia_no_dia_1",
+            ),
+            models.CheckConstraint(
+                condition=Q(amount__gt=0),
+                name="minister_fee_valor_positivo",
+            ),
+            # Pago tem data e forma; o que nao e pago nao carrega dado de
+            # pagamento. Um estorno que esquecesse de limpar a data deixaria
+            # uma mensalidade pendente "paga em 05/10" — o banco recusa.
+            models.CheckConstraint(
+                condition=(
+                    Q(status="PAID", paid_at__isnull=False) & ~Q(payment_method="")
+                )
+                | (
+                    ~Q(status="PAID")
+                    & Q(paid_at__isnull=True, payment_method="", payment_reference="")
+                ),
+                name="minister_fee_pagamento_coerente",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["reference_month", "status"], name="minister_fee_comp_status_idx"
+            ),
+            models.Index(fields=["status", "due_date"], name="minister_fee_status_venc_idx"),
+        ]
+
+    def __str__(self):
+        return "Mensalidade {} de {}".format(self.competencia_rotulo, self.minister_id)
+
+    def save(self, *args, **kwargs):
+        if self.reference_month:
+            self.reference_month = primeiro_dia(self.reference_month)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError(
+            "Mensalidade nao e excluida pela aplicacao. Use o cancelamento, "
+            "que preserva o historico."
+        )
+
+    @property
+    def competencia_rotulo(self):
+        """10/2026."""
+        return self.reference_month.strftime("%m/%Y") if self.reference_month else ""
+
+    @property
+    def competencia_chave(self):
+        """2026-10: o formato da competencia em URL e filtro."""
+        return self.reference_month.strftime("%Y-%m") if self.reference_month else ""
+
+    def situacao_em(self, hoje):
+        if self.status == MonthlyFeeStatus.PENDING and self.due_date < hoje:
+            return FeeSituation.OVERDUE
+        return FeeSituation(self.status)
+
+    @property
+    def situacao(self):
+        return self.situacao_em(timezone.localdate())

@@ -1,0 +1,33 @@
+{% comment %}Campos de um formulario de mensalidade, em grade. Recebe `form`.{% endcomment %}
+{% if form.non_field_errors %}
+  <div class="alert alert-danger py-2 small" role="alert">
+    {% for erro in form.non_field_errors %}<div>{{ erro }}</div>{% endfor %}
+  </div>
+{% endif %}
+<div class="row g-3">
+  {% for campo in form %}
+    {% if campo.name == "confirmar_inativo" %}
+      <div class="col-12">
+        <div class="form-check">
+          {{ campo }}
+          <label class="form-check-label small" for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+          <div class="form-text small">
+            Marque só se o ministro escolhido estiver inativo e a cobrança for intencional.
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <div class="{% if campo.name == 'notes' or campo.name == 'reason' or campo.name == 'minister' %}col-12{% else %}col-12 col-md-6{% endif %}">
+        <label for="{{ campo.id_for_label }}" class="form-label small fw-medium mb-1">
+          {{ campo.label }}{% if campo.field.required %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}
+        </label>
+        {{ campo }}
+        {% if campo.errors %}
+          <div class="form-text text-danger">{{ campo.errors.0 }}</div>
+        {% elif campo.help_text %}
+          <div class="form-text small">{{ campo.help_text }}</div>
+        {% endif %}
+      </div>
+    {% endif %}
+  {% endfor %}
+</div>
