@@ -71,9 +71,8 @@ MENU_ADMIN = [
         "secao": "modelos_certificado",
         "grupo": GRUPO_CPO,
     },
-    # Controle de Ministros. Comprovantes e relatorios entram
-    # aqui quando as telas existirem — nao antes, para nao haver link que
-    # leva a lugar nenhum.
+    # Controle de Ministros. Relatorios entram aqui quando as telas
+    # existirem — nao antes, para nao haver link que leva a lugar nenhum.
     {
         "nome": "Dashboard",
         "url": "admin_panel:minister_dashboard",
@@ -90,6 +89,12 @@ MENU_ADMIN = [
         "nome": "Mensalidades",
         "url": "admin_panel:minister_fee_dashboard",
         "secao": "mensalidades",
+        "grupo": GRUPO_MINISTROS,
+    },
+    {
+        "nome": "Comprovantes",
+        "url": "admin_panel:minister_proof_list",
+        "secao": "ministros_comprovantes",
         "grupo": GRUPO_MINISTROS,
     },
     {

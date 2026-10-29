@@ -10,6 +10,9 @@ Tabela no desktop, cartoes abaixo de 768px (cpo-lista--cartoes). A ultima
 celula (cpo-acoes) leva a competencia: "Ver cobranca" quando ha Pix para
 pagar (pendente ou vencida, com cobranca gerada), "Ver detalhes" no resto.
 A URL e a competencia (/ministros/mensalidades/2026/10/), nunca um id.
+
+"Aguardando analise" (Fase 2E) e derivado: pendente ou vencida com um
+comprovante em conferencia. A mensalidade continua em aberto nos totais.
 {% endcomment %}
 
 {% block title %}Mensalidades - Portal do Ministro{% endblock %}
@@ -92,7 +95,13 @@ A URL e a competencia (/ministros/mensalidades/2026/10/), nunca um id.
               <td class="cpo-celula-titulo text-nowrap">{{ m.reference_month|date:"F/Y" }}</td>
               <td class="small text-nowrap" data-rotulo="Vencimento">{{ m.due_date|date:"d/m/Y" }}</td>
               <td class="text-end text-nowrap fw-medium" data-rotulo="Valor">{{ m.amount|brl }}</td>
-              <td data-rotulo="Situação">{% include "admin_panel/ministers/fees/_situacao.html" %}</td>
+              <td data-rotulo="Situação">
+                {% if m.em_analise and situacao == "PENDING" or m.em_analise and situacao == "OVERDUE" %}
+                  <span class="cpo-badge cpo-badge--info">Aguardando análise</span>
+                {% else %}
+                  {% include "admin_panel/ministers/fees/_situacao.html" %}
+                {% endif %}
+              </td>
               {% if m.paid_at %}
                 <td class="small text-nowrap" data-rotulo="Pagamento">{{ m.paid_at|date:"d/m/Y" }} &middot; {{ m.get_payment_method_display }}</td>
               {% else %}
@@ -101,7 +110,9 @@ A URL e a competencia (/ministros/mensalidades/2026/10/), nunca um id.
               {% endif %}
               <td class="text-end cpo-acoes">
                 {% url 'ministers:fee_charge' ano=m.reference_month|date:'Y' mes=m.reference_month|date:'m' as url_da_competencia %}
-                {% if m.tem_cobranca and situacao == "PENDING" or m.tem_cobranca and situacao == "OVERDUE" %}
+                {% if m.em_analise and situacao == "PENDING" or m.em_analise and situacao == "OVERDUE" %}
+                  <a class="btn btn-sm btn-outline-primary text-nowrap" href="{{ url_da_competencia }}">Ver cobrança</a>
+                {% elif m.tem_cobranca and situacao == "PENDING" or m.tem_cobranca and situacao == "OVERDUE" %}
                   <a class="btn btn-sm btn-primary text-nowrap" href="{{ url_da_competencia }}">Ver cobrança</a>
                 {% else %}
                   <a class="btn btn-sm btn-outline-secondary text-nowrap" href="{{ url_da_competencia }}">Ver detalhes</a>

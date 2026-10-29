@@ -8,6 +8,12 @@ Somente leitura. O QR Code e o Copia e Cola sao o MESMO texto gravado no
 snapshot da cobranca (pix_payload) — o SVG e desenhado a partir dele, sem
 nenhum dado do usuario dentro. Paga, isenta e cancelada nao mostram Pix.
 
+Comprovante (Fase 2E): com um comprovante aguardando analise, o Pix SOME —
+a tela diz que o pagamento esta em conferencia, para ninguem pagar duas
+vezes. Recusado: o motivo aparece em cima e o Pix volta, porque a
+mensalidade continua em aberto. O historico de envios fica no fim, sem
+quem analisou, ids ou nomes de arquivo internos.
+
 Copiar o Pix e coisa do navegador (static/js/copiar-pix.js): nao chama o
 servidor e nao muda a situacao. Sem a Clipboard API, o codigo continua
 selecionavel com um toque (user-select: all).
@@ -20,13 +26,15 @@ selecionavel com um toque (user-select: all).
   <a class="small text-decoration-none" href="{% url 'ministers:fees' %}">&larr; Mensalidades</a>
 </nav>
 
+{% url 'ministers:fee_proof' ano=mensalidade.reference_month|date:'Y' mes=mensalidade.reference_month|date:'m' as url_do_envio %}
+
 <div class="cpo-cobranca">
   <div class="cpo-cartao p-3 p-md-4 mb-3">
     <h1 class="h4 mb-2">{{ mensalidade.reference_month|date:"F/Y" }}</h1>
     <div class="cpo-cobranca__valor text-nowrap">{{ mensalidade.amount|brl }}</div>
     <dl class="cpo-cobranca__dados small mb-0">
       <div><dt>Vencimento</dt><dd>{{ mensalidade.due_date|date:"d/m/Y" }}</dd></div>
-      <div><dt>Situação</dt><dd>{% include "admin_panel/ministers/fees/_situacao.html" %}</dd></div>
+      <div><dt>Situação</dt><dd>{% if aguardando and cobravel %}<span class="cpo-badge cpo-badge--info">Aguardando análise</span>{% else %}{% include "admin_panel/ministers/fees/_situacao.html" %}{% endif %}</dd></div>
       {% if situacao == "PAID" %}
         <div><dt>Pago em</dt><dd>{{ mensalidade.paid_at|date:"d/m/Y" }} &middot; {{ mensalidade.get_payment_method_display }}</dd></div>
       {% endif %}
@@ -36,7 +44,7 @@ selecionavel com um toque (user-select: all).
   {% if situacao == "PAID" %}
     <div class="cpo-cartao cpo-cobranca__aviso cpo-cobranca__aviso--ok">
       <strong>Mensalidade paga</strong>
-      <span>O pagamento desta competência já está registrado. Nenhuma ação é necessária.</span>
+      <span>Pagamento confirmado em {{ mensalidade.paid_at|date:"d/m/Y" }} &middot; forma: {{ mensalidade.get_payment_method_display }}. Nenhuma ação é necessária.</span>
     </div>
   {% elif situacao == "EXEMPT" %}
     <div class="cpo-cartao cpo-cobranca__aviso">
@@ -48,12 +56,29 @@ selecionavel com um toque (user-select: all).
       <strong>Mensalidade cancelada</strong>
       <span>Esta mensalidade foi cancelada. Nenhum pagamento é necessário.</span>
     </div>
-  {% elif not cobranca %}
+  {% elif aguardando %}
+    <div class="cpo-cartao cpo-cobranca__aviso cpo-cobranca__aviso--analise" role="status">
+      <strong>Comprovante enviado</strong>
+      <span>Aguardando conferência da secretaria. Não é preciso pagar de novo.</span>
+      <dl class="cpo-cobranca__dados small mb-0 mt-2">
+        <div><dt>Status do pagamento</dt><dd>Aguardando análise</dd></div>
+        <div><dt>Comprovante enviado em</dt><dd>{{ aguardando.submitted_at|date:"d/m/Y H:i" }}</dd></div>
+      </dl>
+    </div>
+  {% elif not tem_cobranca %}
     <div class="cpo-cartao cpo-cobranca__aviso">
       <strong>Cobrança ainda não disponível</strong>
       <span>A cobrança desta mensalidade ainda não foi emitida. Procure a secretaria do campo.</span>
     </div>
   {% else %}
+    {% if recusado %}
+      <div class="cpo-cartao cpo-cobranca__aviso cpo-cobranca__aviso--erro mb-3" role="status">
+        <strong>Comprovante recusado</strong>
+        <span class="cpo-quebra">Motivo: {{ recusado.rejection_reason }}</span>
+        <span>Envie um novo comprovante.</span>
+        <a class="btn btn-primary w-100 mt-2" href="{{ url_do_envio }}">Enviar novo comprovante</a>
+      </div>
+    {% endif %}
     {% if situacao == "OVERDUE" %}
       <div class="alert alert-danger py-2 small mb-3" role="status">
         Esta mensalidade está vencida. O Pix abaixo continua válido para o pagamento.
@@ -81,10 +106,45 @@ selecionavel com um toque (user-select: all).
       <a class="btn btn-outline-primary w-100 mt-3"
          href="{% url 'ministers:fee_guide' ano=mensalidade.reference_month|date:'Y' mes=mensalidade.reference_month|date:'m' %}">Baixar guia PDF</a>
     </section>
+
+    {% if pode_enviar and not recusado %}
+      <section class="cpo-cartao p-3 p-md-4 mt-3" aria-labelledby="ja-pagou">
+        <h2 class="h6 mb-1" id="ja-pagou">Já pagou?</h2>
+        <p class="small text-body-secondary mb-3">
+          Envie o comprovante para a secretaria conferir. A mensalidade muda
+          para Pago depois da conferência.
+        </p>
+        <a class="btn btn-outline-primary btn-lg w-100" href="{{ url_do_envio }}">Enviar comprovante</a>
+      </section>
+    {% endif %}
+
     <p class="small text-body-secondary mt-3 mb-0">
       Copiar o Pix ou baixar a guia não registra pagamento. Depois de pagar,
-      a secretaria confirma o recebimento e a situação muda para Pago.
+      envie o comprovante: a secretaria confere e a situação muda para Pago.
     </p>
+  {% endif %}
+
+  {% if historico %}
+    <section class="cpo-cartao p-3 p-md-4 mt-3" aria-labelledby="comprovantes-enviados">
+      <h2 class="h6 mb-3" id="comprovantes-enviados">Comprovantes enviados</h2>
+      <ul class="list-unstyled small mb-0 cpo-comprovantes">
+        {% for enviado in historico %}
+          <li>
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+              <span class="text-nowrap">Enviado em {{ enviado.submitted_at|date:"d/m/Y H:i" }}</span>
+              {% if enviado.status == "SUBMITTED" %}<span class="cpo-badge cpo-badge--info">Aguardando análise</span>
+              {% elif enviado.status == "APPROVED" %}<span class="cpo-badge cpo-badge--ok">Aprovado</span>
+              {% else %}<span class="cpo-badge cpo-badge--erro">Recusado</span>{% endif %}
+            </div>
+            {% if enviado.status == "REJECTED" %}
+              <div class="text-body-secondary mt-1 cpo-quebra">Motivo: {{ enviado.rejection_reason }}</div>
+            {% endif %}
+            <a class="d-inline-block mt-1 text-decoration-none" target="_blank" rel="noopener"
+               href="{% url 'ministers:fee_proof_file' ano=mensalidade.reference_month|date:'Y' mes=mensalidade.reference_month|date:'m' numero=enviado.numero %}">Ver arquivo enviado</a>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
   {% endif %}
 </div>
 {% endblock %}

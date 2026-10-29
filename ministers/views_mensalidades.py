@@ -18,7 +18,7 @@ from django.views.generic import FormView, ListView, TemplateView
 from audit.models import AuditLog
 from common.exceptions import DomainError
 from common.views import PainelAdminMixin
-from ministers import cobranca
+from ministers import cobranca, comprovantes
 from ministers import mensalidades as servico
 from ministers.forms_mensalidades import (
     CorrecaoPagamentoForm,
@@ -31,8 +31,10 @@ from ministers.models import (
     FeeSituation,
     Minister,
     MinisterMonthlyFee,
+    MinisterPaymentProof,
     MonthlyFeeStatus,
     PaymentMethod,
+    ProofStatus,
 )
 from ministers.templatetags.financeiro import brl
 from ministers.services import congregacoes_cadastradas
@@ -128,6 +130,7 @@ class FeeDashboardView(PainelAdminMixin, TemplateView):
 
         contexto.update(
             {
+                "comprovantes_em_analise": comprovantes.quantos_em_analise(),
                 "competencia": competencia,
                 "competencia_chave": chave,
                 "competencias": _formatar_competencias(existentes),
@@ -190,7 +193,7 @@ class FeeListView(PainelAdminMixin, ListView):
         if f["ministro"].isdigit():
             consulta = consulta.filter(minister_id=int(f["ministro"]))
 
-        consulta = cobranca.anotar_cobranca(consulta)
+        consulta = comprovantes.anotar_analise(cobranca.anotar_cobranca(consulta))
         return consulta.order_by("-reference_month", "minister__full_name", "id")
 
     def get_context_data(self, **kwargs):
@@ -222,6 +225,18 @@ class FeeDetailView(PainelAdminMixin, TemplateView):
         contexto["mensalidade"] = mensalidade
         contexto["situacao"] = mensalidade.situacao
         contexto.update(cobranca_da_ficha(mensalidade))
+        # Comprovantes (Fase 2E). Com um aguardando analise, a ficha manda
+        # analisar o comprovante em vez de oferecer a baixa manual — o
+        # servico recusaria a baixa de qualquer jeito.
+        enviados = list(
+            MinisterPaymentProof.objects.filter(fee=mensalidade)
+            .only("fee_id", "status", "submitted_at", "reviewed_at")
+            .order_by("submitted_at", "id")
+        )
+        contexto["comprovantes"] = enviados
+        contexto["comprovante_em_analise"] = next(
+            (c for c in enviados if c.status == ProofStatus.SUBMITTED), None
+        )
         eventos = list(
             AuditLog.objects.filter(entity_type="MinisterMonthlyFee", entity_id=str(mensalidade.pk))
             .select_related("actor")

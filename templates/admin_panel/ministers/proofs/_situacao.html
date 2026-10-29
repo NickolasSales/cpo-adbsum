@@ -1,0 +1,4 @@
+{% comment %}Etiqueta da situacao do comprovante. Recebe `status` (ProofStatus).{% endcomment %}
+{% if status == "SUBMITTED" %}<span class="cpo-badge cpo-badge--info">Aguardando análise</span>
+{% elif status == "APPROVED" %}<span class="cpo-badge cpo-badge--ok">Aprovado</span>
+{% else %}<span class="cpo-badge cpo-badge--erro">Recusado</span>{% endif %}

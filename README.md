@@ -2892,8 +2892,7 @@ lista vira cartões abaixo de 768px.
 
 ### Ainda não existe
 
-Mensalidades chegaram na Fase 2A (seção 9.22). Geração em massa na Fase 2B; consulta no portal do ministro na Fase 2C; Pix e guia em PDF na Fase 2D (seção 9.23). Ainda faltam: comprovantes, aprovação de
-pagamento e relatórios financeiros. O menu não mostra esses itens até as
+Mensalidades chegaram na Fase 2A (seção 9.22). Geração em massa na Fase 2B; consulta no portal do ministro na Fase 2C; Pix e guia em PDF na Fase 2D (seção 9.23); comprovantes e aprovação do pagamento na Fase 2E (seção 9.24). Ainda faltam relatórios financeiros. O menu não mostra esses itens até as
 telas existirem.
 
 ---
@@ -3075,8 +3074,9 @@ Cada linha termina numa célula `cpo-acoes` que leva à competência —
 ## 9.23 Cobrança Pix das mensalidades (Fase 2D)
 
 Fluxo de cobrança: Pix Copia e Cola, QR Code e guia em PDF, gerados a partir
-da mensalidade que já existe. Upload e análise de comprovante, conciliação,
-Pix API, e-mail e WhatsApp automáticos ficam para a Fase 2E.
+da mensalidade que já existe. Upload e análise de comprovante chegaram na
+Fase 2E (seção 9.24); conciliação, Pix API, e-mail e WhatsApp automáticos
+continuam fora.
 
 ```
 Minister + MinisterMonthlyFee + MinisterBillingSettings
@@ -3208,7 +3208,7 @@ toque (`user-select: all`) e quebra em qualquer ponto
 
 **Nada disso é pagamento.** Copiar o Pix, abrir a cobrança e baixar a guia
 não mudam a situação; quem registra o pagamento continua sendo a secretaria
-(2A). Comprovante entra na 2E.
+(2A) — ou a aprovação do comprovante enviado pelo ministro (2E, seção 9.24).
 
 Cache: telas e PDF saem com `no-store, no-cache, must-revalidate, private,
 max-age=0`; depois do logout, o voltar do navegador cai no login.
@@ -3234,6 +3234,243 @@ dados da guia antiga não são copiados automaticamente: o favorecido dela
 estava cortado em 25 caracteres e a cidade era "BRASILIA". Só depois de
 configurado, a tela de cobranças mostra a prévia — e nada é gerado sem a
 confirmação dela.
+
+---
+
+## 9.24 Comprovantes de pagamento (Fase 2E)
+
+Fecha o ciclo da mensalidade: o ministro paga o Pix, envia o comprovante pelo
+portal, a secretaria confere e aprova ou recusa. **A conferência é humana**:
+nada aqui lê o conteúdo do arquivo, consulta banco, faz OCR ou aprova sozinho.
+Integração bancária, consulta Pix automática, webhook, e-mail/WhatsApp
+automáticos e S3 continuam fora.
+
+```
+ministro: Ver cobrança → paga o Pix → Enviar comprovante
+                                         │  MinisterPaymentProof SUBMITTED
+                                         ▼  (mensalidade continua PENDING)
+secretaria: Comprovantes → Analisar ─┬─ Aprovar → comprovante APPROVED
+                                     │            mensalidade PAID (register_payment da 2A)
+                                     └─ Recusar (motivo) → REJECTED; mensalidade continua aberta
+                                                           ministro vê o motivo e reenvia
+```
+
+### Modelo `MinisterPaymentProof`
+
+| Campo | Decisão |
+|---|---|
+| `fee` | FK para a mensalidade (`PROTECT`). Nada aponta para o CPO |
+| `file` | `ministers/payment_proofs/<32 hex aleatórios>.<pdf\|jpg\|png>` em `MEDIA_ROOT`. O nome enviado **não entra no caminho** |
+| `original_filename` | só exibição: nome base, sem pastas nem caracteres de controle, até 120 caracteres |
+| `mime_type` | o tipo **detectado no conteúdo** (`application/pdf`, `image/jpeg`, `image/png`), não o que o navegador declarou |
+| `file_size`, `sha256` | calculados no servidor, em blocos |
+| `status` | `SUBMITTED` (Aguardando análise), `APPROVED` (Aprovado), `REJECTED` (Recusado) |
+| `submitted_at`, `reviewed_by`, `reviewed_at`, `rejection_reason` | envio e análise |
+
+Constraints no PostgreSQL: **um `SUBMITTED` por mensalidade** (unique
+parcial); análise coerente (aguardando sem análise; aprovado com data e sem
+motivo; recusado com data **e** motivo); tamanho entre 1 byte e 5 MB; tipo na
+lista; SHA-256 com 64 hex. `delete()` recusa: recusado fica no histórico, e o
+reenvio é **outro** comprovante.
+
+**O status do comprovante não é status da mensalidade.** Com um
+comprovante em análise a mensalidade continua `PENDING` — em aberto nos totais,
+"Vencido" calculado como sempre. "Aguardando análise" no portal é derivado
+da existência do `SUBMITTED`. Não existe `PAYMENT_SUBMITTED` na mensalidade.
+
+### O arquivo
+
+| Barreira | O que faz |
+|---|---|
+| tamanho | 5 MB. O JS avisa antes de enviar; o servidor decide. O Nginx do host aceita 6 MB por requisição (`client_max_body_size 6M`), folga para o envelope multipart |
+| nome | `.pdf`, `.jpg`, `.jpeg`, `.png`; tipo declarado pelo navegador compatível (ou genérico). SVG, HTML, DOC, ZIP e EXE são recusados já aqui |
+| conteúdo | assinatura no início do arquivo (`%PDF-`, PNG, JPEG). `programa.exe` renomeado para `.jpg` é recusado. Foto `.jpg` que na verdade é PNG passa — as duas são imagem —, PDF chamado de `.jpg` não |
+| imagem | Pillow lê só o cabeçalho: até 12000 px por lado e 50 megapixels, **antes** de decodificar (bomba de descompressão para aqui); depois `verify()` |
+| PDF | estrutura mínima sem parser: `%PDF-1.x`/`2.x`, ao menos um objeto, `%%EOF` no fim. JavaScript embutido não é interpretado: a aplicação só guarda e entrega |
+
+SHA-256 igual **não** é tratado como fraude: reenviar o mesmo arquivo depois
+de uma recusa é permitido, e o hash fica registrado nos dois.
+
+### Privacidade do arquivo
+
+- Nenhum servidor web serve `MEDIA_ROOT`: o NPM repassa tudo ao Nginx do host,
+  que só tem `location /static/` e `location /` (gunicorn). O Django de
+  produção não tem rota `/media/`. `https://cpoadsum.nexeeo.com/media/...` dá
+  404, inclusive a listagem da pasta.
+- Arquivos `0640` e pastas `0750` (`cpo:cpo`), gravados pelo storage do
+  próprio campo.
+- O arquivo só sai por view autenticada, com `FileResponse` (lido do disco em
+  blocos), `Content-Type` do tipo detectado, `X-Content-Type-Options: nosniff`
+  e `Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0`.
+  O nome do download é montado por lista branca
+  (`comprovante-outubro-2026-2.pdf`), sem nome de pessoa.
+
+### Portal
+
+| Rota | O que é |
+|---|---|
+| `/ministros/mensalidades/AAAA/MM/comprovante/` | GET formulário, POST envio (CSRF) |
+| `/ministros/mensalidades/AAAA/MM/comprovantes/N/` | o N-ésimo comprovante **que o próprio ministro enviou** naquela competência |
+
+Sem id na URL. A mensalidade é sempre a da competência **do ministro da
+sessão**; competência de outro ministro, número inexistente, id de
+comprovante, nome de arquivo ou caminho dão 404. O formulário tem um campo
+só, o arquivo: valor, data, situação, `minister_id` e `fee_id` não existem
+nele, e um POST com eles é ignorado. PUT/PATCH/DELETE dão 405.
+
+| Situação | Tela |
+|---|---|
+| Pendente / vencida, com cobrança | Pix + "Já pagou? **Enviar comprovante**" |
+| Comprovante aguardando análise | "Comprovante enviado — aguardando conferência", data do envio. **Sem QR, sem Copiar Pix, sem guia** (a guia dá 404): ninguém paga duas vezes enquanto espera |
+| Último comprovante recusado | "Comprovante recusado", o motivo, "Enviar novo comprovante" — e o Pix volta, porque a mensalidade segue em aberto |
+| Pago | "Mensalidade paga", data e forma; sem upload, sem Pix |
+| Isento / cancelado | sem upload |
+| Pendente sem cobrança emitida | sem upload (o pagamento administrativo continua pela ficha, na 2A) |
+
+No fim da tela, "Comprovantes enviados": data, situação e motivo da recusa.
+Sem quem analisou, ids, hash ou caminho. Na lista de mensalidades, a
+situação aparece como **Aguardando análise**; o "Total em aberto" não muda
+até a aprovação.
+
+Envio pelo celular: botão grande "Selecionar comprovante", nome do arquivo
+escolhido, aviso de formato e tamanho antes de enviar, "Enviando..." com o
+botão travado (`static/js/enviar-comprovante.js`). Sem JavaScript o
+formulário funciona igual. Clique duplo que passe do JS encontra o
+`SUBMITTED` do primeiro e volta para a cobrança com "Já existe um comprovante
+aguardando análise".
+
+### Painel — somente ADMIN
+
+| Rota | O que é |
+|---|---|
+| `/admin-panel/ministros/comprovantes/` | fila (menu Ministros → Comprovantes) |
+| `…/comprovantes/<id>/` | o comprovante, a mensalidade e o histórico dela |
+| `…/comprovantes/<id>/arquivo/` | o arquivo, `inline` (imagem aparece na tela; PDF abre em outra aba) |
+| `…/comprovantes/<id>/baixar/` | o arquivo como download |
+| `…/comprovantes/<id>/aprovar/` | POST + CSRF |
+| `…/comprovantes/<id>/recusar/` | POST + CSRF; motivo obrigatório, até 1000 caracteres, só espaço não vale |
+
+A fila abre em **Aguardando análise, do envio mais antigo para o mais novo**.
+Filtros: ministro (nome, CONAMAD, matrícula), competência, situação
+(aguardando, aprovado, recusado, todas — "todas" põe os aguardando primeiro),
+data de envio de/até. Paginada; a página inteira sai numa consulta
+(mensalidade, ministro e quem analisou no mesmo SELECT), sem ler arquivo.
+Abaixo de 768px vira cartões.
+
+O dashboard de Ministros ganhou o card **Comprovantes aguardando análise**
+(número real), e o de mensalidades, o atalho e o aviso. A ficha da
+mensalidade lista os comprovantes; com um em análise, troca "Registrar
+pagamento" por **Analisar comprovante**.
+
+Aluno recebe 403; ministro (que não é User) cai no login do CPO; GET em
+aprovar/recusar dá 405.
+
+### Aprovação
+
+Tela "Aprovar pagamento?": ministro, referência, valor, **data do pagamento**
+e forma Pix. A data sugerida é o dia do envio, mas o administrador confirma —
+o ministro pode ter pago dias antes de enviar. O servidor recusa data futura
+(regra da 2A) e data posterior ao envio. Sem OCR.
+
+```
+transaction.atomic()
+  trava a mensalidade, depois o comprovante (select_for_update)
+  comprovante ainda SUBMITTED?      senão: DecisaoJaTomada → 409
+  comprovante → APPROVED, reviewed_by, reviewed_at
+  mensalidades.register_payment(paid_at, PIX, "Comprovante do portal nº N")
+  MINISTER_PAYMENT_PROOF_APPROVED
+```
+
+**Reaproveita** `register_payment` da 2A: situação, data, forma, referência e
+o evento `MINISTER_FEE_PAYMENT_REGISTERED` saem de lá, uma vez só. A
+referência é só o número do comprovante — nada do arquivo.
+
+### Recusa e reenvio
+
+Recusar grava `REJECTED`, quem, quando e o motivo; a mensalidade não muda. O
+ministro vê o motivo e envia outro — um comprovante novo; o recusado
+continua intacto, com o arquivo, no histórico (`Comprovante #1 Recusado:
+imagem ilegível`, `Comprovante #2 Aprovado`).
+
+### Comprovante em análise × ações da 2A
+
+Enquanto há um `SUBMITTED`, `register_payment`, `cancel_fee` e `exempt_fee`
+recusam: "Aprove ou recuse o comprovante antes." Assim nunca existe
+comprovante aguardando análise de mensalidade paga, isenta ou cancelada.
+Editar valor e vencimento continua possível. Estorno de um pagamento aprovado
+volta a mensalidade a pendente e mantém o comprovante como aprovado (histórico);
+o ministro pode enviar outro.
+
+### Concorrência
+
+Toda operação trava **a mensalidade primeiro, depois o comprovante** — a
+mesma ordem da baixa manual, então não há deadlock entre elas. Testado com
+threads em PostgreSQL de verdade:
+
+| Corrida | Resultado |
+|---|---|
+| dois envios | 1 `SUBMITTED`; o outro recebe "já existe um comprovante aguardando análise"; 1 arquivo no disco |
+| duas aprovações | 1 aprovação, 1 `MINISTER_FEE_PAYMENT_REGISTERED`; o segundo recebe 409 |
+| aprovar × recusar | uma decisão vale; a outra recebe 409 e não sobrescreve |
+| envio × baixa manual | quem chega depois vê o outro: depois de `PAID` não nasce comprovante; com comprovante em análise a baixa é recusada |
+
+O arquivo é gravado depois de todas as conferências, dentro da transação; se
+ela desfaz, o arquivo é apagado.
+
+### Auditoria
+
+`MINISTER_PAYMENT_PROOF_SUBMITTED` (sem actor: o ministro não é User;
+metadata `competencia`, `file_size`, `mime_type`, `comprovante`),
+`MINISTER_PAYMENT_PROOF_APPROVED` (actor; `competencia`, `payment_method`,
+`paid_at`) e `MINISTER_PAYMENT_PROOF_REJECTED` (actor; `competencia`,
+`rejected` — o motivo fica no comprovante). Entidade `MinisterMonthlyFee`:
+aparecem no histórico da ficha. Nunca entram caminho, nome interno, nome
+original, hash, conteúdo, payload Pix ou senha.
+
+### Backup e restore dos comprovantes
+
+O dump do PostgreSQL guarda o **registro** (com o SHA-256), não o arquivo. Os
+arquivos entram no backup de media que já existia (seção 9.20, "Backup"):
+
+| | horário | arquivo |
+|---|---|---|
+| `cpo-db-backup` | 03:00 | `/var/backups/cpo-provas/postgresql/cpo_provas_AAAA-MM-DD_HHMMSS.dump` + `.sha256` |
+| `cpo-media-backup` | 03:20 | `/var/backups/cpo-provas/media/media_AAAA-MM-DD_HHMMSS.tgz` + `.sha256` |
+
+O `.tgz` contém `media/` inteiro — arte dos certificados **e**
+`media/ministers/payment_proofs/`. O log de cada execução informa quantos
+comprovantes foram para o arquivo. Retenção de 30 dias nos dois.
+
+**O par**: para o dump `cpo_provas_2026-10-29_…`, use o `media_2026-10-29_…`
+da **mesma noite** (gerado ~20 minutos depois). Comprovante nunca é apagado
+nem sobrescrito (nome aleatório, `delete()` recusa), então o tar posterior ao
+dump contém todos os arquivos que o dump referencia; o que ele tiver a mais
+(envio entre 03:00 e 03:20) é arquivo sem registro, inofensivo.
+
+Restore:
+
+```bash
+sudo systemctl stop cpo-provas
+# 1. banco: seção "Restaurar de verdade" do OPERACAO.md (renomeia o atual, restaura o dump escolhido)
+# 2. media do MESMO dia
+sudo -u cpo tar -xzf /var/backups/cpo-provas/media/media_AAAA-MM-DD_HHMMSS.tgz -C /srv/cpo-provas
+sudo chown -R cpo:cpo /srv/cpo-provas/media
+sudo find /srv/cpo-provas/media/ministers/payment_proofs -type d -exec chmod 0750 {} +
+sudo find /srv/cpo-provas/media/ministers/payment_proofs -type f -exec chmod 0640 {} +
+sudo systemctl start cpo-provas
+curl -fsS https://cpoadsum.nexeeo.com/health/
+# 3. conferência: cada comprovante do banco tem arquivo e o SHA-256 bate
+sudo -u cpo /srv/cpo-provas/.venv/bin/python /srv/cpo-provas/manage.py conferir_comprovantes
+# 4. abrir um comprovante pela fila do painel (download autenticado)
+```
+
+`conferir_comprovantes` só lê: conta os comprovantes, confere arquivo e
+SHA-256 de cada um, conta arquivos sem registro, e termina com erro se algum
+registro não tem arquivo ou tem arquivo diferente.
+
+**Limitação, sem mudança**: os dois backups continuam **na mesma EC2/EBS**.
+Cobrem exclusão acidental e erro administrativo; não cobrem a perda da
+máquina ou do disco. Cópia externa precisa de autorização e não foi feita.
 
 ---
 

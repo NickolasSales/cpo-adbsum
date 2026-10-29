@@ -25,7 +25,7 @@ from audit.models import AuditLog
 from common.exceptions import DomainError
 from common.mixins import admin_required
 from common.views import PainelAdminMixin
-from ministers import services
+from ministers import comprovantes, services
 from ministers.forms import DefinirSenhaForm, ImportUploadForm, MinisterForm
 from ministers.importers import analisar, confirmar, ler_arquivo
 from ministers.models import Minister, MinisterAccount, MinisterialTitle
@@ -77,6 +77,7 @@ class MinisterDashboardView(PainelAdminMixin, TemplateView):
             {"titulo": "Sem acesso criado", "valor": numeros["sem_acesso"], "nota": "ainda não entram no portal", "filtro": "acesso=sem"},
         ]
         contexto["senha_padrao_configurada"] = services.senha_padrao_configurada()
+        contexto["comprovantes_em_analise"] = comprovantes.quantos_em_analise()
         return contexto
 
 

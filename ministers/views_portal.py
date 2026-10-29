@@ -24,10 +24,16 @@ from django.views.decorators.http import require_POST
 from django.views.generic import FormView, TemplateView
 
 from common.exceptions import DomainError
-from ministers import auth, cobranca, guia, pix, services
+from ministers import auth, cobranca, comprovantes, guia, pix, services
 from ministers import mensalidades as financeiro
 from ministers.forms import LoginMinistroForm, TrocarSenhaMinistroForm
-from ministers.models import FeeSituation, MinisterMonthlyFee
+from ministers.forms_comprovantes import ACEITOS_NO_NAVEGADOR, EnviarComprovanteForm
+from ministers.models import (
+    TAMANHO_MAXIMO_DO_COMPROVANTE,
+    FeeSituation,
+    MinisterMonthlyFee,
+    ProofStatus,
+)
 
 PREFIXO_DO_PORTAL = "/ministros/"
 
@@ -155,7 +161,11 @@ class MensalidadesMinistroView(MinistroRequiredMixin, TemplateView):
         contexto = super().get_context_data(**kwargs)
         consulta = financeiro.mensalidades_do_ministro(self.ministro)
         totais = financeiro.totais(consulta)
-        contexto["mensalidades"] = list(cobranca.anotar_cobranca(consulta))
+        # Os totais vem da consulta sem anotacao: comprovante aguardando
+        # analise nao tira a mensalidade do aberto. So a aprovacao tira.
+        contexto["mensalidades"] = list(
+            comprovantes.anotar_analise(cobranca.anotar_cobranca(consulta))
+        )
         contexto["totais"] = totais
         contexto["em_aberto"] = totais["pendente"] + totais["vencido"]
         return contexto
@@ -187,7 +197,7 @@ def _mensalidade_da_competencia(ministro, ano, mes):
     return mensalidade
 
 
-def _cobranca_para_pagar(mensalidade, situacao):
+def _cobranca_vigente(mensalidade, situacao):
     """A cobranca vigente, so se ainda houver o que pagar."""
     if situacao not in SITUACOES_COBRAVEIS:
         return None
@@ -197,6 +207,18 @@ def _cobranca_para_pagar(mensalidade, situacao):
         .only("fee_id", "txid", "pix_payload", "payment_instructions_snapshot")
         .first()
     )
+
+
+def _cobranca_para_pagar(mensalidade, situacao):
+    """
+    A cobranca que o ministro pode PAGAR agora. Com comprovante aguardando
+    analise, nenhuma: o Pix e a guia somem ate a secretaria conferir, para
+    que ninguem pague duas vezes enquanto espera.
+    """
+    atual = _cobranca_vigente(mensalidade, situacao)
+    if atual is None or comprovantes.tem_comprovante_em_analise(mensalidade):
+        return None
+    return atual
 
 
 class CobrancaMinistroView(MinistroRequiredMixin, TemplateView):
@@ -215,14 +237,30 @@ class CobrancaMinistroView(MinistroRequiredMixin, TemplateView):
         contexto = super().get_context_data(**kwargs)
         mensalidade = _mensalidade_da_competencia(self.ministro, kwargs["ano"], kwargs["mes"])
         situacao = mensalidade.situacao
-        atual = _cobranca_para_pagar(mensalidade, situacao)
+        vigente = _cobranca_vigente(mensalidade, situacao)
+        historico = comprovantes.do_portal(mensalidade)
+        for numero, enviado in enumerate(historico, start=1):
+            enviado.numero = numero
+        aguardando = next((c for c in historico if c.status == ProofStatus.SUBMITTED), None)
+        ultimo = historico[-1] if historico else None
+        # Com comprovante em analise, o Pix nao e oferecido (a mesma regra de
+        # _cobranca_para_pagar, que vale para a guia).
+        atual = vigente if aguardando is None else None
         contexto.update(
             {
                 "mensalidade": mensalidade,
                 "situacao": situacao,
                 "cobranca": atual,
+                "tem_cobranca": vigente is not None,
                 "qr_svg": pix.svg_qr(atual.pix_payload) if atual else "",
                 "cobravel": situacao in SITUACOES_COBRAVEIS,
+                "historico": historico,
+                "aguardando": aguardando,
+                "recusado": ultimo if ultimo is not None and ultimo.status == ProofStatus.REJECTED else None,
+                "pode_enviar": comprovantes.motivo_para_nao_enviar(
+                    mensalidade, tem_cobranca=vigente is not None, tem_em_analise=aguardando is not None
+                )
+                is None,
             }
         )
         return contexto
@@ -238,6 +276,102 @@ class GuiaMinistroView(MinistroRequiredMixin, View):
             raise Http404
         # A guia le o snapshot inteiro, e nao so as colunas da tela.
         return guia.resposta_da_guia(cobranca.vigentes().get(pk=atual.pk))
+
+
+class EnviarComprovanteView(MinistroRequiredMixin, FormView):
+    """
+    /ministros/mensalidades/AAAA/MM/comprovante/. GET mostra o formulario,
+    POST envia (CSRF). O formulario so tem o arquivo: valor, data, situacao
+    e mensalidade nao vem do navegador. A mensalidade e a da competencia DO
+    MINISTRO DA SESSAO — de outro ministro, 404.
+    """
+
+    template_name = "ministers/portal/comprovante.html"
+    form_class = EnviarComprovanteForm
+    # O FormView do Django trata PUT como POST. Aqui, nao.
+    http_method_names = ["get", "post", "head", "options"]
+
+    def _mensalidade(self):
+        if not hasattr(self, "_atual"):
+            self._atual = _mensalidade_da_competencia(
+                self.ministro, self.kwargs["ano"], self.kwargs["mes"]
+            )
+        return self._atual
+
+    def _url_da_cobranca(self):
+        return reverse(
+            "ministers:fee_charge", kwargs={"ano": self.kwargs["ano"], "mes": self.kwargs["mes"]}
+        )
+
+    def get(self, request, *args, **kwargs):
+        mensalidade = self._mensalidade()
+        motivo = comprovantes.motivo_para_nao_enviar(
+            mensalidade,
+            tem_cobranca=cobranca.cobranca_vigente(mensalidade) is not None,
+            tem_em_analise=comprovantes.tem_comprovante_em_analise(mensalidade),
+        )
+        if motivo:
+            messages.info(request, motivo)
+            return redirect(self._url_da_cobranca())
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        contexto = super().get_context_data(**kwargs)
+        mensalidade = self._mensalidade()
+        contexto["mensalidade"] = mensalidade
+        contexto["situacao"] = mensalidade.situacao
+        contexto["referencia"] = cobranca.competencia_por_extenso(mensalidade.reference_month)
+        contexto["url_da_cobranca"] = self._url_da_cobranca()
+        contexto["aceitos"] = ACEITOS_NO_NAVEGADOR
+        contexto["limite"] = TAMANHO_MAXIMO_DO_COMPROVANTE
+        return contexto
+
+    def form_valid(self, form):
+        mensalidade = self._mensalidade()
+        try:
+            comprovantes.enviar_comprovante(
+                mensalidade, form.cleaned_data["arquivo"], request=self.request
+            )
+        except comprovantes.EnvioRecusado as erro:
+            # A situacao nao permite (paga, ou comprovante ja em analise —
+            # inclusive o proprio, num clique duplo). Nada foi gravado; a
+            # cobranca mostra o estado atual.
+            messages.info(self.request, str(erro))
+            return redirect(self._url_da_cobranca())
+        except DomainError as erro:
+            for mensagem in erro.mensagens:
+                form.add_error("arquivo", mensagem)
+            return self.form_invalid(form)
+        messages.success(
+            self.request,
+            "Comprovante recebido! Sua mensalidade de {} está aguardando conferência. "
+            "Você poderá acompanhar o status por aqui.".format(
+                cobranca.competencia_por_extenso(mensalidade.reference_month)
+            ),
+        )
+        return redirect(self._url_da_cobranca())
+
+
+class ArquivoDoComprovanteView(MinistroRequiredMixin, View):
+    """
+    Um comprovante que o PROPRIO ministro enviou, pelo numero dentro da
+    competencia (1 = o primeiro enviado). A consulta parte da mensalidade do
+    ministro da sessao: o comprovante de outro ministro nao e alcancavel nem
+    conhecendo o id, o nome do arquivo ou o caminho.
+    """
+
+    def get(self, request, ano, mes, numero):
+        mensalidade = _mensalidade_da_competencia(self.ministro, ano, mes)
+        numero = int(numero)
+        if numero < 1:
+            raise Http404
+        enviado = (
+            mensalidade.payment_proofs.order_by("submitted_at", "id")[numero - 1 : numero].first()
+        )
+        if enviado is None:
+            raise Http404
+        nome = comprovantes.nome_para_download(enviado, mensalidade.reference_month, numero)
+        return comprovantes.resposta_do_arquivo(enviado, nome=nome, inline=True)
 
 
 class PerfilMinistroView(MinistroRequiredMixin, TemplateView):

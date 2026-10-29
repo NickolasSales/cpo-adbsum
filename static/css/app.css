@@ -1370,6 +1370,69 @@ pre {
   border-left: 4px solid #16a34a;
 }
 
+/* Comprovantes (Fase 2E) */
+.cpo-cobranca__aviso--analise {
+  border-left: 4px solid #2563eb;
+}
+
+.cpo-cobranca__aviso--erro {
+  border-left: 4px solid #dc2626;
+}
+
+.cpo-comprovantes > li + li {
+  margin-top: .75rem;
+  padding-top: .75rem;
+  border-top: 1px solid var(--cpo-borda);
+}
+
+/* O input de arquivo nativo fica escondido atras de um botao grande: no
+   celular, "Selecionar comprovante" e mais claro que "Escolher arquivo". O
+   input continua no DOM, focavel e lido por leitor de tela. */
+.cpo-envio__arquivo {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.cpo-envio__escolher {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .25rem;
+  padding: 1.25rem 1rem;
+  border: 2px dashed var(--cpo-borda);
+  border-radius: .75rem;
+  text-align: center;
+  cursor: pointer;
+}
+
+.cpo-envio__arquivo:focus-visible + .cpo-envio__escolher {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.cpo-envio__nome {
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+
+.cpo-envio__nome:empty {
+  display: none;
+}
+
+.cpo-comprovante__preview {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  height: auto;
+  margin-inline: auto;
+  border: 1px solid var(--cpo-borda);
+  border-radius: .5rem;
+  background: #fff;
+}
+
 @media (min-width: 576px) {
   .cpo-portal__dados {
     grid-template-columns: 1fr 1fr;

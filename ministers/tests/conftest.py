@@ -101,3 +101,65 @@ def configuracao_pix(db):
 
     configuracao, _ = cobranca.salvar_configuracao(dict(PIX_DE_TESTE))
     return configuracao
+
+
+# ---------------------------------------------------------------------------
+# Comprovantes (Fase 2E): arquivos de teste gerados na hora. Nenhum
+# comprovante real entra no repositorio.
+# ---------------------------------------------------------------------------
+
+
+def pdf_de_teste(texto="Comprovante de teste"):
+    """Um PDF de verdade, de uma pagina, gerado pelo ReportLab."""
+    import io
+
+    from reportlab.pdfgen import canvas
+
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, invariant=1)
+    c.drawString(72, 720, texto)
+    c.showPage()
+    c.save()
+    return buffer.getvalue()
+
+
+def imagem_de_teste(formato="PNG", tamanho=(390, 844), cor=(240, 248, 255)):
+    """Um print de celular: PNG ou JPEG de verdade."""
+    import io
+
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    Image.new("RGB", tamanho, cor).save(buffer, formato)
+    return buffer.getvalue()
+
+
+def png_declarando(largura, altura):
+    """
+    PNG minusculo cujo cabecalho DECLARA largura x altura. E a forma da
+    bomba de descompressao: poucos bytes que prometem gigabytes de pixels.
+    """
+    import struct
+    import zlib
+
+    def bloco(tipo, dados):
+        corpo = tipo + dados
+        return struct.pack(">I", len(dados)) + corpo + struct.pack(">I", zlib.crc32(corpo) & 0xFFFFFFFF)
+
+    ihdr = struct.pack(">IIBBBBB", largura, altura, 8, 0, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + bloco(b"IHDR", ihdr)
+        + bloco(b"IDAT", zlib.compress(b"\x00" * 64))
+        + bloco(b"IEND", b"")
+    )
+
+
+def arquivo_enviado(conteudo, nome="comprovante.pdf", tipo=None):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    if tipo is None:
+        tipo = {"pdf": "application/pdf", "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}.get(
+            nome.rsplit(".", 1)[-1].lower(), "application/octet-stream"
+        )
+    return SimpleUploadedFile(nome, conteudo, content_type=tipo)

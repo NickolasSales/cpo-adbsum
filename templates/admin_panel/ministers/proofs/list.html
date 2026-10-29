@@ -1,0 +1,116 @@
+{% extends "admin_panel/base_admin.html" %}
+{% load financeiro %}
+
+{% comment %}
+Fila de comprovantes (Fase 2E). Abre em "Aguardando análise", do envio mais
+antigo para o mais novo — a fila de trabalho da secretaria. Tabela no
+desktop, cartoes abaixo de 768px (cpo-lista--cartoes). Nome do ministro e
+nome do arquivo sao texto de usuario: sempre com escape.
+{% endcomment %}
+
+{% block title %}Comprovantes - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">Comprovantes</h1>
+    <p class="text-body-secondary small mb-0">
+      {{ aguardando }} aguardando análise &middot; {{ page_obj.paginator.count }} nesta lista.
+    </p>
+  </div>
+</div>
+
+<form method="get" class="cpo-cartao p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-lg-3">
+      <label for="q" class="form-label small fw-medium mb-1">Buscar ministro</label>
+      <input type="search" id="q" name="q" value="{{ filtros.q }}" class="form-control form-control-sm"
+             placeholder="Nome, CONAMAD ou matrícula">
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+      <label for="competencia" class="form-label small fw-medium mb-1">Competência</label>
+      <select id="competencia" name="competencia" class="form-select form-select-sm">
+        <option value="">Todas</option>
+        {% for chave, rotulo in competencias %}
+          <option value="{{ chave }}" {% if filtros.competencia == chave %}selected{% endif %}>{{ rotulo }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+      <label for="situacao" class="form-label small fw-medium mb-1">Situação</label>
+      <select id="situacao" name="situacao" class="form-select form-select-sm">
+        {% for valor, rotulo in situacoes %}
+          <option value="{{ valor }}" {% if filtros.situacao == valor %}selected{% endif %}>{{ rotulo }}</option>
+        {% endfor %}
+        <option value="{{ todas }}" {% if filtros.situacao == todas %}selected{% endif %}>Todas</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+      <label for="enviado_de" class="form-label small fw-medium mb-1">Enviado de</label>
+      <input type="date" id="enviado_de" name="enviado_de" value="{{ filtros.enviado_de }}" class="form-control form-control-sm">
+    </div>
+    <div class="col-6 col-md-3 col-lg-2">
+      <label for="enviado_ate" class="form-label small fw-medium mb-1">até</label>
+      <input type="date" id="enviado_ate" name="enviado_ate" value="{{ filtros.enviado_ate }}" class="form-control form-control-sm">
+    </div>
+    <div class="col-12 col-lg-1">
+      <button type="submit" class="btn btn-sm btn-primary w-100">Filtrar</button>
+    </div>
+  </div>
+  {% if tem_filtro %}
+    <div class="mt-2">
+      <a class="small text-decoration-none" href="{% url 'admin_panel:minister_proof_list' %}">Voltar à fila (aguardando análise)</a>
+    </div>
+  {% endif %}
+</form>
+
+<div class="cpo-cartao">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 cpo-tabela cpo-lista--cartoes">
+      <thead>
+        <tr>
+          <th>Ministro</th>
+          <th>Matrícula</th>
+          <th>Competência</th>
+          <th class="text-end">Valor</th>
+          <th>Vencimento</th>
+          <th>Enviado em</th>
+          <th>Situação</th>
+          <th class="text-end cpo-acoes">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in comprovantes %}
+          <tr>
+            <td class="cpo-celula-titulo cpo-col-nome">
+              <a href="{% url 'admin_panel:minister_proof_detail' c.pk %}" class="fw-medium text-decoration-none">{{ c.fee.minister.full_name }}</a>
+              {% if c.fee.minister.congregation %}<div class="small text-body-secondary fw-normal">{{ c.fee.minister.congregation }}</div>{% endif %}
+            </td>
+            <td class="small text-nowrap" data-rotulo="Matrícula">
+              {{ c.fee.minister.conamad_registration }}
+              {% if c.fee.minister.field_registration %}<div class="text-body-secondary">Campo {{ c.fee.minister.field_registration }}</div>{% endif %}
+            </td>
+            <td class="small text-nowrap" data-rotulo="Competência">{{ c.fee.competencia_rotulo }}</td>
+            <td class="small text-end text-nowrap" data-rotulo="Valor">{{ c.fee.amount|brl }}</td>
+            <td class="small text-nowrap" data-rotulo="Vencimento">{{ c.fee.due_date|date:"d/m/Y" }}</td>
+            <td class="small text-nowrap" data-rotulo="Enviado em">{{ c.submitted_at|date:"d/m/Y H:i" }}</td>
+            <td data-rotulo="Situação">{% include "admin_panel/ministers/proofs/_situacao.html" with status=c.status %}</td>
+            <td class="text-end cpo-acoes">
+              <a class="btn btn-sm {% if c.status == 'SUBMITTED' %}btn-primary{% else %}btn-outline-primary{% endif %} text-nowrap"
+                 href="{% url 'admin_panel:minister_proof_detail' c.pk %}">{% if c.status == "SUBMITTED" %}Analisar{% else %}Abrir{% endif %}</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="8" class="text-center text-body-secondary py-5 cpo-celula-vazia">
+              {% if filtros.situacao == "SUBMITTED" and not tem_filtro %}Nenhum comprovante aguardando análise.{% else %}Nenhum comprovante com esses filtros.{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "admin_panel/_paginacao.html" %}
+{% endblock %}

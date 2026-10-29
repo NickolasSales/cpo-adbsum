@@ -133,7 +133,7 @@ def test_mensalidades_nao_alteram_o_cpo(tentativa, admin_user, ministro):
 def test_mensalidade_nao_aponta_para_o_cpo():
     from ministers.models import MinisterMonthlyFee
 
-    from ministers.models import MinisterFeeCharge
+    from ministers.models import MinisterFeeCharge, MinisterPaymentProof
 
     relacionados = {
         campo.related_model
@@ -141,8 +141,9 @@ def test_mensalidade_nao_aponta_para_o_cpo():
         if campo.is_relation and campo.related_model is not None
     }
     # Fase 2D: a cobranca (MinisterFeeCharge.fee) aparece como relacao
-    # reversa. Continua tudo dentro do dominio de ministros.
-    assert relacionados == {Minister, MinisterFeeCharge}
+    # reversa; Fase 2E: o comprovante (MinisterPaymentProof.fee) tambem.
+    # Continua tudo dentro do dominio de ministros.
+    assert relacionados == {Minister, MinisterFeeCharge, MinisterPaymentProof}
 
 
 def test_cobranca_so_aponta_para_ministros_e_para_o_administrador():
@@ -223,3 +224,55 @@ def test_cobranca_pix_nao_altera_o_cpo(tentativa, client, admin_user):
     assert admin.get("/admin-panel/ministros/mensalidades/{}/guia.pdf".format(outubro.pk)).status_code == 200
 
     assert retrato_do_cpo() == antes
+
+
+def test_comprovantes_nao_alteram_o_cpo(tentativa, client, admin_user):
+    """Enviar, recusar, reenviar, aprovar e baixar comprovantes (Fase 2E)."""
+    import datetime
+
+    from django.test import Client
+
+    from ministers import cobranca, comprovantes, mensalidades
+    from ministers.models import MinisterPaymentProof
+    from ministers.tests.conftest import PIX_DE_TESTE, arquivo_enviado, pdf_de_teste
+
+    antes = retrato_do_cpo()
+
+    cobranca.salvar_configuracao(dict(PIX_DE_TESTE), actor=admin_user)
+    ministro = services.create_minister(dados=dados_de_ministro(), password=SENHA_MINISTRO)
+    outubro = mensalidades.create_fee(
+        minister=ministro, reference_month="2026-10", due_date=datetime.date(2026, 10, 31), amount="35.00"
+    )
+    cobranca.gerar_cobranca(outubro, actor=admin_user)
+
+    entrar_no_portal(client)
+    envio = "/ministros/mensalidades/2026/10/comprovante/"
+    assert client.post(envio, {"arquivo": arquivo_enviado(pdf_de_teste())}).status_code == 302
+    primeiro = MinisterPaymentProof.objects.get()
+
+    admin = Client()
+    admin.force_login(admin_user)
+    base = "/admin-panel/ministros/comprovantes/{}/"
+    assert admin.post(base.format(primeiro.pk) + "recusar/", {"motivo": "Ilegível."}).status_code == 302
+    assert client.post(envio, {"arquivo": arquivo_enviado(pdf_de_teste("2"))}).status_code == 302
+    segundo = MinisterPaymentProof.objects.latest("id")
+    assert admin.get(base.format(segundo.pk) + "arquivo/").status_code == 200
+    assert admin.get(base.format(segundo.pk) + "baixar/").status_code == 200
+    comprovantes.aprovar_comprovante(segundo, paid_at=datetime.date(2026, 10, 20), actor=admin_user)
+    assert client.get("/ministros/mensalidades/2026/10/comprovantes/2/").status_code == 200
+
+    assert retrato_do_cpo() == antes
+
+
+def test_comprovante_so_aponta_para_a_mensalidade_e_para_o_administrador():
+    from django.contrib.auth import get_user_model
+
+    from ministers.models import MinisterMonthlyFee, MinisterPaymentProof
+
+    relacionados = {
+        campo.related_model
+        for campo in MinisterPaymentProof._meta.get_fields()
+        if campo.is_relation and campo.related_model is not None
+    }
+    # O User e so o administrador que analisou (reviewed_by).
+    assert relacionados == {MinisterMonthlyFee, get_user_model()}

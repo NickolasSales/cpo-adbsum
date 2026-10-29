@@ -1,0 +1,145 @@
+{% extends "admin_panel/base_admin.html" %}
+{% load financeiro %}
+
+{% comment %}
+Um comprovante e a decisao sobre ele (Fase 2E).
+
+O arquivo vem de uma view autenticada (…/arquivo/), nunca de /media/: a
+imagem aparece aqui dentro, o PDF abre em outra aba. A aprovacao pede a
+DATA DO PAGAMENTO — a sugestao e o dia do envio, mas o administrador
+confirma, porque o ministro pode ter pago dias antes de enviar. A forma e
+Pix: e o pagamento da cobranca Pix do portal.
+
+Aprovar e recusar so aparecem para comprovante aguardando analise de
+mensalidade pendente. O servico confere de novo com as linhas travadas: se
+outro administrador decidiu antes, a resposta e 409 e esta tela mostra o
+que valeu.
+{% endcomment %}
+
+{% block title %}Comprovante - {{ APP_NAME }}{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{% url 'admin_panel:minister_proof_list' %}">&larr; Comprovantes</a>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div class="cpo-quebra">
+    <h1 class="h4 mb-1">Comprovante &middot; {{ mensalidade.competencia_rotulo }}</h1>
+    <p class="text-body-secondary small mb-0">{{ ministro.full_name }}</p>
+  </div>
+  <div>{% include "admin_panel/ministers/proofs/_situacao.html" with status=comprovante.status %}</div>
+</div>
+
+{% if erro %}
+  <div class="alert alert-warning py-2 small" role="alert">{{ erro }}</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-12 col-lg-7">
+    <h2 class="h6 mb-2">Arquivo</h2>
+    <div class="cpo-cartao p-3">
+      {% if comprovante.e_imagem %}
+        <img class="cpo-comprovante__preview mb-3" src="{% url 'admin_panel:minister_proof_file' comprovante.pk %}"
+             alt="Comprovante enviado por {{ ministro.full_name }}">
+      {% endif %}
+      <dl class="row small mb-2">
+        <dt class="col-5 text-body-secondary fw-normal">Enviado em</dt>
+        <dd class="col-7 mb-2">{{ comprovante.submitted_at|date:"d/m/Y H:i" }}</dd>
+        <dt class="col-5 text-body-secondary fw-normal">Nome do arquivo</dt>
+        <dd class="col-7 mb-2 cpo-quebra">{{ comprovante.original_filename|default:"-" }}</dd>
+        <dt class="col-5 text-body-secondary fw-normal">Tipo e tamanho</dt>
+        <dd class="col-7 mb-2">{% if comprovante.mime_type == "application/pdf" %}PDF{% elif comprovante.mime_type == "image/png" %}PNG{% else %}JPG{% endif %} &middot; {{ comprovante.file_size|filesizeformat }}</dd>
+        {% if comprovante.reviewed_at %}
+          <dt class="col-5 text-body-secondary fw-normal">Analisado em</dt>
+          <dd class="col-7 mb-2">{{ comprovante.reviewed_at|date:"d/m/Y H:i" }}{% if comprovante.reviewed_by %} &middot; {{ comprovante.reviewed_by.full_name }}{% endif %}</dd>
+        {% endif %}
+        {% if comprovante.status == "REJECTED" %}
+          <dt class="col-5 text-body-secondary fw-normal">Motivo da recusa</dt>
+          <dd class="col-7 mb-2 cpo-quebra">{{ comprovante.rejection_reason|linebreaksbr }}</dd>
+        {% endif %}
+      </dl>
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener"
+           href="{% url 'admin_panel:minister_proof_file' comprovante.pk %}">{% if comprovante.e_imagem %}Abrir em outra aba{% else %}Abrir comprovante{% endif %}</a>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'admin_panel:minister_proof_download' comprovante.pk %}">Baixar</a>
+      </div>
+    </div>
+
+    <h2 class="h6 mt-4 mb-2">Comprovantes desta mensalidade</h2>
+    <div class="cpo-cartao p-3">
+      <ol class="small mb-0 ps-3 cpo-comprovantes">
+        {% for item in historico %}
+          <li>
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+              <span>
+                {% if item.pk == comprovante.pk %}<strong>Este</strong> &middot; {% else %}<a class="text-decoration-none" href="{% url 'admin_panel:minister_proof_detail' item.pk %}">Abrir</a> &middot; {% endif %}
+                enviado em {{ item.submitted_at|date:"d/m/Y H:i" }}
+              </span>
+              {% include "admin_panel/ministers/proofs/_situacao.html" with status=item.status %}
+            </div>
+            {% if item.reviewed_at %}
+              <div class="text-body-secondary">Analisado em {{ item.reviewed_at|date:"d/m/Y H:i" }}{% if item.reviewed_by %} &middot; {{ item.reviewed_by.full_name }}{% endif %}</div>
+            {% endif %}
+            {% if item.status == "REJECTED" %}
+              <div class="text-body-secondary cpo-quebra">Motivo: {{ item.rejection_reason }}</div>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ol>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-5">
+    <h2 class="h6 mb-2">Mensalidade</h2>
+    <div class="cpo-cartao p-3">
+      {% include "admin_panel/ministers/fees/_resumo.html" %}
+      <dl class="row small mb-0">
+        <dt class="col-5 text-body-secondary fw-normal">Cargo</dt>
+        <dd class="col-7 mb-0">{{ ministro.cargo_exibido|default:"-" }}</dd>
+      </dl>
+    </div>
+    <p class="small mt-2 mb-0">
+      <a class="text-decoration-none" href="{% url 'admin_panel:minister_fee_detail' mensalidade.pk %}">Abrir a ficha da mensalidade</a>
+    </p>
+
+    {% if decidir %}
+      <section class="cpo-cartao p-3 mt-3" aria-labelledby="aprovar">
+        <h2 class="h6 mb-2" id="aprovar">Aprovar pagamento?</h2>
+        <dl class="row small mb-2">
+          <dt class="col-5 text-body-secondary fw-normal">Ministro</dt>
+          <dd class="col-7 mb-1 cpo-quebra">{{ ministro.full_name }}</dd>
+          <dt class="col-5 text-body-secondary fw-normal">Referência</dt>
+          <dd class="col-7 mb-1">{{ mensalidade.reference_month|date:"F/Y" }}</dd>
+          <dt class="col-5 text-body-secondary fw-normal">Valor da mensalidade</dt>
+          <dd class="col-7 mb-1 fw-medium">{{ mensalidade.amount|brl }}</dd>
+          <dt class="col-5 text-body-secondary fw-normal">Forma</dt>
+          <dd class="col-7 mb-1">Pix</dd>
+        </dl>
+        <form method="post" action="{% url 'admin_panel:minister_proof_approve' comprovante.pk %}" novalidate>
+          {% csrf_token %}
+          {% with form=form_aprovar %}{% include "admin_panel/ministers/fees/_campos.html" %}{% endwith %}
+          <p class="form-text small mt-1 mb-2">Confira a data no comprovante. A sugestão é o dia do envio.</p>
+          <button type="submit" class="btn btn-success w-100">Confirmar aprovação</button>
+        </form>
+      </section>
+
+      <section class="cpo-cartao p-3 mt-3" aria-labelledby="recusar">
+        <h2 class="h6 mb-2" id="recusar">Recusar comprovante</h2>
+        <p class="small text-body-secondary mb-2">
+          A mensalidade continua em aberto. O ministro vê o motivo no portal e pode enviar outro comprovante.
+        </p>
+        <form method="post" action="{% url 'admin_panel:minister_proof_reject' comprovante.pk %}" novalidate>
+          {% csrf_token %}
+          {% with form=form_recusar %}{% include "admin_panel/ministers/fees/_campos.html" %}{% endwith %}
+          <button type="submit" class="btn btn-outline-danger w-100 mt-3">Recusar comprovante</button>
+        </form>
+      </section>
+    {% elif comprovante.status == "SUBMITTED" %}
+      <p class="small text-body-secondary mt-3 mb-0">
+        A mensalidade não está pendente. Não há decisão a tomar sobre este comprovante pela fila.
+      </p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

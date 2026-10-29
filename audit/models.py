@@ -325,6 +325,24 @@ class AuditEvent(models.TextChoices):
         "Cobranças de mensalidades geradas em lote",
     )
 
+    # Comprovantes de pagamento (Fase 2E). Entidade MinisterMonthlyFee, como
+    # os eventos financeiros: aparecem no historico da ficha. A metadata leva
+    # o id do comprovante, o tipo e o tamanho — nunca o caminho, o nome
+    # interno, o conteudo ou o motivo inteiro da recusa (que fica no
+    # proprio comprovante). O envio nao tem actor: o ministro nao e User.
+    MINISTER_PAYMENT_PROOF_SUBMITTED = (
+        "MINISTER_PAYMENT_PROOF_SUBMITTED",
+        "Comprovante enviado pelo ministro",
+    )
+    MINISTER_PAYMENT_PROOF_APPROVED = (
+        "MINISTER_PAYMENT_PROOF_APPROVED",
+        "Comprovante aprovado",
+    )
+    MINISTER_PAYMENT_PROOF_REJECTED = (
+        "MINISTER_PAYMENT_PROOF_REJECTED",
+        "Comprovante recusado",
+    )
+
 
 class AuditLog(models.Model):
     """

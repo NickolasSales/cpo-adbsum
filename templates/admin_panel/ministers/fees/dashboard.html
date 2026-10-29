@@ -22,6 +22,7 @@ vencimento no passado. Isentas e canceladas ficam fora dos totais em reais.
        href="{% url 'admin_panel:minister_fee_list' %}{% if competencia_chave %}?competencia={{ competencia_chave }}{% endif %}">Ver lista</a>
     <a class="btn btn-outline-secondary btn-sm" href="{% url 'admin_panel:minister_fee_create' %}">Nova mensalidade</a>
     <a class="btn btn-outline-secondary btn-sm" href="{% url 'admin_panel:minister_charges' %}">Cobranças</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'admin_panel:minister_proof_list' %}">Comprovantes{% if comprovantes_em_analise %} <span class="badge text-bg-primary">{{ comprovantes_em_analise }}</span>{% endif %}</a>
     <a class="btn btn-primary btn-sm" href="{% url 'admin_panel:minister_fee_generate' %}">Gerar mensalidades</a>
   </div>
 </div>
@@ -42,6 +43,13 @@ vencimento no passado. Isentas e canceladas ficam fora dos totais em reais.
     </div>
   </div>
 </form>
+
+{% if comprovantes_em_analise %}
+  <div class="alert alert-info py-2 small d-flex flex-wrap justify-content-between align-items-center gap-2" role="status">
+    <span>{{ comprovantes_em_analise }} comprovante{{ comprovantes_em_analise|pluralize }} aguardando análise. Enquanto não forem aprovados, as mensalidades continuam em aberto nos totais.</span>
+    <a class="btn btn-sm btn-primary" href="{% url 'admin_panel:minister_proof_list' %}">Abrir a fila</a>
+  </div>
+{% endif %}
 
 {% if not totais.qtd_total %}
   <div class="cpo-cartao cpo-vazio mb-3">

@@ -22,6 +22,13 @@ sem deixar rastro de quem desfez o registro e por que.
 Cada transicao trava a linha (select_for_update) e confere a situacao DENTRO
 da transacao: dois administradores registrando o mesmo pagamento ao mesmo
 tempo produzem um registro e uma recusa, e nunca dois eventos.
+
+Comprovante em analise (Fase 2E): enquanto o ministro tem um comprovante
+SUBMITTED, a mensalidade nao sai de PENDING por baixa manual, cancelamento ou
+isencao — o administrador aprova ou recusa o comprovante antes. Assim nunca
+existe comprovante "aguardando analise" de mensalidade paga, isenta ou
+cancelada. A aprovacao do comprovante usa register_payment, depois de tirar
+o comprovante de analise na mesma transacao.
 """
 
 import datetime
@@ -41,8 +48,10 @@ from ministers.models import (
     FeeSituation,
     Minister,
     MinisterMonthlyFee,
+    MinisterPaymentProof,
     MonthlyFeeStatus,
     PaymentMethod,
+    ProofStatus,
 )
 
 ANO_MINIMO = 2000
@@ -343,6 +352,16 @@ def _travar(mensalidade, *permitidos, acao):
     return atual
 
 
+def _sem_comprovante_em_analise(mensalidade):
+    if MinisterPaymentProof.objects.filter(
+        fee=mensalidade, status=ProofStatus.SUBMITTED
+    ).exists():
+        raise DomainError(
+            "Há um comprovante enviado pelo ministro aguardando análise. "
+            "Aprove ou recuse o comprovante antes."
+        )
+
+
 def update_fee(mensalidade, *, due_date, amount, notes, actor=None, request=None):
     """Altera valor, vencimento e observacoes. So de mensalidade pendente."""
     valor = _valor(amount)
@@ -392,6 +411,7 @@ def register_payment(
     )
     with transaction.atomic():
         atual = _travar(mensalidade, MonthlyFeeStatus.PENDING, acao="registrar pagamento de")
+        _sem_comprovante_em_analise(atual)
         vencida = atual.due_date < timezone.localdate()
         atual.status = MonthlyFeeStatus.PAID
         atual.paid_at = paid_at
@@ -477,6 +497,8 @@ def _mudar_situacao(mensalidade, *, permitidos, nova, evento, acao, vazio, reaso
     motivo = validar_motivo(reason, vazio=vazio)
     with transaction.atomic():
         atual = _travar(mensalidade, *permitidos, acao=acao)
+        if atual.status == MonthlyFeeStatus.PENDING:
+            _sem_comprovante_em_analise(atual)
         anterior = atual.status
         atual.status = nova
         atual.status_reason = motivo

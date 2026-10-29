@@ -9,6 +9,7 @@ from django.urls import path
 
 from ministers import views_admin as views
 from ministers import views_cobranca as cobranca
+from ministers import views_comprovantes as comprovantes
 from ministers import views_geracao as geracao
 from ministers import views_mensalidades as fees
 
@@ -87,6 +88,32 @@ urlpatterns = [
         "ministros/configuracoes/pagamento/",
         cobranca.ConfiguracaoPagamentoView.as_view(),
         name="minister_billing_settings",
+    ),
+    path("ministros/comprovantes/", comprovantes.ComprovantesView.as_view(), name="minister_proof_list"),
+    path(
+        "ministros/comprovantes/<int:pk>/",
+        comprovantes.ComprovanteDetalheView.as_view(),
+        name="minister_proof_detail",
+    ),
+    path(
+        "ministros/comprovantes/<int:pk>/arquivo/",
+        comprovantes.ComprovanteArquivoView.as_view(),
+        name="minister_proof_file",
+    ),
+    path(
+        "ministros/comprovantes/<int:pk>/baixar/",
+        comprovantes.ComprovanteDownloadView.as_view(),
+        name="minister_proof_download",
+    ),
+    path(
+        "ministros/comprovantes/<int:pk>/aprovar/",
+        comprovantes.AprovarComprovanteView.as_view(),
+        name="minister_proof_approve",
+    ),
+    path(
+        "ministros/comprovantes/<int:pk>/recusar/",
+        comprovantes.RecusarComprovanteView.as_view(),
+        name="minister_proof_reject",
     ),
     path("ministros/mensalidades/cobrancas/", cobranca.CobrancasView.as_view(), name="minister_charges"),
     path(

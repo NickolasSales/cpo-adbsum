@@ -749,3 +749,182 @@ class MinisterFeeCharge(models.Model):
     @property
     def vigente(self):
         return self.superseded_at is None
+
+
+# ---------------------------------------------------------------------------
+# Comprovantes de pagamento (Fase 2E)
+# ---------------------------------------------------------------------------
+
+# 5 MB. Um print de tela do aplicativo do banco tem menos de 1 MB; uma foto
+# de celular de um comprovante em papel, 2 a 4 MB. O Nginx do host aceita
+# 6 MB por requisicao, o que deixa folga para o envelope multipart.
+TAMANHO_MAXIMO_DO_COMPROVANTE = 5 * 1024 * 1024
+
+# O tipo gravado e o que a aplicacao ENCONTROU dentro do arquivo, nunca o que
+# o navegador declarou. A extensao do nome interno sai daqui tambem.
+EXTENSAO_DO_COMPROVANTE = {
+    "application/pdf": ".pdf",
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+}
+
+PASTA_DOS_COMPROVANTES = "ministers/payment_proofs"
+
+
+def armazenamento_dos_comprovantes():
+    """
+    O mesmo MEDIA_ROOT do resto da aplicacao, com permissoes mais fechadas.
+
+    0640/0750: o dono (o usuario da aplicacao) le e grava, o grupo le — o
+    backup de media roda como o mesmo usuario —, e mais ninguem ve nada.
+    Nenhum servidor web serve este diretorio: o arquivo so sai por uma view
+    autenticada (ver config/settings.py, "Arquivos enviados").
+    """
+    from django.core.files.storage import FileSystemStorage
+
+    return FileSystemStorage(file_permissions_mode=0o640, directory_permissions_mode=0o750)
+
+
+def caminho_do_comprovante(instancia, nome_enviado):
+    """
+    ministers/payment_proofs/<32 hex aleatorios>.<pdf|jpg|png>.
+
+    O nome que veio do navegador nao entra no caminho — nem sanitizado. Ele
+    fica so em original_filename, para a secretaria reconhecer o arquivo. A
+    extensao vem do tipo detectado no conteudo.
+    """
+    import uuid
+
+    return "{}/{}{}".format(
+        PASTA_DOS_COMPROVANTES,
+        uuid.uuid4().hex,
+        EXTENSAO_DO_COMPROVANTE.get(instancia.mime_type, ""),
+    )
+
+
+class ProofStatus(models.TextChoices):
+    """
+    Situacao do COMPROVANTE. Nao se mistura com a da mensalidade.
+
+    Enquanto ha um SUBMITTED, a mensalidade continua PENDING — financeiramente
+    em aberto. "Aguardando analise" no portal e derivado daqui, e nao um
+    status novo da mensalidade.
+    """
+
+    SUBMITTED = "SUBMITTED", "Aguardando análise"
+    APPROVED = "APPROVED", "Aprovado"
+    REJECTED = "REJECTED", "Recusado"
+
+
+class MinisterPaymentProof(models.Model):
+    """
+    Um comprovante enviado pelo ministro para uma mensalidade.
+
+    Cada envio e uma linha nova. Recusado nao e apagado nem sobrescrito: o
+    reenvio cria outro comprovante, e o historico da mensalidade mostra os
+    dois. delete() recusa.
+
+    Um so SUBMITTED por mensalidade — o banco garante com constraint parcial;
+    o servico (ministers.comprovantes) confere antes, com a mensalidade
+    travada.
+
+    O arquivo fica em MEDIA_ROOT com nome aleatorio e so sai por view
+    autenticada. sha256, tamanho e tipo sao calculados no servidor no envio.
+    """
+
+    fee = models.ForeignKey(
+        MinisterMonthlyFee,
+        verbose_name="mensalidade",
+        on_delete=models.PROTECT,
+        related_name="payment_proofs",
+    )
+
+    file = models.FileField(
+        "arquivo",
+        upload_to=caminho_do_comprovante,
+        storage=armazenamento_dos_comprovantes,
+        max_length=200,
+    )
+    original_filename = models.CharField("nome original", max_length=120, blank=True)
+    mime_type = models.CharField("tipo", max_length=30)
+    file_size = models.PositiveIntegerField("tamanho (bytes)")
+    sha256 = models.CharField("SHA-256", max_length=64, db_index=True)
+
+    status = models.CharField(
+        "situação",
+        max_length=10,
+        choices=ProofStatus.choices,
+        default=ProofStatus.SUBMITTED,
+        db_index=True,
+    )
+    submitted_at = models.DateTimeField("enviado em", default=timezone.now)
+
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="analisado por",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    reviewed_at = models.DateTimeField("analisado em", null=True, blank=True)
+    rejection_reason = models.TextField("motivo da recusa", blank=True)
+
+    created_at = models.DateTimeField("criado em", auto_now_add=True)
+    updated_at = models.DateTimeField("atualizado em", auto_now=True)
+
+    class Meta:
+        verbose_name = "comprovante de pagamento"
+        verbose_name_plural = "comprovantes de pagamento"
+        ordering = ["-submitted_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["fee"],
+                condition=Q(status="SUBMITTED"),
+                name="minister_proof_um_em_analise_por_mensalidade",
+                violation_error_message="Esta mensalidade já tem um comprovante aguardando análise.",
+            ),
+            # Aguardando: sem analise. Aprovado: analisado, sem motivo.
+            # Recusado: analisado E com motivo. Uma recusa sem motivo deixaria
+            # o ministro sem saber o que corrigir.
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        status="SUBMITTED",
+                        reviewed_at__isnull=True,
+                        reviewed_by__isnull=True,
+                        rejection_reason="",
+                    )
+                    | Q(status="APPROVED", reviewed_at__isnull=False, rejection_reason="")
+                    | (Q(status="REJECTED", reviewed_at__isnull=False) & ~Q(rejection_reason=""))
+                ),
+                name="minister_proof_analise_coerente",
+            ),
+            models.CheckConstraint(
+                condition=Q(file_size__gt=0, file_size__lte=TAMANHO_MAXIMO_DO_COMPROVANTE),
+                name="minister_proof_tamanho_aceito",
+            ),
+            models.CheckConstraint(
+                condition=Q(mime_type__in=list(EXTENSAO_DO_COMPROVANTE)),
+                name="minister_proof_tipo_aceito",
+            ),
+            models.CheckConstraint(
+                condition=Q(sha256__regex=r"^[0-9a-f]{64}$"),
+                name="minister_proof_sha256_valido",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["status", "submitted_at"], name="minister_proof_fila_idx"),
+        ]
+
+    def __str__(self):
+        return "Comprovante {} ({})".format(self.pk, self.get_status_display())
+
+    def delete(self, *args, **kwargs):
+        raise ValueError(
+            "Comprovante nao e excluido: recusado continua no historico da mensalidade."
+        )
+
+    @property
+    def e_imagem(self):
+        return self.mime_type.startswith("image/")

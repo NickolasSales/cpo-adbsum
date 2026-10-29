@@ -30,5 +30,18 @@ urlpatterns = [
         views.GuiaMinistroView.as_view(),
         name="fee_guide",
     ),
+    # Comprovante (Fase 2E): GET mostra o formulario, POST envia. Os
+    # arquivos ja enviados sao numerados DENTRO da competencia (1, 2...),
+    # na ordem de envio: nao ha id de comprovante na URL do portal.
+    re_path(
+        r"^mensalidades/(?P<ano>[0-9]{4})/(?P<mes>[0-9]{2})/comprovante/$",
+        views.EnviarComprovanteView.as_view(),
+        name="fee_proof",
+    ),
+    re_path(
+        r"^mensalidades/(?P<ano>[0-9]{4})/(?P<mes>[0-9]{2})/comprovantes/(?P<numero>[0-9]{1,3})/$",
+        views.ArquivoDoComprovanteView.as_view(),
+        name="fee_proof_file",
+    ),
     path("alterar-senha/", views.TrocarSenhaMinistroView.as_view(), name="change_password"),
 ]

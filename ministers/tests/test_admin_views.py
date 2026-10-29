@@ -75,9 +75,10 @@ def test_menu_separa_as_areas(admin_client_logado):
     # A legenda e exclusiva de itens futuros, e nao ha nenhum.
     assert "cpo-lateral__legenda" not in html
     assert 'href="/admin-panel/ministros/cadastro/"' in html
-    # Mensalidades existe desde a Fase 2A; o que ainda nao existe nao aparece.
+    # Mensalidades existe desde a Fase 2A e Comprovantes desde a 2E; o que
+    # ainda nao existe nao aparece.
     assert 'href="/admin-panel/ministros/mensalidades/"' in html
-    assert "Comprovantes" not in html
+    assert 'href="/admin-panel/ministros/comprovantes/"' in html
     assert "Relatórios" not in html
 
 

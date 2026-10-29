@@ -107,6 +107,7 @@ Lista de mensalidades. Tabela no desktop, cartoes abaixo de 768px
             <td class="small text-nowrap" data-rotulo="Vencimento">{{ m.due_date|date:"d/m/Y" }}</td>
             <td data-rotulo="Situação">
               {% include "admin_panel/ministers/fees/_situacao.html" %}
+              {% if m.em_analise %}<div class="mt-1"><span class="cpo-badge cpo-badge--info">Comprovante em análise</span></div>{% endif %}
               {% if m.paid_at %}<div class="d-xl-none small text-body-secondary mt-1 text-nowrap">Pago em {{ m.paid_at|date:"d/m/Y" }} &middot; {{ m.get_payment_method_display }}</div>{% endif %}
             </td>
             <td class="d-none d-xl-table-cell small text-nowrap" data-rotulo="Pagamento">
@@ -116,7 +117,9 @@ Lista de mensalidades. Tabela no desktop, cartoes abaixo de 768px
             <td class="text-end cpo-acoes">
               <div class="d-flex gap-1 justify-content-end flex-wrap">
                 <a class="btn btn-sm btn-outline-primary" href="{% url 'admin_panel:minister_fee_detail' m.pk %}">Abrir</a>
-                {% if m.status == "PENDING" %}
+                {% if m.status == "PENDING" and m.em_analise %}
+                  <a class="btn btn-sm btn-outline-primary text-nowrap" href="{% url 'admin_panel:minister_proof_list' %}?situacao=SUBMITTED&amp;q={{ m.minister.conamad_registration|urlencode }}">Comprovante</a>
+                {% elif m.status == "PENDING" %}
                   <a class="btn btn-sm btn-outline-success text-nowrap" href="{% url 'admin_panel:minister_fee_payment' m.pk %}">Registrar pagamento</a>
                 {% endif %}
               </div>

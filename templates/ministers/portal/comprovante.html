@@ -1,0 +1,64 @@
+{% extends "ministers/portal/base.html" %}
+{% load financeiro static %}
+
+{% comment %}
+Envio do comprovante de UMA mensalidade (/ministros/mensalidades/AAAA/MM/comprovante/).
+
+O formulario tem um campo so, o arquivo. Referencia e valor aparecem para o
+ministro conferir, mas nao sao enviados: o servidor resolve a mensalidade
+pela competencia e pelo ministro da sessao.
+
+static/js/enviar-comprovante.js mostra o nome do arquivo escolhido, avisa
+antes de enviar se o formato ou o tamanho nao servem e troca o botao por
+"Enviando..." (sem clique duplo). Sem JavaScript o formulario funciona igual
+— o input nativo continua clicavel pelo rotulo, e o servidor confere tudo.
+{% endcomment %}
+
+{% block title %}Enviar comprovante - Portal do Ministro{% endblock %}
+
+{% block content %}
+<nav aria-label="Trilha" class="mb-3">
+  <a class="small text-decoration-none" href="{{ url_da_cobranca }}">&larr; {{ referencia }}</a>
+</nav>
+
+<div class="cpo-cobranca">
+  <div class="cpo-cartao p-3 p-md-4">
+    <h1 class="h4 mb-3">Enviar comprovante</h1>
+    <dl class="cpo-cobranca__dados small mb-3">
+      <div><dt>Referência</dt><dd>{{ referencia }}</dd></div>
+      <div><dt>Valor</dt><dd class="text-nowrap fw-medium">{{ mensalidade.amount|brl }}</dd></div>
+      <div><dt>Vencimento</dt><dd>{{ mensalidade.due_date|date:"d/m/Y" }}</dd></div>
+    </dl>
+
+    <form method="post" enctype="multipart/form-data" novalidate data-envio-comprovante>
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger py-2 small" role="alert">{% for erro in form.non_field_errors %}{{ erro }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>
+      {% endif %}
+
+      <input type="file" name="{{ form.arquivo.html_name }}" id="{{ form.arquivo.id_for_label }}"
+             class="cpo-envio__arquivo" required
+             accept="{{ aceitos }}" data-limite="{{ limite }}"
+             aria-describedby="ajuda-arquivo{% if form.arquivo.errors %} erro-arquivo{% endif %}">
+      <label for="{{ form.arquivo.id_for_label }}" class="cpo-envio__escolher btn btn-outline-primary btn-lg w-100">
+        <span>Selecionar comprovante</span>
+        <span class="small cpo-envio__nome" data-nome-do-arquivo></span>
+      </label>
+      <p class="small text-body-secondary mt-2 mb-0" id="ajuda-arquivo">PDF, JPG ou PNG. Máximo 5 MB.</p>
+      <p class="small text-danger mt-2 mb-0" id="erro-arquivo" role="alert" data-erro-do-arquivo>{% for erro in form.arquivo.errors %}{{ erro }}{% if not forloop.last %} {% endif %}{% endfor %}</p>
+
+      <button type="submit" class="btn btn-primary btn-lg w-100 mt-3" data-enviar>Enviar comprovante</button>
+    </form>
+
+    <p class="small text-body-secondary mt-3 mb-0">
+      Envie o comprovante do Pix desta mensalidade. A secretaria confere e a
+      situação muda para Pago; se houver algum problema, você verá o motivo
+      aqui e poderá enviar outro.
+    </p>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script src="{% static 'js/enviar-comprovante.js' %}"></script>
+{% endblock %}

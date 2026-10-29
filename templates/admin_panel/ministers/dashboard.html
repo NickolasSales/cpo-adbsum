@@ -35,6 +35,18 @@ acesso ao portal; metricas financeiras entram com as mensalidades.
 </div>
 
 <div class="row g-3 mt-1">
+  <div class="col-12 col-md-6 col-xl-4">
+    <a href="{% url 'admin_panel:minister_proof_list' %}" class="text-decoration-none d-block h-100">
+      <div class="cpo-cartao cpo-indicador cpo-indicador--ativo">
+        <span class="cpo-indicador__rotulo">Comprovantes aguardando análise</span>
+        <span class="cpo-indicador__valor cpo-indicador__valor--real">{{ comprovantes_em_analise }}</span>
+        <span class="cpo-indicador__nota">{% if comprovantes_em_analise %}abrir a fila de conferência{% else %}nenhum na fila{% endif %}</span>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mt-1">
   <div class="col-12 col-lg-6">
     <div class="cpo-cartao p-4 h-100">
       <h2 class="h6 mb-3">Acesso ao portal</h2>
