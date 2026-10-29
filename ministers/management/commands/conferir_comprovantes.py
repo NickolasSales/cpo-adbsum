@@ -17,65 +17,31 @@ sem arquivo, ou SHA diferente — e o que impede a secretaria de abrir o
 comprovante, e faz o comando terminar com erro.
 
 Nao altera nada: nao apaga orfao, nao corrige registro, nao grava auditoria.
-Le os arquivos em blocos; nenhum vai inteiro para a memoria.
+Le os arquivos em blocos; nenhum vai inteiro para a memoria. A conferencia
+completa do Controle de Ministros (banco + arquivos) e conferir_ministros.
 """
 
-import hashlib
-import os
-
-from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from ministers.models import PASTA_DOS_COMPROVANTES, MinisterPaymentProof
+from ministers.conferencia import arquivos_dos_comprovantes
 
 
-def _sha256(caminho):
-    digest = hashlib.sha256()
-    with open(caminho, "rb") as arquivo:
-        for bloco in iter(lambda: arquivo.read(1024 * 1024), b""):
-            digest.update(bloco)
-    return digest.hexdigest()
+def _ids(ids):
+    return " (ids {})".format(", ".join(map(str, ids))) if ids else ""
 
 
 class Command(BaseCommand):
     help = "Confere os comprovantes de pagamento do banco contra os arquivos em MEDIA_ROOT (somente leitura)."
 
     def handle(self, *args, **opcoes):
-        pasta = os.path.join(settings.MEDIA_ROOT, PASTA_DOS_COMPROVANTES)
-        no_banco = set()
-        faltando, divergentes = [], []
-        total = 0
+        r = arquivos_dos_comprovantes()
+        self.stdout.write("Comprovantes no banco: {}".format(r.total))
+        self.stdout.write("Arquivos na pasta: {}".format(r.na_pasta))
+        self.stdout.write("Conferidos (arquivo presente e SHA-256 igual): {}".format(r.conferidos))
+        self.stdout.write("Sem arquivo no disco: {}{}".format(len(r.faltando), _ids(r.faltando)))
+        self.stdout.write("SHA-256 diferente: {}{}".format(len(r.divergentes), _ids(r.divergentes)))
+        self.stdout.write("Arquivos sem registro (orfaos): {}".format(len(r.orfaos)))
 
-        consulta = MinisterPaymentProof.objects.only("id", "file", "sha256").order_by("id")
-        for comprovante in consulta.iterator(chunk_size=200):
-            total += 1
-            no_banco.add(comprovante.file.name)
-            caminho = comprovante.file.path
-            if not os.path.isfile(caminho):
-                faltando.append(comprovante.pk)
-            elif _sha256(caminho) != comprovante.sha256:
-                divergentes.append(comprovante.pk)
-
-        no_disco = set()
-        if os.path.isdir(pasta):
-            for nome in os.listdir(pasta):
-                if os.path.isfile(os.path.join(pasta, nome)):
-                    no_disco.add("{}/{}".format(PASTA_DOS_COMPROVANTES, nome))
-        orfaos = no_disco - no_banco
-
-        self.stdout.write("Comprovantes no banco: {}".format(total))
-        self.stdout.write("Arquivos na pasta: {}".format(len(no_disco)))
-        self.stdout.write("Conferidos (arquivo presente e SHA-256 igual): {}".format(
-            total - len(faltando) - len(divergentes)
-        ))
-        self.stdout.write("Sem arquivo no disco: {}{}".format(
-            len(faltando), " (ids {})".format(", ".join(map(str, faltando))) if faltando else ""
-        ))
-        self.stdout.write("SHA-256 diferente: {}{}".format(
-            len(divergentes), " (ids {})".format(", ".join(map(str, divergentes))) if divergentes else ""
-        ))
-        self.stdout.write("Arquivos sem registro (orfaos): {}".format(len(orfaos)))
-
-        if faltando or divergentes:
+        if r.faltando or r.divergentes:
             raise CommandError("Ha comprovantes sem arquivo ou com arquivo diferente do registrado.")
         self.stdout.write(self.style.SUCCESS("OK: todos os comprovantes do banco estao no disco e conferem."))

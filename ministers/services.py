@@ -387,6 +387,7 @@ def _criar_acesso(
     senha=None,
     hash_pronto=None,
     must_change_password=False,
+    origem=None,
     actor=None,
     request=None,
 ):
@@ -407,7 +408,12 @@ def _criar_acesso(
         actor=actor,
         entity_type="Minister",
         entity_id=ministro.pk,
-        metadata={"senha_padrao": hash_pronto is not None},
+        # `origem` diz por onde o acesso nasceu ("provisionamento", Fase 2F).
+        # Nunca a senha: so se ela era a padrao compartilhada ou nao.
+        metadata=dict(
+            {"senha_padrao": hash_pronto is not None},
+            **({"origem": origem} if origem else {}),
+        ),
     )
     return acesso
 

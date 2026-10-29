@@ -2714,7 +2714,10 @@ tem rede (`PrivateNetwork=true`). Os dois leem de volta o que acabaram de
 escrever antes de considerar o backup pronto: um arquivo truncado por disco
 cheio não acusa erro na escrita, acusa na leitura.
 
-Retenção de 30 dias nos dois. **Continuam no mesmo volume EBS da aplicação** —
+Retenção **diferente** nos dois, como está nos scripts (`RETENCAO_DIAS`):
+**15 dias** para o banco (`cpo-db-backup`) e **30 dias** para media
+(`cpo-media-backup`). Um par banco + media completo, portanto, só existe para
+os últimos 15 dias. **Continuam no mesmo volume EBS da aplicação** —
 isso cobre exclusão acidental e erro administrativo, e não cobre perda do
 disco. Cópia externa segue sendo o próximo passo de verdade.
 
@@ -2840,6 +2843,10 @@ inativar o ministro também derruba a sessão na hora.
   conta levaria cerca de 1 min para 84 ministros, além do timeout do
   Gunicorn; e um salt por conta não protege nada quando a senha é a mesma
   para todas. A troca obrigatória dá a cada conta o seu próprio hash.
+- **Entrada em operação (Fase 2F):** a senha padrão é uma senha
+  compartilhada e **não** é o caminho da liberação real. Os acessos reais são
+  criados por `provisionar_acessos_ministros`, com senha temporária
+  individual e troca obrigatória (seção 9.25).
 
 ### Importação
 
@@ -3439,7 +3446,9 @@ arquivos entram no backup de media que já existia (seção 9.20, "Backup"):
 
 O `.tgz` contém `media/` inteiro — arte dos certificados **e**
 `media/ministers/payment_proofs/`. O log de cada execução informa quantos
-comprovantes foram para o arquivo. Retenção de 30 dias nos dois.
+comprovantes foram para o arquivo. Retenção: **15 dias** para o dump do
+banco e **30 dias** para o `.tgz` de media (valores dos próprios scripts) —
+o par completo existe para os últimos 15 dias.
 
 **O par**: para o dump `cpo_provas_2026-10-29_…`, use o `media_2026-10-29_…`
 da **mesma noite** (gerado ~20 minutos depois). Comprovante nunca é apagado
@@ -3471,6 +3480,147 @@ registro não tem arquivo ou tem arquivo diferente.
 **Limitação, sem mudança**: os dois backups continuam **na mesma EC2/EBS**.
 Cobrem exclusão acidental e erro administrativo; não cobrem a perda da
 máquina ou do disco. Cópia externa precisa de autorização e não foi feita.
+
+---
+
+## 9.25 Liberação do Portal dos Ministros (Fase 2F)
+
+Roteiro de entrada em operação real. Cada passo que grava em produção tem um
+passo **anterior** que só mostra — e entre os dois, uma pessoa decide. A
+liberação em massa **não** é automática: o piloto vem antes, com poucos
+ministros escolhidos pelo responsável.
+
+```
+confirmar Pix → backup → prévia da competência → gerar competência
+     → provisionar acessos (piloto) → entregar credenciais → acompanhar
+     → comprovante → aprovar → só depois decidir a liberação em massa
+```
+
+### 1. Confirmar o Pix
+
+Ministros → Configurações (`/admin-panel/ministros/configuracoes/pagamento/`).
+Tipo, chave, favorecido (até 25 caracteres, como o banco mostra) e cidade (até
+15) são informados e **confirmados pelo responsável** — nada é copiado da guia
+antiga por conta própria. Cada alteração vira
+`MINISTER_BILLING_SETTINGS_UPDATED`, com antes e depois. Antes de liberar,
+alguém abre o QR de uma cobrança no aplicativo do banco e confere favorecido e
+valor **sem pagar**.
+
+### 2. Backup e conferência
+
+```bash
+sudo systemctl start cpo-db-backup.service cpo-media-backup.service
+sudo journalctl -u cpo-db-backup.service -u cpo-media-backup.service -n 20 --no-pager
+cd /srv/cpo-provas && sudo -u cpo .venv/bin/python manage.py conferir_ministros
+```
+
+`conferir_ministros` só lê e termina com erro em qualquer inconsistência:
+mensalidade duplicada na competência, cobrança sem mensalidade, mais de uma
+cobrança vigente, cobrança vigente diferente da mensalidade pendente,
+comprovante sem mensalidade, comprovante em análise de mensalidade que não está
+pendente, login diferente da inscrição, comprovante sem arquivo, SHA-256
+diferente, arquivo sem registro. Nenhuma inconsistência é aceita antes do
+piloto.
+
+### 3. Prévia e geração da competência
+
+Mensalidades → Gerar mensalidades. O formulário pede competência, valor e
+vencimento — **nenhum tem padrão no código**. A prévia mostra quantos serão
+criados, quantos já têm, os inativos ignorados e o total, e não grava nada. Só
+a confirmação gera (Fase 2B): tudo ou nada, idempotente pelo token da prévia;
+rodar de novo não duplica. Com o Pix configurado, as cobranças nascem na mesma
+transação. Isenção é por mensalidade, depois de criada.
+
+Criar as mensalidades de todos os ativos **não** dá acesso ao portal a
+ninguém: o acesso é o passo seguinte, separado.
+
+### 4. Provisionar acessos — senha temporária individual
+
+A importação da Etapa 1 cria acessos com `DEFAULT_MINISTER_PASSWORD`, uma
+senha **compartilhada**. Para entrar em operação, o caminho é o comando:
+
+```bash
+cd /srv/cpo-provas
+# dry-run (padrão): mostra cada ministro e o que aconteceria
+sudo -u cpo .venv/bin/python manage.py provisionar_acessos_ministros \
+    --minister-registration 44303 --minister-registration 132927
+
+# execução: frase exata mostrada no dry-run e arquivo NOVO fora do projeto
+sudo install -d -m 0700 -o cpo -g cpo /var/tmp/cpo-credenciais
+sudo -u cpo .venv/bin/python manage.py provisionar_acessos_ministros \
+    --minister-registration 44303 --minister-registration 132927 \
+    --execute --saida /var/tmp/cpo-credenciais/piloto.csv \
+    --confirmar "PROVISIONAR 2" --autor responsavel@exemplo
+```
+
+- Registro = inscrição CONAMAD ou matrícula do campo; `--arquivo` aceita uma
+  lista (um por linha). **Não existe "todos"**.
+- Senha temporária de 14 caracteres sorteada com `secrets` (maiúsculas,
+  minúsculas, dígitos e especiais, sem caracteres confundíveis), aprovada
+  pelos validadores do Django e pela regra "não contém a inscrição". Não vem
+  de nome, data, inscrição nem de senha padrão. Uma por ministro.
+- No banco só o hash. Na trilha, `MINISTER_ACCOUNT_CREATED` com
+  `{"senha_padrao": false, "origem": "provisionamento"}` — nunca a senha.
+- `must_change_password=True`: o primeiro login leva direto à troca de senha;
+  nenhuma outra tela do portal abre antes. A troca gira a sessão.
+- Quem já tem acesso é **pulado** — o comando nunca redefine senha.
+  Inativo também é pulado. Registro inexistente ou ambíguo bloqueia a
+  execução inteira.
+- As senhas existem **só** no arquivo de `--saida`: criado na hora com `0600`
+  (recusa arquivo existente e caminhos dentro do projeto, de `media` ou de
+  `static`), escrito dentro da transação — se a gravação falhar, nenhum acesso
+  fica criado.
+
+### 5. Entregar as credenciais e apagar o arquivo
+
+Cada ministro recebe login (inscrição CONAMAD) e senha temporária por um canal
+individual. Depois:
+
+```bash
+sudo shred -u /var/tmp/cpo-credenciais/piloto.csv
+```
+
+O arquivo não fica no servidor, não vai para o Git, não é anexado em grupo.
+
+### 6. Acompanhar e aprovar
+
+Ministros → Comprovantes: a fila abre nos aguardando análise, do mais antigo.
+Abrir, conferir o comprovante contra a cobrança (valor, favorecido, data) e
+aprovar informando a data do pagamento — ou recusar com motivo (seção 9.24).
+Nenhum pagamento é marcado como pago sem comprovante real.
+
+### 7. Bloquear ou redefinir um acesso
+
+- **Bloquear**: ficha do ministro → Bloquear acesso. A sessão aberta cai no
+  request seguinte.
+- **Redefinir senha**: ficha do ministro → Resetar senha. O administrador
+  define a senha nova e a entrega; as sessões abertas caem. Hoje essa tela
+  **não** marca troca obrigatória: oriente o ministro a trocar em "Alterar
+  senha".
+
+### Incidente: Pix configurado errado
+
+1. Configurações → desmarcar **cobrança por Pix ativa**. Nenhuma cobrança nova
+   nasce; o que já foi emitido continua no portal.
+2. **Não** alterar o banco à mão. As cobranças são snapshots imutáveis — é o
+   que permite saber exatamente o que cada ministro viu.
+3. Avaliar o que saiu: Mensalidades → Cobranças mostra quantas existem; a fila
+   de comprovantes mostra quem já pagou. Quem pagou para a chave errada é
+   tratado caso a caso pela secretaria.
+4. Corrigir e salvar a configuração; reativar. Vale para as cobranças novas.
+5. As já emitidas só são substituídas quando o valor ou o vencimento da
+   mensalidade muda (Fase 2D). **Não existe hoje** uma ação "reemitir por
+   correção de configuração": se for preciso, é uma funcionalidade nova, com
+   regra de negócio decidida antes — não um ajuste manual.
+
+### Segurança do login (já existente, revisado nesta fase)
+
+- Limite de tentativas: 5 falhas por inscrição e 30 por IP em 15 minutos,
+  contadas na própria trilha (sem Redis).
+- Mensagem única para inscrição inexistente, senha errada, acesso bloqueado e
+  ministro inativo; o motivo real fica só na trilha.
+- Sessão nova no login; `cycle_key` na troca de senha; bloqueio, inativação
+  e troca de senha derrubam sessões abertas.
 
 ---
 
